@@ -1,0 +1,8 @@
+mcp-servers
+node_modules
+venv
+*.pyc
+__pycache__
+dist
+build
+.env

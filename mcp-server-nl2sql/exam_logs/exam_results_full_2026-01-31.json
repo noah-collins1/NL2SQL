@@ -1,0 +1,1292 @@
+{
+  "summary": {
+    "total": 60,
+    "success_rate": "53.3",
+    "by_difficulty": {
+      "easy": {
+        "pass": 18,
+        "fail": 2
+      },
+      "medium": {
+        "pass": 10,
+        "fail": 15
+      },
+      "hard": {
+        "pass": 4,
+        "fail": 11
+      }
+    },
+    "by_module": {
+      "HR": {
+        "pass": 6,
+        "fail": 8
+      },
+      "Sales": {
+        "pass": 7,
+        "fail": 4
+      },
+      "Inventory": {
+        "pass": 5,
+        "fail": 3
+      },
+      "Procurement": {
+        "pass": 1,
+        "fail": 4
+      },
+      "Finance": {
+        "pass": 3,
+        "fail": 5
+      },
+      "Projects": {
+        "pass": 3,
+        "fail": 3
+      },
+      "Assets": {
+        "pass": 5,
+        "fail": 0
+      },
+      "Common": {
+        "pass": 2,
+        "fail": 0
+      },
+      "Cross-Module": {
+        "pass": 0,
+        "fail": 1
+      }
+    },
+    "failure_counts": {
+      "retrieval_miss": 0,
+      "join_path_miss": 1,
+      "column_miss": 16,
+      "value_miss": 0,
+      "llm_reasoning": 7,
+      "execution_error": 4,
+      "success": 32
+    }
+  },
+  "results": [
+    {
+      "id": 1,
+      "difficulty": "easy",
+      "module": "HR",
+      "question": "List all employees in the Sales department",
+      "tables_needed": [
+        "employees",
+        "departments"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT e.employee_id, e.first_name, e.last_name FROM employees e JOIN departments d ON e.department_id = d.department_id WHERE d.name = 'Sales' LIMIT 1000;",
+      "success": true,
+      "latency_ms": 4392,
+      "retrieval_miss": [
+        "employees",
+        "departments"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 2,
+      "difficulty": "easy",
+      "module": "HR",
+      "question": "How many employees were hired in 2024?",
+      "tables_needed": [
+        "employees"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT COUNT(*) FROM employees WHERE YEAR(hire_date) = 2024 LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: function year(date) does not exist",
+      "sqlstate": "42883",
+      "latency_ms": 1332,
+      "retrieval_miss": [
+        "employees"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 3,
+      "difficulty": "easy",
+      "module": "HR",
+      "question": "What is the average salary by department?",
+      "tables_needed": [
+        "employees",
+        "departments"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT d.name AS department_name, AVG(e.salary) AS avg_salary FROM employees e JOIN departments d ON e.department_id = d.department_id GROUP BY d.name LIMIT 1000;",
+      "success": true,
+      "latency_ms": 816,
+      "retrieval_miss": [
+        "employees",
+        "departments"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 4,
+      "difficulty": "easy",
+      "module": "Sales",
+      "question": "List all customers with credit limit over $100,000",
+      "tables_needed": [
+        "customers"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT c.* FROM customers c WHERE c.credit_limit > 100000;",
+      "success": true,
+      "latency_ms": 502,
+      "retrieval_miss": [
+        "customers"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 5,
+      "difficulty": "easy",
+      "module": "Sales",
+      "question": "How many sales orders are in pending status?",
+      "tables_needed": [
+        "sales_orders"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT COUNT(*) FROM sales_orders WHERE status = 'pending' LIMIT 1000;",
+      "success": true,
+      "latency_ms": 352,
+      "retrieval_miss": [
+        "sales_orders"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 6,
+      "difficulty": "easy",
+      "module": "Inventory",
+      "question": "List all products in the Electronics category",
+      "tables_needed": [
+        "products",
+        "product_categories"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT p.sku AS product_sku, p.name AS product_name FROM products p JOIN product_categories pc ON p.category_id = pc.category_id WHERE pc.name = 'Electronics' LIMIT 1000;",
+      "success": true,
+      "latency_ms": 702,
+      "retrieval_miss": [
+        "products",
+        "product_categories"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 7,
+      "difficulty": "easy",
+      "module": "Inventory",
+      "question": "What are the names of all warehouses?",
+      "tables_needed": [
+        "warehouses"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT w.name FROM warehouses AS w LIMIT 1000;",
+      "success": true,
+      "latency_ms": 286,
+      "retrieval_miss": [
+        "warehouses"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 8,
+      "difficulty": "easy",
+      "module": "Procurement",
+      "question": "List all active vendors",
+      "tables_needed": [
+        "vendors"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT v.vendor_id, v.vendor_number, v.name, v.email, v.phone, v.website, v.address_id, v.payment_terms, v.currency_id, v.tax_id, v.is_active FROM vendors v WHERE v.is_active = 't' LIMIT 1000;",
+      "success": true,
+      "latency_ms": 1457,
+      "retrieval_miss": [
+        "vendors"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 9,
+      "difficulty": "easy",
+      "module": "Finance",
+      "question": "What are the different account types in the chart of accounts?",
+      "tables_needed": [
+        "account_types"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT at.name AS account_type, cta.category_id, cta.depreciation_method, cta.useful_life_years, cta.salvage_value_percent FROM public.account_types at JOIN public.chart_of_accounts cta ON at.account_type_id = cta.account_type_id LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: column at.account_type_id does not exist",
+      "sqlstate": "42703",
+      "latency_ms": 2528,
+      "retrieval_miss": [
+        "account_types"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 10,
+      "difficulty": "easy",
+      "module": "Finance",
+      "question": "List all bank accounts and their current balances",
+      "tables_needed": [
+        "bank_accounts"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT b.account_number AS \"Account Number\", b.current_balance AS \"Current Balance\" FROM bank_accounts b LIMIT 1000;",
+      "success": true,
+      "latency_ms": 509,
+      "retrieval_miss": [
+        "bank_accounts"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 11,
+      "difficulty": "easy",
+      "module": "Projects",
+      "question": "How many projects are currently active?",
+      "tables_needed": [
+        "projects"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT COUNT(*) FROM public.projects WHERE status = 'active' LIMIT 1000;",
+      "success": true,
+      "latency_ms": 310,
+      "retrieval_miss": [
+        "projects"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 12,
+      "difficulty": "easy",
+      "module": "Assets",
+      "question": "List all fixed assets with their purchase cost",
+      "tables_needed": [
+        "fixed_assets"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT fa.asset_tag AS \"Asset Tag\", fa.name AS \"Name\", fa.description AS \"Description\", fa.purchase_cost AS \"Purchase Cost\" FROM fixed_assets fa LIMIT 1000;",
+      "success": true,
+      "latency_ms": 733,
+      "retrieval_miss": [
+        "fixed_assets"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 13,
+      "difficulty": "easy",
+      "module": "HR",
+      "question": "What are all the available leave types?",
+      "tables_needed": [
+        "leave_types"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT lt.name FROM leave_types AS lt LIMIT 1000;",
+      "success": true,
+      "latency_ms": 303,
+      "retrieval_miss": [
+        "leave_types"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 14,
+      "difficulty": "easy",
+      "module": "HR",
+      "question": "List all training courses that are mandatory",
+      "tables_needed": [
+        "training_courses"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT tc.* FROM training_courses AS tc WHERE tc.is_mandatory = TRUE LIMIT 1000;",
+      "success": true,
+      "latency_ms": 414,
+      "retrieval_miss": [
+        "training_courses"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 15,
+      "difficulty": "easy",
+      "module": "Sales",
+      "question": "What are the different opportunity stages?",
+      "tables_needed": [
+        "opportunity_stages"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT os.name FROM public.opportunity_stages AS os JOIN public.sales_opportunities AS so ON os.stage_id = so.stage_id LIMIT 1000;",
+      "success": true,
+      "latency_ms": 1270,
+      "retrieval_miss": [
+        "opportunity_stages"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 16,
+      "difficulty": "easy",
+      "module": "Common",
+      "question": "List all countries in the system",
+      "tables_needed": [
+        "countries"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT c.name AS country_name FROM countries c LIMIT 1000;",
+      "success": true,
+      "latency_ms": 597,
+      "retrieval_miss": [
+        "countries"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 17,
+      "difficulty": "easy",
+      "module": "HR",
+      "question": "How many departments are there?",
+      "tables_needed": [
+        "departments"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT COUNT(*) FROM departments LIMIT 1000;",
+      "success": true,
+      "latency_ms": 587,
+      "retrieval_miss": [
+        "departments"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 18,
+      "difficulty": "easy",
+      "module": "Inventory",
+      "question": "List all units of measure",
+      "tables_needed": [
+        "units_of_measure"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT uom_id AS unit_measure_id, name AS unit_measure_name FROM public.units_of_measure LIMIT 1000;",
+      "success": true,
+      "latency_ms": 544,
+      "retrieval_miss": [
+        "units_of_measure"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 19,
+      "difficulty": "easy",
+      "module": "Finance",
+      "question": "What fiscal years exist in the system?",
+      "tables_needed": [
+        "fiscal_years"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT DISTINCT fy.year FROM fiscal_years AS fy LIMIT 1000;",
+      "success": true,
+      "latency_ms": 379,
+      "retrieval_miss": [
+        "fiscal_years"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 20,
+      "difficulty": "easy",
+      "module": "Assets",
+      "question": "What are the different asset categories?",
+      "tables_needed": [
+        "asset_categories"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT DISTINCT category_id FROM fixed_assets LIMIT 1000;",
+      "success": true,
+      "latency_ms": 301,
+      "retrieval_miss": [
+        "asset_categories"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 21,
+      "difficulty": "medium",
+      "module": "HR",
+      "question": "Find employees who have been with the company for more than 5 years and earn above $100,000",
+      "tables_needed": [
+        "employees"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT e.employee_id, CONCAT(e.first_name, ' ', e.last_name) AS full_name, e.salary, EXTRACT(YEAR FROM AGE(CURRENT_DATE, hire_date)) AS years_with_company FROM employees e JOIN employee_salaries s ON e.employee_id = s.employee_id WHERE e.salary > 100000 AND EXTRACT(YEAR FROM AGE(hire_date, CURRENT_DATE)) > 5;",
+      "success": false,
+      "error_type": "validation",
+      "error_message": "Failed to generate valid SQL after 3 attempts",
+      "latency_ms": 4487,
+      "retrieval_miss": [
+        "employees"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 22,
+      "difficulty": "medium",
+      "module": "HR",
+      "question": "List employees and their managers' names",
+      "tables_needed": [
+        "employees"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT e.employee_id AS emp_id, d.name AS manager_name FROM employees e JOIN departments d ON e.department_id = d.unit_id WHERE d.manager_id IS NULL LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: column d.unit_id does not exist",
+      "sqlstate": "42703",
+      "latency_ms": 2647,
+      "retrieval_miss": [
+        "employees"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 23,
+      "difficulty": "medium",
+      "module": "HR",
+      "question": "Which employees have pending leave requests?",
+      "tables_needed": [
+        "employees",
+        "leave_requests"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT DISTINCT e.employee_id, e.first_name, e.last_name FROM employees e JOIN leave_requests lr ON e.employee_id = lr.employee_id WHERE lr.status = 'pending' AND lr.is_paid = TRUE LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: column lr.is_paid does not exist",
+      "sqlstate": "42703",
+      "latency_ms": 3130,
+      "retrieval_miss": [
+        "employees",
+        "leave_requests"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 24,
+      "difficulty": "medium",
+      "module": "HR",
+      "question": "Show the number of employees per position title",
+      "tables_needed": [
+        "employees",
+        "positions"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT p.title AS PositionTitle, COUNT(e.employee_id) AS EmployeeCount FROM positions p JOIN employees e ON p.position_id = e.position_id GROUP BY p.title LIMIT 1000;",
+      "success": true,
+      "latency_ms": 707,
+      "retrieval_miss": [
+        "employees",
+        "positions"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 25,
+      "difficulty": "medium",
+      "module": "HR",
+      "question": "Find employees with expiring certifications in the next 6 months",
+      "tables_needed": [
+        "employees",
+        "employee_certifications",
+        "certifications"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT e.employee_id, ec.certification_name, ec.expiry_date FROM employees e JOIN employee_certifications ec ON e.employee_id = ec.employee_id WHERE ec.status = 'active' AND ec.expiry_date BETWEEN CURRENT_DATE AND (CURRENT_DATE + INTERVAL '6 months') ORDER BY ec.expiry_date ASC LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: column ec.certification_name does not exist",
+      "sqlstate": "42703",
+      "latency_ms": 3774,
+      "retrieval_miss": [
+        "employees",
+        "employee_certifications",
+        "certifications"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 26,
+      "difficulty": "medium",
+      "module": "Sales",
+      "question": "What is the total sales amount by customer for 2024?",
+      "tables_needed": [
+        "customers",
+        "sales_orders"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT customers.customer_id AS customer_id, SUM(order_lines.line_total) AS total_sales FROM sales_orders JOIN customers ON sales_orders.customer_id = customers.customer_id AND YEAR(sales_orders.ship_date) = 2024 GROUP BY customers.customer_id LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: function year(date) does not exist",
+      "sqlstate": "42883",
+      "latency_ms": 2710,
+      "retrieval_miss": [
+        "customers",
+        "sales_orders"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 27,
+      "difficulty": "medium",
+      "module": "Sales",
+      "question": "List the top 10 customers by total order value",
+      "tables_needed": [
+        "customers",
+        "sales_orders"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT c.customer_id AS customer_id, c.name AS name, SUM(o.total) AS total_order_value FROM customers c JOIN sales_orders o ON c.customer_id = o.customer_id GROUP BY c.customer_id ORDER BY total_order_value DESC LIMIT 10;",
+      "success": true,
+      "latency_ms": 1149,
+      "retrieval_miss": [
+        "customers",
+        "sales_orders"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 28,
+      "difficulty": "medium",
+      "module": "Sales",
+      "question": "Show sales opportunities in the Negotiation stage worth over $50,000",
+      "tables_needed": [
+        "sales_opportunities",
+        "opportunity_stages",
+        "customers"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT so.* FROM sales_opportunities so JOIN opportunity_stages os ON so.stage_id = os.stage_id WHERE os.name = 'Negotiation' AND so.amount > 50000 LIMIT 1000;",
+      "success": true,
+      "latency_ms": 1681,
+      "retrieval_miss": [
+        "sales_opportunities",
+        "opportunity_stages",
+        "customers"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 29,
+      "difficulty": "medium",
+      "module": "Sales",
+      "question": "What is the conversion rate from quotes to orders?",
+      "tables_needed": [
+        "sales_quotes",
+        "sales_orders"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT s.quote_id, COUNT(s.order_id) AS order_count FROM sales_orders s JOIN quote_lines ql ON s.quote_id = ql.quote_id GROUP BY s.quote_id LIMIT 1000;",
+      "success": true,
+      "latency_ms": 854,
+      "retrieval_miss": [
+        "sales_quotes",
+        "sales_orders"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 30,
+      "difficulty": "medium",
+      "module": "Sales",
+      "question": "List sales orders by sales representative with their totals",
+      "tables_needed": [
+        "sales_orders",
+        "employees"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT sr.name AS SalesRepName, SUM(sales_orders.total) AS TotalSales FROM sales_territories st JOIN employees e ON st.assigned_rep_id = e.employee_id JOIN sales_opportunities so ON e.employee_id = so.owner_id JOIN sales_orders so2 ON so2.sales_rep_id = sr.employee_id GROUP BY sr.name;",
+      "success": false,
+      "error_type": "validation",
+      "error_message": "Failed to generate valid SQL after 3 attempts",
+      "latency_ms": 3221,
+      "retrieval_miss": [
+        "sales_orders",
+        "employees"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 31,
+      "difficulty": "medium",
+      "module": "Inventory",
+      "question": "Which products have inventory below their reorder point?",
+      "tables_needed": [
+        "products",
+        "inventory_levels",
+        "reorder_rules"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT p.product_id, p.name FROM products p JOIN product_suppliers ps ON p.product_id = ps.product_id JOIN warehouse_locations wl ON p.warehouse_id = wl.warehouse_id JOIN reorder_rules rr ON p.product_id = rr.product_id WHERE (p.quantity_available < rr.min_quantity) AND ps.is_preferred = TRUE LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: column p.warehouse_id does not exist",
+      "sqlstate": "42703",
+      "latency_ms": 4533,
+      "retrieval_miss": [
+        "products",
+        "inventory_levels",
+        "reorder_rules"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 32,
+      "difficulty": "medium",
+      "module": "Inventory",
+      "question": "Show total inventory value by warehouse",
+      "tables_needed": [
+        "inventory_levels",
+        "products",
+        "warehouses"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT wl.warehouse_id, SUM(il.quantity * il.purchase_cost) AS total_inventory_value FROM inventory_levels il JOIN warehouse_locations wl ON il.location_id = wl.location_id GROUP BY wl.warehouse_id LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: column il.quantity does not exist",
+      "sqlstate": "42703",
+      "latency_ms": 3225,
+      "retrieval_miss": [
+        "inventory_levels",
+        "products",
+        "warehouses"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 33,
+      "difficulty": "medium",
+      "module": "Inventory",
+      "question": "List products that had stock transfers in the last 30 days",
+      "tables_needed": [
+        "products",
+        "stock_transfers",
+        "transfer_lines"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT p.* FROM products p INNER JOIN transfer_lines tl ON p.product_id = tl.product_id INNER JOIN stock_transfers st ON tl.transfer_id = st.transfer_id WHERE st.transfer_date >= CURRENT_DATE - INTERVAL '30 days' LIMIT 1000;",
+      "success": true,
+      "latency_ms": 1105,
+      "retrieval_miss": [
+        "products",
+        "stock_transfers",
+        "transfer_lines"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 34,
+      "difficulty": "medium",
+      "module": "Procurement",
+      "question": "What is the total spend by vendor this year?",
+      "tables_needed": [
+        "vendors",
+        "purchase_orders"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT SUM(p.amount) AS total_spend FROM public.vendor_invoices v INNER JOIN public.product_suppliers p ON v.po_id = p.product_id WHERE EXTRACT(YEAR FROM v.invoice_date) = EXTRACT(YEAR FROM CURRENT_DATE);",
+      "success": false,
+      "error_type": "validation",
+      "error_message": "Failed to generate valid SQL after 3 attempts",
+      "latency_ms": 4323,
+      "retrieval_miss": [
+        "vendors",
+        "purchase_orders"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 35,
+      "difficulty": "medium",
+      "module": "Procurement",
+      "question": "List purchase orders that are overdue (expected date passed but not received)",
+      "tables_needed": [
+        "purchase_orders",
+        "vendors"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT p.po_id AS order_id, p.order_date, s.required_date, DATEDIFF(s.required_date, p.order_date) AS days_overdue FROM sales_orders p JOIN sales_opportunities s ON p.po_id = s.opportunity_id WHERE p.status = 'Open' AND s.actual_close_date IS NULL LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: column p.po_id does not exist",
+      "sqlstate": "42703",
+      "latency_ms": 3605,
+      "retrieval_miss": [
+        "purchase_orders",
+        "vendors"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 36,
+      "difficulty": "medium",
+      "module": "Procurement",
+      "question": "Show the approval rate for purchase requisitions",
+      "tables_needed": [
+        "purchase_requisitions"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT COUNT(purchase_requisitions.id) AS total_requisitions, SUM(CASE WHEN purchase_orders.status = 'Approved' THEN 1 ELSE 0 END) AS approved_requisitions FROM purchase_requisitions JOIN purchase_orders ON purchase_requisitions.po_id = purchase_orders.po_id LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: column purchase_requisitions.po_id does not exist",
+      "sqlstate": "42703",
+      "latency_ms": 3855,
+      "retrieval_miss": [
+        "purchase_requisitions"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 37,
+      "difficulty": "medium",
+      "module": "Finance",
+      "question": "What is the total debit and credit for each account in the current period?",
+      "tables_needed": [
+        "chart_of_accounts",
+        "journal_lines",
+        "journal_entries",
+        "fiscal_periods"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT ca.name AS account_name, SUM(jl.debit) AS total_debit, SUM(jl.credit) AS total_credit FROM chart_of_accounts ca JOIN journal_lines jl ON ca.account_id = jl.account_id WHERE ca.is_active AND jl.transaction_date BETWEEN (SELECT start_date FROM fiscal_periods WHERE period_id = 1) AND (SELECT end_date FROM fiscal_periods WHERE period_id = 1) GROUP BY ca.name LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: column jl.transaction_date does not exist",
+      "sqlstate": "42703",
+      "latency_ms": 4581,
+      "retrieval_miss": [
+        "chart_of_accounts",
+        "journal_lines",
+        "journal_entries",
+        "fiscal_periods"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 38,
+      "difficulty": "medium",
+      "module": "Finance",
+      "question": "List all posted journal entries for the current month",
+      "tables_needed": [
+        "journal_entries",
+        "fiscal_periods"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT j.entry_id AS entry_id, j.entry_number AS entry_number, j.description AS description, j.status AS status, j.posted_at AS posted_at FROM journal_entries j JOIN fiscal_periods f ON j.period_id = f.period_id WHERE EXTRACT(MONTH FROM f.start_date) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(YEAR FROM f.start_date) = EXTRACT(YEAR FROM CURRENT_DATE);",
+      "success": false,
+      "error_type": "validation",
+      "error_message": "Failed to generate valid SQL after 3 attempts",
+      "latency_ms": 4856,
+      "retrieval_miss": [
+        "journal_entries",
+        "fiscal_periods"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 39,
+      "difficulty": "medium",
+      "module": "Finance",
+      "question": "Show budget vs actual spending by department",
+      "tables_needed": [
+        "budgets",
+        "departments",
+        "budget_lines"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT d.name AS department_name, SUM(b.amount) AS total_budget, SUM(be.actual_amount) AS total_actual_spending FROM budgets b JOIN departments d ON b.department_id = d.department_id LEFT JOIN project_budgets pb ON b.budget_id = pb.budget_id LEFT JOIN budget_lines bl ON pb.project_id = bl.project_id AND pb.period_id = bl.period_id LEFT JOIN project_expenses be ON d.department_id = be.employee_id GROUP BY d.name, b.amount, be.actual_amount LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: column bl.project_id does not exist",
+      "sqlstate": "42703",
+      "latency_ms": 5019,
+      "retrieval_miss": [
+        "budgets",
+        "departments",
+        "budget_lines"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 40,
+      "difficulty": "medium",
+      "module": "Projects",
+      "question": "What is the total expense amount per project?",
+      "tables_needed": [
+        "projects",
+        "project_expenses"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT p.project_id AS ProjectID, SUM(pe.amount) AS TotalExpenses FROM projects p JOIN project_expenses pe ON p.project_id = pe.project_id GROUP BY p.project_id LIMIT 1000;",
+      "success": true,
+      "latency_ms": 758,
+      "retrieval_miss": [
+        "projects",
+        "project_expenses"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 41,
+      "difficulty": "medium",
+      "module": "Projects",
+      "question": "List projects that are over budget",
+      "tables_needed": [
+        "projects",
+        "project_budgets"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT p.* FROM projects p JOIN budgets b ON p.project_id = b.budget_id WHERE p.actual_end_date IS NOT NULL AND (p.actual_end_date - p.start_date) > 0 AND p.status = 'Completed' AND p.budget < p.actual_amount LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: column p.actual_amount does not exist",
+      "sqlstate": "42703",
+      "latency_ms": 3157,
+      "retrieval_miss": [
+        "projects",
+        "project_budgets"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 42,
+      "difficulty": "medium",
+      "module": "Projects",
+      "question": "Show project resources and their allocation percentages",
+      "tables_needed": [
+        "projects",
+        "project_resources",
+        "employees"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT pr.project_id AS project_id, pr.role AS role, pr.allocation_percent AS allocation_percent FROM public.project_resources pr LIMIT 1000;",
+      "success": true,
+      "latency_ms": 2203,
+      "retrieval_miss": [
+        "projects",
+        "project_resources",
+        "employees"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 43,
+      "difficulty": "medium",
+      "module": "Assets",
+      "question": "List fixed assets by category with their total purchase cost",
+      "tables_needed": [
+        "fixed_assets",
+        "asset_categories"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT fa.category_id, SUM(fa.purchase_cost) AS total_purchase_cost FROM fixed_assets fa GROUP BY fa.category_id LIMIT 1000;",
+      "success": true,
+      "latency_ms": 2458,
+      "retrieval_miss": [
+        "fixed_assets",
+        "asset_categories"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 44,
+      "difficulty": "medium",
+      "module": "Assets",
+      "question": "List assets due for maintenance in the next 30 days",
+      "tables_needed": [
+        "fixed_assets",
+        "asset_maintenance"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT af.asset_id, af.name, af.description, am.maintenance_type_id, am.scheduled_date, am.completed_date, am.cost, am.notes, am.status FROM fixed_assets af INNER JOIN asset_maintenance am ON af.asset_id = am.asset_id WHERE am.completed_date IS NULL AND am.scheduled_date <= CURRENT_DATE + INTERVAL '30 days' ORDER BY am.scheduled_date LIMIT 1000;",
+      "success": true,
+      "latency_ms": 1651,
+      "retrieval_miss": [
+        "fixed_assets",
+        "asset_maintenance"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 45,
+      "difficulty": "medium",
+      "module": "Common",
+      "question": "How many documents are attached to each entity type?",
+      "tables_needed": [
+        "document_attachments"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT d.entity_type, COUNT(*) AS num_documents FROM document_attachments d GROUP BY d.entity_type LIMIT 1000;",
+      "success": true,
+      "latency_ms": 1201,
+      "retrieval_miss": [
+        "document_attachments"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 46,
+      "difficulty": "hard",
+      "module": "HR",
+      "question": "Calculate employee turnover rate by department for 2024",
+      "tables_needed": [
+        "employees",
+        "departments"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "",
+      "success": false,
+      "error_type": "generation",
+      "error_message": "Model generated invalid output (gibberish detected)",
+      "latency_ms": 2749,
+      "retrieval_miss": [
+        "employees",
+        "departments"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 47,
+      "difficulty": "hard",
+      "module": "HR",
+      "question": "Find the salary percentile ranking for each employee within their department",
+      "tables_needed": [
+        "employees",
+        "departments"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "",
+      "success": false,
+      "error_type": "generation",
+      "error_message": "Model did not generate SELECT statement",
+      "latency_ms": 7089,
+      "retrieval_miss": [
+        "employees",
+        "departments"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 48,
+      "difficulty": "hard",
+      "module": "HR",
+      "question": "Identify employees who have not completed mandatory training",
+      "tables_needed": [
+        "employees",
+        "employee_training",
+        "training_courses"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT e.employee_id, e.first_name, e.last_name FROM employees e LEFT JOIN employee_training et ON e.employee_id = et.employee_id WHERE et.course_id IS NULL AND et.is_active = 'true' LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: column et.is_active does not exist",
+      "sqlstate": "42703",
+      "latency_ms": 2633,
+      "retrieval_miss": [
+        "employees",
+        "employee_training",
+        "training_courses"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 49,
+      "difficulty": "hard",
+      "module": "Sales",
+      "question": "Calculate month-over-month sales growth rate for the past 12 months",
+      "tables_needed": [
+        "sales_orders"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "",
+      "success": false,
+      "error_type": "generation",
+      "error_message": "Model generated invalid output (gibberish detected)",
+      "latency_ms": 2412,
+      "retrieval_miss": [
+        "sales_orders"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 50,
+      "difficulty": "hard",
+      "module": "Sales",
+      "question": "Find the average order value and order frequency for each customer segment based on credit limit",
+      "tables_needed": [
+        "customers",
+        "sales_orders"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT c.name AS customer_segment, AVG(o.total) AS avg_order_value, COUNT(*) / 365 AS order_frequency FROM customers c JOIN sales_orders o ON c.customer_id = o.customer_id GROUP BY c.name LIMIT 1000;",
+      "success": true,
+      "latency_ms": 1081,
+      "retrieval_miss": [
+        "customers",
+        "sales_orders"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 51,
+      "difficulty": "hard",
+      "module": "Sales",
+      "question": "What is the sales pipeline weighted value by stage and expected close month?",
+      "tables_needed": [
+        "sales_opportunities",
+        "opportunity_stages"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT s.stage_name AS stage, SUM(p.subtotal * o.probability / 100) OVER (PARTITION BY p.stage_id ORDER BY DATE_TRUNC('month', s.expected_close_date)) AS weighted_value FROM sales_opportunities s JOIN opportunity_stages o ON s.stage_id = o.stage_id JOIN sales_orders p ON s.sales_order_id = p.sales_order_id JOIN products pr ON o.product_id = pr.product_id JOIN vendor_invoice_lines vll ON p.purchase_order_number = vll.vendor_invoice_number LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: column s.sales_order_id does not exist",
+      "sqlstate": "42703",
+      "latency_ms": 6417,
+      "retrieval_miss": [
+        "sales_opportunities",
+        "opportunity_stages"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 52,
+      "difficulty": "hard",
+      "module": "Inventory",
+      "question": "Calculate inventory turnover ratio by product category",
+      "tables_needed": [
+        "products",
+        "product_categories",
+        "inventory_levels",
+        "order_lines",
+        "sales_orders"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT pc.name AS product_category, SUM(it.quantity) / AVG(p.unit_cost * p.list_price) AS inventory_turnover_ratio FROM products p INNER JOIN inventory_transactions it ON p.product_id = it.product_id INNER JOIN product_categories pc ON p.category_id = pc.category_id GROUP BY pc.name LIMIT 1000;",
+      "success": true,
+      "latency_ms": 1306,
+      "retrieval_miss": [
+        "products",
+        "product_categories",
+        "inventory_levels",
+        "order_lines",
+        "sales_orders"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 53,
+      "difficulty": "hard",
+      "module": "Inventory",
+      "question": "Identify products with significant inventory discrepancies (adjustment > 10% of stock)",
+      "tables_needed": [
+        "products",
+        "inventory_adjustments",
+        "adjustment_lines",
+        "inventory_levels"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT p.product_id, p.name, i.quantity_on_hand, i.quantity_reserved, i.quantity_available, a.adjustment_number, a.reason FROM products p JOIN inventory_levels i ON p.product_id = i.product_id JOIN inventory_adjustments a ON p.product_id = a.product_id WHERE (i.quantity_on_hand + i.quantity_reserved) * 0.1 > a.quantity_change LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: column a.product_id does not exist",
+      "sqlstate": "42703",
+      "latency_ms": 5123,
+      "retrieval_miss": [
+        "products",
+        "inventory_adjustments",
+        "adjustment_lines",
+        "inventory_levels"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 54,
+      "difficulty": "hard",
+      "module": "Procurement",
+      "question": "Calculate vendor performance score based on on-time delivery and invoice accuracy",
+      "tables_needed": [
+        "vendors",
+        "purchase_orders",
+        "goods_receipts",
+        "vendor_invoices"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT v.vendor_id AS vendor_id, pv.invoice_number AS invoice_number, COUNT(pv.po_line_id) AS total_lines, AVG(DATEDIFF(sales_orders.order_date, purchase_orders.due_date)) AS avg_days_late, SUM(CASE WHEN DATEDIFF(sales_orders.order_date, purchase_orders.due_date) <= 0 THEN 1 ELSE 0 END) / COUNT(pv.po_line_id) * 100 AS on_time_delivery_percentage FROM vendors v JOIN product_suppliers ps ON v.vendor_id = ps.vendor_id JOIN vendor_contacts vc ON v.vendor_id = vc.vendor_id JOIN purchase_orders po ON ps.product_id = po.product_id AND v.vendor_id LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: column po.product_id does not exist",
+      "sqlstate": "42703",
+      "latency_ms": 8094,
+      "retrieval_miss": [
+        "vendors",
+        "purchase_orders",
+        "goods_receipts",
+        "vendor_invoices"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 55,
+      "difficulty": "hard",
+      "module": "Finance",
+      "question": "Generate a trial balance for the current period showing debits and credits by account category",
+      "tables_needed": [
+        "chart_of_accounts",
+        "account_types",
+        "journal_lines",
+        "journal_entries",
+        "fiscal_periods"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT ft.name AS \"Category\", SUM(ft.purchase_cost) AS \"Debit\", 0 AS \"Credit\" FROM fixed_assets ft GROUP BY ft.name LIMIT 1000;",
+      "success": true,
+      "latency_ms": 768,
+      "retrieval_miss": [
+        "chart_of_accounts",
+        "account_types",
+        "journal_lines",
+        "journal_entries",
+        "fiscal_periods"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 56,
+      "difficulty": "hard",
+      "module": "Finance",
+      "question": "Calculate cash flow from bank transactions grouped by transaction type and month",
+      "tables_needed": [
+        "bank_accounts",
+        "bank_transactions"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT transaction_type, EXTRACT(MONTH FROM transaction_date) AS month, SUM(amount) as cash_flow \nFROM bank_transactions bt JOIN bank_accounts ba ON bt.bank_account_id = ba.bank_account_id \nGROUP BY transaction_type, month;",
+      "success": false,
+      "error_type": "validation",
+      "error_message": "Failed to generate valid SQL after 3 attempts",
+      "latency_ms": 2946,
+      "retrieval_miss": [
+        "bank_accounts",
+        "bank_transactions"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 57,
+      "difficulty": "hard",
+      "module": "Projects",
+      "question": "Calculate project profitability comparing budget vs actual expenses",
+      "tables_needed": [
+        "projects",
+        "project_budgets",
+        "project_expenses"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT pb.project_id, pb.name AS project_name, SUM(pb.planned_amount) AS planned_budget, SUM(pe.actual_amount) AS actual_expenses, (SUM(pb.planned_amount) - SUM(pe.actual_amount)) AS budget_vs_actual\nFROM projects pb\nLEFT JOIN project_expenses pe ON pb.project_id = pe.project_id\nGROUP BY pb.project_id, pb.name LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: column pb.planned_amount does not exist",
+      "sqlstate": "42703",
+      "latency_ms": 4778,
+      "retrieval_miss": [
+        "projects",
+        "project_budgets",
+        "project_expenses"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 58,
+      "difficulty": "hard",
+      "module": "Projects",
+      "question": "Find resource allocation by employee across all active projects",
+      "tables_needed": [
+        "employees",
+        "project_resources",
+        "projects"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "",
+      "success": false,
+      "error_type": "generation",
+      "error_message": "Model did not generate SELECT statement",
+      "latency_ms": 5120,
+      "retrieval_miss": [
+        "employees",
+        "project_resources",
+        "projects"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 59,
+      "difficulty": "hard",
+      "module": "Assets",
+      "question": "List all fixed assets with their assigned employees and current locations",
+      "tables_needed": [
+        "fixed_assets",
+        "asset_categories",
+        "employees",
+        "asset_locations"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT fa.asset_id AS asset_id, fa.name AS name, fa.description AS description, e.employee_number AS employee_number, e.first_name AS first_name, e.last_name AS last_name, fa.location_id AS location_id, loc.name AS location_name FROM fixed_assets fa JOIN employees e ON fa.assigned_to = e.employee_id JOIN asset_locations loc ON fa.location_id = loc.location_id LIMIT 1000;",
+      "success": true,
+      "latency_ms": 1595,
+      "retrieval_miss": [
+        "fixed_assets",
+        "asset_categories",
+        "employees",
+        "asset_locations"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": 60,
+      "difficulty": "hard",
+      "module": "Cross-Module",
+      "question": "Create a comprehensive employee cost report including salary and benefits by department",
+      "tables_needed": [
+        "employees",
+        "departments",
+        "employee_benefits",
+        "benefit_types"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT d.name AS department_name, SUM(es.amount) + COALESCE(SUM(eb.total_amount), 0) AS total_employee_cost FROM departments d LEFT JOIN employees e ON d.department_id = e.department_id GROUP BY d.name LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: missing FROM-clause entry for table \"es\"",
+      "sqlstate": "42P01",
+      "latency_ms": 3152,
+      "retrieval_miss": [
+        "employees",
+        "departments",
+        "employee_benefits",
+        "benefit_types"
+      ],
+      "extra_tables": []
+    }
+  ]
+}

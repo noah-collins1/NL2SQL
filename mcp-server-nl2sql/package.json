@@ -1,0 +1,39 @@
+{
+	"name": "mcp-server-nl2sql",
+	"version": "0.1.0",
+	"description": "TypeScript MCP server with NL2SQL capability via Python/Ollama sidecar",
+	"main": "index.js",
+	"module": "./src/index.ts",
+	"type": "module",
+	"scripts": {
+		"dev": "smithery dev",
+		"build": "smithery build",
+		"stdio": "tsx src/stdio.ts",
+		"exam": "EXAM_MODE=true tsx scripts/run_exam.ts",
+		"smoke": "tsx scripts/smoke_test_v2.ts"
+	},
+	"bin": {
+		"mcp-server-nl2sql": "./src/stdio.ts"
+	},
+	"keywords": [
+		"mcp",
+		"postgres",
+		"nl2sql",
+		"ollama",
+		"hrida"
+	],
+	"author": "",
+	"license": "ISC",
+	"dependencies": {
+		"@modelcontextprotocol/sdk": "^1.18.2",
+		"pg": "^8.16.3",
+		"uuid": "^11.0.3",
+		"zod": "^3.25.46"
+	},
+	"devDependencies": {
+		"@smithery/cli": "^1.4.5",
+		"@types/pg": "^8.11.10",
+		"@types/uuid": "^10.0.0",
+		"tsx": "^4.21.0"
+	}
+}

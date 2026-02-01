@@ -1,0 +1,386 @@
+{
+  "summary": {
+    "retrieval_miss": 10,
+    "join_path_miss": 0,
+    "column_miss": 0,
+    "value_miss": 0,
+    "llm_reasoning": 0,
+    "execution_error": 0,
+    "success": 10
+  },
+  "results": [
+    {
+      "id": "hr_001",
+      "question": "How many employees are there?",
+      "expected_tables": [
+        "employees"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT COUNT(*) FROM employees LIMIT 1000;",
+      "success": true,
+      "latency_ms": 24066,
+      "retrieval_miss": [
+        "employees"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": "hr_002",
+      "question": "Which employees have pending leave requests?",
+      "expected_tables": [
+        "employees",
+        "leave_requests"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT DISTINCT e.employee_id, e.first_name || ' ' || e.last_name AS employee_full_name FROM employees e JOIN leave_requests lr ON e.employee_id = lr.employee_id WHERE lr.status = 'pending' LIMIT 1000;",
+      "success": true,
+      "latency_ms": 1050,
+      "retrieval_miss": [
+        "employees",
+        "leave_requests"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": "hr_003",
+      "question": "Show me all employees in the IT department",
+      "expected_tables": [
+        "employees",
+        "departments"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT e.employee_id, e.first_name, e.last_name, d.department_id, d.name AS department_name FROM employees e JOIN departments d ON e.department_id = d.department_id WHERE d.name = 'IT' LIMIT 1000;",
+      "success": true,
+      "latency_ms": 2223,
+      "retrieval_miss": [
+        "employees",
+        "departments"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": "hr_004",
+      "question": "List employees with their current salaries",
+      "expected_tables": [
+        "employees",
+        "employee_salaries"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT e.employee_id, e.first_name || ' ' || e.last_name AS employee_full_name, s.amount AS current_salary FROM employees e JOIN employee_salaries s ON e.employee_id = s.employee_id WHERE s.effective_date <= CURRENT_DATE AND (s.end_date IS NULL OR s.end_date > CURRENT_DATE) ORDER BY e.first_name, e.last_name LIMIT 1000;",
+      "success": true,
+      "latency_ms": 1559,
+      "retrieval_miss": [
+        "employees",
+        "employee_salaries"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": "hr_005",
+      "question": "Which employees have completed training courses?",
+      "expected_tables": [
+        "employees",
+        "employee_training",
+        "training_courses"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT e.employee_id, e.first_name || ' ' || e.last_name AS employee_full_name FROM employees e JOIN employee_training et ON e.employee_id = et.employee_id WHERE et.completion_date IS NOT NULL LIMIT 1000;",
+      "success": true,
+      "latency_ms": 924,
+      "retrieval_miss": [
+        "employees",
+        "employee_training",
+        "training_courses"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": "fin_001",
+      "question": "Show all journal entries for this fiscal year",
+      "expected_tables": [
+        "journal_entries",
+        "fiscal_years"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT j.entry_id AS entry_id, j.entry_number AS entry_number, j.entry_date AS entry_date, d.name AS department_name, g.receipt_number AS receipt_number, p.po_id AS purchase_order_id\nFROM journal_entries j\nJOIN fiscal_years y ON j.period_id = fp.period_id AND y.fiscal_year_id = fp.fiscal_year_id\nJOIN departments d ON j.department_id = d.department_id\nLEFT JOIN goods_receipts g ON j.entry_id = g.receipt_id\nWHERE YEAR(j.entry_date) = YEAR(CURRENT_DATE) LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: missing FROM-clause entry for table \"fp\"",
+      "sqlstate": "42P01",
+      "latency_ms": 6237,
+      "retrieval_miss": [
+        "journal_entries",
+        "fiscal_years"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": "fin_002",
+      "question": "What is the total budget by cost center?",
+      "expected_tables": [
+        "budgets",
+        "cost_centers"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT c.name AS CostCenterName, SUM(b.total_amount) AS TotalBudgetByCostCenter FROM departments d JOIN cost_centers c ON d.department_id = c.department_id JOIN budgets b ON d.department_id = b.department_id GROUP BY c.name LIMIT 1000;",
+      "success": true,
+      "latency_ms": 2294,
+      "retrieval_miss": [
+        "budgets",
+        "cost_centers"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": "fin_003",
+      "question": "List all bank transactions for checking accounts",
+      "expected_tables": [
+        "bank_transactions",
+        "bank_accounts"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT bt.transaction_id, bt.transaction_date, bt.amount, bt.transaction_type, bt.reference, bt.description, bt.reconciled, bt.created_at FROM bank_transactions AS bt JOIN bank_accounts AS ba ON bt.bank_account_id = ba.bank_account_id WHERE ba.account_number LIKE 'CHK%' AND ba.is_active LIMIT 1000;",
+      "success": true,
+      "latency_ms": 1517,
+      "retrieval_miss": [
+        "bank_transactions",
+        "bank_accounts"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": "sales_001",
+      "question": "How many customers do we have by region?",
+      "expected_tables": [
+        "customers",
+        "sales_regions"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT sr.name AS sales_region, COUNT(DISTINCT c.customer_id) AS num_customers FROM customers c JOIN sales_orders so ON c.customer_id = so.customer_id JOIN sales_regions sr ON so.sales_rep_id = sr.employee_id GROUP BY sr.name LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: column sr.employee_id does not exist",
+      "sqlstate": "42703",
+      "latency_ms": 3002,
+      "retrieval_miss": [
+        "customers",
+        "sales_regions"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": "sales_002",
+      "question": "Show all open sales orders",
+      "expected_tables": [
+        "sales_orders"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT s.order_id AS order_id, s.order_number AS order_number, s.customer_id AS customer_id, s.quote_id AS quote_id, o.opportunity_id AS opportunity_id, s.sales_rep_id AS sales_rep_id, s.status AS status FROM sales_orders s JOIN sales_quotes q ON s.quote_id = q.quote_id JOIN sales_opportunities o ON q.opportunity_id = o WHERE s.status = 'open' LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: operator does not exist: integer = sales_opportunities",
+      "sqlstate": "42883",
+      "latency_ms": 5446,
+      "retrieval_miss": [
+        "sales_orders"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": "sales_003",
+      "question": "List sales opportunities by stage",
+      "expected_tables": [
+        "sales_opportunities",
+        "opportunity_stages"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT s.name AS opportunity_name, os.stage, COUNT(*) AS count FROM sales_opportunities s JOIN opportunity_stages os ON s.stage_id = os.stage_id GROUP BY s.name, os.stage ORDER BY s.name LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: column os.stage does not exist",
+      "sqlstate": "42703",
+      "latency_ms": 2475,
+      "retrieval_miss": [
+        "sales_opportunities",
+        "opportunity_stages"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": "proc_001",
+      "question": "Show all pending purchase orders",
+      "expected_tables": [
+        "purchase_orders"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT po.po_id AS order_id, po.order_number, po.customer_id, po.quote_id, po.order_date, po.required_date, po.ship_date, po[Response]: 1\n    , po.shipping_cost, po.total, po.status, po.created_at FROM sales_orders AS po WHERE po.status = 'pending' LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: syntax error at or near \":\"",
+      "sqlstate": "42601",
+      "latency_ms": 3982,
+      "retrieval_miss": [
+        "purchase_orders"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": "proc_002",
+      "question": "List vendors with their contact information",
+      "expected_tables": [
+        "vendors",
+        "vendor_contacts"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT v.vendor_id AS vendor_id, v.vendor_number AS vendor_number, v.name AS name, v.email AS email, v.phone AS phone, v.website AS website FROM vendors v LIMIT 1000;",
+      "success": true,
+      "latency_ms": 910,
+      "retrieval_miss": [
+        "vendors",
+        "vendor_contacts"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": "inv_001",
+      "question": "Show current inventory levels by warehouse",
+      "expected_tables": [
+        "inventory_levels",
+        "warehouses"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT w.warehouse_id, wl.location_id, il.quantity_on_hand AS quantity_available FROM inventory_levels il JOIN warehouses w ON il.warehouse_id = w.warehouse_id JOIN warehouse_locations wl ON il.location_id = wl.location_id LIMIT 1000;",
+      "success": true,
+      "latency_ms": 1264,
+      "retrieval_miss": [
+        "inventory_levels",
+        "warehouses"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": "inv_002",
+      "question": "List products below reorder point",
+      "expected_tables": [
+        "products",
+        "reorder_rules",
+        "inventory_levels"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT p.product_id, p.name FROM products p JOIN inventory_levels il ON p.product_id = il.product_id JOIN adjustment_lines al ON p.product_id = al.product_id JOIN product_suppliers ps ON p.product_id = ps.product_id JOIN reorder_rules rr ON p.product_id = rr.product_id WHERE il.quantity_available < rr.min_quantity LIMIT 1000;",
+      "success": true,
+      "latency_ms": 1545,
+      "retrieval_miss": [
+        "products",
+        "reorder_rules",
+        "inventory_levels"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": "proj_001",
+      "question": "Show all active projects with their budgets",
+      "expected_tables": [
+        "projects",
+        "project_budgets"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT p.project_id AS project_id, p.name AS project_name, b.total_amount AS budget_amount FROM projects p INNER JOIN departments d ON p.department_id = d.department_id AND d.is_active = TRUE INNER JOIN budgets b ON p.budget_id = b.budget_id WHERE p.status = 'Active' AND p.is_billable = FALSE LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: column p.department_id does not exist",
+      "sqlstate": "42703",
+      "latency_ms": 3885,
+      "retrieval_miss": [
+        "projects",
+        "project_budgets"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": "proj_002",
+      "question": "List project tasks and their assignments",
+      "expected_tables": [
+        "project_tasks",
+        "task_assignments"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT p.name AS project_name, t.name AS task_name, ta.employee_id AS assigned_to, t.estimated_hours AS estimated_hours, t.actual_hours AS actual_hours, t.priority AS priority FROM projects p JOIN project_tasks t ON p.project_id = t.project_id JOIN task_assignments ta ON t.task_id = ta.task_id WHERE p.project_number = '12345' AND t.status = 'In Progress' LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: column t.project_id does not exist",
+      "sqlstate": "42703",
+      "latency_ms": 4075,
+      "retrieval_miss": [
+        "project_tasks",
+        "task_assignments"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": "cross_001",
+      "question": "Show employees who approved purchase orders over $10000",
+      "expected_tables": [
+        "employees",
+        "purchase_orders"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT DISTINCT e.employee_id, e.name FROM employees e JOIN purchase_orders p ON e.employee_id = p.approved_by WHERE p.total > 10000;",
+      "success": false,
+      "error_type": "validation",
+      "error_message": "Failed to generate valid SQL after 3 attempts",
+      "latency_ms": 3279,
+      "retrieval_miss": [
+        "employees",
+        "purchase_orders"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": "cross_002",
+      "question": "List customers with their sales orders and payment status",
+      "expected_tables": [
+        "customers",
+        "sales_orders"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT c.customer_id, c.name AS customer_name, s.order_id, o.status AS order_status FROM customers c JOIN sales_orders s ON c.customer_id = s.customer_id WHERE EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.customer_id AND so.status = 'Paid') LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: missing FROM-clause entry for table \"o\"",
+      "sqlstate": "42P01",
+      "latency_ms": 8354,
+      "retrieval_miss": [
+        "customers",
+        "sales_orders"
+      ],
+      "extra_tables": []
+    },
+    {
+      "id": "cross_003",
+      "question": "Show projects with their assigned employees and timesheets",
+      "expected_tables": [
+        "projects",
+        "project_tasks",
+        "task_assignments",
+        "employees",
+        "timesheets"
+      ],
+      "retrieved_tables": [],
+      "sql_generated": "SELECT p.project_id AS project_id, p.name AS project_name, e.first_name || ' ' || e.last_name AS employee_full_name, ts.entry_date AS timesheet_date, SUM(ts.hours) OVER (PARTITION BY p.project_id) AS total_timesheet_hours\nFROM projects p\nJOIN project_resources pr ON p.project_id = pr.project_id AND pr.employee_id = e.employee_id\nJOIN employees e ON pr.employee_id = e.employee_id\nLEFT JOIN timesheets ts ON e.employee_id = ts.employee_id AND ts.timesheet_date BETWEEN p.start_date AND COALESCE(p.planned_end_date, CURRENT_DATE)\nGROUP BY p.project_id, e.first_name LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: missing FROM-clause entry for table \"e\"",
+      "sqlstate": "42P01",
+      "latency_ms": 8110,
+      "retrieval_miss": [
+        "projects",
+        "project_tasks",
+        "task_assignments",
+        "employees",
+        "timesheets"
+      ],
+      "extra_tables": []
+    }
+  ]
+}

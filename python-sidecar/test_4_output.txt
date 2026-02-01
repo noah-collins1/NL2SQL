@@ -1,0 +1,155 @@
+================================================================================
+Test 4: Python Sidecar (Hrida + Ollama) NL2SQL Testing
+================================================================================
+Sidecar URL: http://localhost:8001
+Database: mcptest
+Total Questions: 27
+================================================================================
+
+✅ Sidecar Status: healthy
+   Python: running
+   Ollama: reachable
+
+================================================================================
+Testing Q1 (Level 1): How many companies are in the database?
+================================================================================
+❌ Sidecar Error: {'type': 'internal', 'message': "Internal error: name 'HRIDA_SYSTEM_PROMPT' is not defined", 'recoverable': False}
+
+================================================================================
+Testing Q2 (Level 1): Show me all companies in California
+================================================================================
+❌ Sidecar Error: {'type': 'internal', 'message': "Internal error: name 'HRIDA_SYSTEM_PROMPT' is not defined", 'recoverable': False}
+
+================================================================================
+Testing Q3 (Level 1): Which state is Titan Financial Services in?
+================================================================================
+❌ Sidecar Error: {'type': 'internal', 'message': "Internal error: name 'HRIDA_SYSTEM_PROMPT' is not defined", 'recoverable': False}
+
+================================================================================
+Testing Q4 (Level 1): List all companies founded before 1950
+================================================================================
+❌ Sidecar Error: {'type': 'internal', 'message': "Internal error: name 'HRIDA_SYSTEM_PROMPT' is not defined", 'recoverable': False}
+
+================================================================================
+Testing Q5 (Level 1): How many companies are in New York?
+================================================================================
+❌ Sidecar Error: {'type': 'internal', 'message': "Internal error: name 'HRIDA_SYSTEM_PROMPT' is not defined", 'recoverable': False}
+
+================================================================================
+Testing Q6 (Level 2): What company had the highest revenue in 2020?
+================================================================================
+❌ Sidecar Error: {'type': 'internal', 'message': "Internal error: name 'HRIDA_SYSTEM_PROMPT' is not defined", 'recoverable': False}
+
+================================================================================
+Testing Q7 (Level 2): Show me all revenue data for Catalyst Medical Systems
+================================================================================
+❌ Sidecar Error: {'type': 'internal', 'message': "Internal error: name 'HRIDA_SYSTEM_PROMPT' is not defined", 'recoverable': False}
+
+================================================================================
+Testing Q8 (Level 2): What was the total revenue across all companies in 2025?
+================================================================================
+❌ Sidecar Error: {'type': 'internal', 'message': "Internal error: name 'HRIDA_SYSTEM_PROMPT' is not defined", 'recoverable': False}
+
+================================================================================
+Testing Q9 (Level 2): Which company had the lowest revenue in 2019?
+================================================================================
+❌ Sidecar Error: {'type': 'internal', 'message': "Internal error: name 'HRIDA_SYSTEM_PROMPT' is not defined", 'recoverable': False}
+
+================================================================================
+Testing Q10 (Level 3): Show me the top 5 companies by average revenue
+================================================================================
+❌ Sidecar Error: {'type': 'internal', 'message': "Internal error: name 'HRIDA_SYSTEM_PROMPT' is not defined", 'recoverable': False}
+
+================================================================================
+Testing Q11 (Level 3): What is the average revenue for companies in Texas?
+================================================================================
+❌ Sidecar Error: {'type': 'internal', 'message': "Internal error: name 'HRIDA_SYSTEM_PROMPT' is not defined", 'recoverable': False}
+
+================================================================================
+Testing Q12 (Level 3): How many companies were founded in each decade?
+================================================================================
+❌ Sidecar Error: {'type': 'internal', 'message': "Internal error: name 'HRIDA_SYSTEM_PROMPT' is not defined", 'recoverable': False}
+
+================================================================================
+Testing Q13 (Level 3): Which state has the most companies?
+================================================================================
+❌ Sidecar Error: {'type': 'internal', 'message': "Internal error: name 'HRIDA_SYSTEM_PROMPT' is not defined", 'recoverable': False}
+
+================================================================================
+Testing Q14 (Level 3): Show total revenue by year for all companies
+================================================================================
+❌ Sidecar Error: {'type': 'internal', 'message': "Internal error: name 'HRIDA_SYSTEM_PROMPT' is not defined", 'recoverable': False}
+
+================================================================================
+Testing Q15 (Level 4): Find companies in Ohio founded after 1980 with average revenue over $5000 million
+================================================================================
+❌ Sidecar Error: {'type': 'internal', 'message': "Internal error: name 'HRIDA_SYSTEM_PROMPT' is not defined", 'recoverable': False}
+
+================================================================================
+Testing Q16 (Level 4): What was the revenue growth for Meridian Renewable Energy from 2017 to 2026?
+================================================================================
+❌ Sidecar Error: {'type': 'internal', 'message': "Internal error: name 'HRIDA_SYSTEM_PROMPT' is not defined", 'recoverable': False}
+
+================================================================================
+Testing Q17 (Level 4): Show me the top 3 companies by 2024 revenue that are located in the Midwest
+================================================================================
+❌ Sidecar Error: {'type': 'internal', 'message': "Internal error: name 'HRIDA_SYSTEM_PROMPT' is not defined", 'recoverable': False}
+
+================================================================================
+Testing Q18 (Level 4): Which year had the highest total revenue across all companies?
+================================================================================
+❌ Sidecar Error: {'type': 'internal', 'message': "Internal error: name 'HRIDA_SYSTEM_PROMPT' is not defined", 'recoverable': False}
+
+================================================================================
+Testing Q19 (Level 5): Show me all employees
+================================================================================
+❌ Sidecar Error: {'type': 'internal', 'message': "Internal error: name 'HRIDA_SYSTEM_PROMPT' is not defined", 'recoverable': False}
+
+================================================================================
+Testing Q20 (Level 5): What company had the highest revenue in 2030?
+================================================================================
+❌ Sidecar Error: {'type': 'internal', 'message': "Internal error: name 'HRIDA_SYSTEM_PROMPT' is not defined", 'recoverable': False}
+
+================================================================================
+Testing Q21 (Level 5): Insert a new company called Test Corp
+================================================================================
+❌ Sidecar Error: {'type': 'internal', 'message': "Internal error: name 'HRIDA_SYSTEM_PROMPT' is not defined", 'recoverable': False}
+
+================================================================================
+Testing Q22 (Level 5): Show me companies with negative revenue
+================================================================================
+❌ Sidecar Error: {'type': 'internal', 'message': "Internal error: name 'HRIDA_SYSTEM_PROMPT' is not defined", 'recoverable': False}
+
+================================================================================
+Testing Q23 (Level 6): Which businesses made the most money in 2023?
+================================================================================
+❌ Sidecar Error: {'type': 'internal', 'message': "Internal error: name 'HRIDA_SYSTEM_PROMPT' is not defined", 'recoverable': False}
+
+================================================================================
+Testing Q24 (Level 6): Tell me about Gateway Distribution LLC
+================================================================================
+❌ Sidecar Error: {'type': 'internal', 'message': "Internal error: name 'HRIDA_SYSTEM_PROMPT' is not defined", 'recoverable': False}
+
+================================================================================
+Testing Q25 (Level 6): Compare revenues between 2020 and 2021
+================================================================================
+❌ Sidecar Error: {'type': 'internal', 'message': "Internal error: name 'HRIDA_SYSTEM_PROMPT' is not defined", 'recoverable': False}
+
+================================================================================
+Testing Q26 (Level 6): What's the oldest company?
+================================================================================
+❌ Sidecar Error: {'type': 'internal', 'message': "Internal error: name 'HRIDA_SYSTEM_PROMPT' is not defined", 'recoverable': False}
+
+================================================================================
+Testing Q27 (Level 6): Show me companies sorted by name alphabetically
+================================================================================
+❌ Sidecar Error: {'type': 'internal', 'message': "Internal error: name 'HRIDA_SYSTEM_PROMPT' is not defined", 'recoverable': False}
+
+================================================================================
+Report generated: /home/noahc/nl2sql-project/python-sidecar/TEST_4_RESULTS.md
+Overall Success Rate: 0.0% (0/27)
+================================================================================
+
+================================================================================
+Testing Complete!
+================================================================================

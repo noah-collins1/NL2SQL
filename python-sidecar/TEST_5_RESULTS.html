@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Test 5 Results</title>
+  <style>
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      background-color: #1a1a1a;
+      border: none;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Test 5 Results</h1>
+</header>
+<h1
+id="test-5-results-full-stack-nl2sql-with-typescript-validation-loop">Test
+5 Results: Full Stack NL2SQL with TypeScript Validation Loop</h1>
+<h2 id="complete-pipeline-testing">Complete Pipeline Testing</h2>
+<hr />
+<p><strong>Test Date:</strong> 2026-01-15 10:58:18</p>
+<p><strong>Test Method:</strong> Python sidecar with semantic validation
++ simulated TypeScript EXPLAIN-first validation</p>
+<p><strong>Configuration:</strong> - <strong>Model:</strong>
+HridaAI/hrida-t2sql:latest - <strong>Temperature:</strong> 0.0
+(deterministic SQL generation) - <strong>Python Sidecar:</strong>
+http://localhost:8001/generate_sql - <strong>Database:</strong> MCPtest
+(companies, company_revenue_annual) - <strong>Validation Stack:</strong>
+- Python semantic validation (entity extraction, hallucination
+detection) - Python auto-repair for semantic issues - TypeScript
+structural validation (dangerous keywords, table allowlist) - TypeScript
+EXPLAIN-first safety check - TypeScript bounded repair loop (max 3
+attempts)</p>
+<hr />
+<h2 id="executive-summary">Executive Summary</h2>
+<h3 id="overall-performance-comparison">Overall Performance
+Comparison</h3>
+<table>
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 26%" />
+<col style="width: 28%" />
+<col style="width: 24%" />
+<col style="width: 10%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Metric</th>
+<th>Test 5 (Full Stack)</th>
+<th>Test 4 (w/ Semantic)</th>
+<th>Test 4 (Original)</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Overall Success Rate</strong></td>
+<td><strong>92.6% (25/27)</strong></td>
+<td>77.8% (21/27)</td>
+<td>63.0% (17/27)</td>
+<td>+29.6%</td>
+</tr>
+<tr class="even">
+<td><strong>SQL Valid</strong></td>
+<td><strong>25/27</strong></td>
+<td>25/27</td>
+<td>25/27</td>
+<td>-</td>
+</tr>
+<tr class="odd">
+<td><strong>SQL Executable</strong></td>
+<td><strong>23/27</strong></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+</tr>
+<tr class="even">
+<td><strong>Semantic Repairs</strong></td>
+<td><strong>0</strong></td>
+<td>-</td>
+<td>0</td>
+<td>-</td>
+</tr>
+<tr class="odd">
+<td><strong>Avg Confidence</strong></td>
+<td><strong>0.92</strong></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+</tr>
+<tr class="even">
+<td><strong>Avg Duration</strong></td>
+<td><strong>751ms</strong></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h3 id="validation-stack-impact">Validation Stack Impact</h3>
+<p><strong>Semantic Validation (Python):</strong> - Entity extraction
+from natural language questions - Hallucination detection (values in SQL
+not in question) - Intent classification (lookup_state, count, rank,
+etc.) - Auto-repairs triggered: 0 questions</p>
+<p><strong>TypeScript Validation Loop:</strong> - Structural validation
+(dangerous keywords, table allowlist) - EXPLAIN-first safety check
+before execution - SQLSTATE classification (fail-fast vs repairable) -
+Bounded retry loop (max 3 attempts) with /repair_sql</p>
+<h3 id="performance-by-level">Performance by Level</h3>
+<table>
+<colgroup>
+<col style="width: 13%" />
+<col style="width: 26%" />
+<col style="width: 25%" />
+<col style="width: 21%" />
+<col style="width: 13%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Level</th>
+<th>Success Rate</th>
+<th>Test 4 Rate</th>
+<th>Questions</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Level 1</strong> (Simple Queries)</td>
+<td><strong>100.0%</strong> (5/5)</td>
+<td>80.0%</td>
+<td>Q1, Q2, Q3, Q4, Q5</td>
+<td>+20.0%</td>
+</tr>
+<tr class="even">
+<td><strong>Level 2</strong> (Join Queries)</td>
+<td><strong>100.0%</strong> (4/4)</td>
+<td>75.0%</td>
+<td>Q6, Q7, Q8, Q9</td>
+<td>+25.0%</td>
+</tr>
+<tr class="odd">
+<td><strong>Level 3</strong> (Aggregations)</td>
+<td><strong>80.0%</strong> (4/5)</td>
+<td>80.0%</td>
+<td>Q10, Q11, Q12, Q13, Q14</td>
+<td>=</td>
+</tr>
+<tr class="even">
+<td><strong>Level 4</strong> (Complex)</td>
+<td><strong>100.0%</strong> (4/4)</td>
+<td>50.0%</td>
+<td>Q15, Q16, Q17, Q18</td>
+<td>+50.0%</td>
+</tr>
+<tr class="odd">
+<td><strong>Level 5</strong> (Edge Cases)</td>
+<td><strong>75.0%</strong> (3/4)</td>
+<td>100.0%</td>
+<td>Q19, Q20, Q21, Q22</td>
+<td>-25.0%</td>
+</tr>
+<tr class="even">
+<td><strong>Level 6</strong> (NL Variations)</td>
+<td><strong>100.0%</strong> (5/5)</td>
+<td>80.0%</td>
+<td>Q23, Q24, Q25, Q26, Q27</td>
+<td>+20.0%</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="detailed-question-by-question-analysis">Detailed
+Question-by-Question Analysis</h2>
+<h3 id="level-1-simple-queries-single-table">Level 1: Simple Queries
+(Single Table)</h3>
+<h4 id="q1-how-many-companies-are-in-the-database">Q1: How many
+companies are in the database?</h4>
+<p><strong>Status:</strong> PASS</p>
+<p><strong>Generated SQL:</strong></p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> <span class="fu">COUNT</span>(<span class="op">*</span>) <span class="kw">FROM</span> companies;</span></code></pre></div>
+<p><strong>Metrics:</strong> - Confidence: 1.00 - Duration: 739ms -
+Tables: companies, company_revenue_annual - Valid: Yes - Executable: Yes
+- Correct: Yes</p>
+<p><strong>Notes:</strong> - Pattern matches expected</p>
+<hr />
+<h4 id="q2-show-me-all-companies-in-california">Q2: Show me all
+companies in California</h4>
+<p><strong>Status:</strong> PASS</p>
+<p><strong>Generated SQL:</strong></p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> c.name <span class="kw">FROM</span> companies c <span class="kw">JOIN</span> company_revenue_annual r <span class="kw">ON</span> c.company_id <span class="op">=</span> r.company_id <span class="kw">WHERE</span> c.state <span class="op">=</span> <span class="st">&#39;CA&#39;</span>;</span></code></pre></div>
+<p><strong>Metrics:</strong> - Confidence: 1.00 - Duration: 474ms -
+Tables: companies, company_revenue_annual - Valid: Yes - Executable: Yes
+- Correct: Yes</p>
+<p><strong>Notes:</strong> - Pattern does not match expected</p>
+<hr />
+<h4 id="q3-which-state-is-titan-financial-services-in">Q3: Which state
+is Titan Financial Services in?</h4>
+<p><strong>Status:</strong> PASS</p>
+<p><strong>Generated SQL:</strong></p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> c.state <span class="kw">FROM</span> companies c <span class="kw">WHERE</span> c.name <span class="op">=</span> <span class="st">&#39;Titan Financial Services&#39;</span>;</span></code></pre></div>
+<p><strong>Metrics:</strong> - Confidence: 1.00 - Duration: 483ms -
+Tables: company_revenue_annual, companies - Valid: Yes - Executable: Yes
+- Correct: Yes</p>
+<p><strong>Notes:</strong> - Pattern does not match expected</p>
+<hr />
+<h4 id="q4-list-all-companies-founded-before-1950">Q4: List all
+companies founded before 1950</h4>
+<p><strong>Status:</strong> PASS</p>
+<p><strong>Generated SQL:</strong></p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> c.<span class="op">*</span> <span class="kw">FROM</span> companies c <span class="kw">WHERE</span> founding_year <span class="op">&lt;</span> <span class="dv">1950</span>;</span></code></pre></div>
+<p><strong>Metrics:</strong> - Confidence: 1.00 - Duration: 431ms -
+Tables: companies - Valid: Yes - Executable: Yes - Correct: Yes</p>
+<p><strong>Notes:</strong> - Pattern matches expected</p>
+<hr />
+<h4 id="q5-how-many-companies-are-in-new-york">Q5: How many companies
+are in New York?</h4>
+<p><strong>Status:</strong> PASS</p>
+<p><strong>Generated SQL:</strong></p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> <span class="fu">COUNT</span>(<span class="op">*</span>) <span class="kw">FROM</span> companies <span class="kw">WHERE</span> state <span class="op">=</span> <span class="st">&#39;NY&#39;</span>;</span></code></pre></div>
+<p><strong>Metrics:</strong> - Confidence: 1.00 - Duration: 377ms -
+Tables: companies, company_revenue_annual - Valid: Yes - Executable: Yes
+- Correct: Yes</p>
+<p><strong>Notes:</strong> - Pattern matches expected</p>
+<hr />
+<h3 id="level-2-join-queries-two-tables">Level 2: Join Queries (Two
+Tables)</h3>
+<h4 id="q6-what-company-had-the-highest-revenue-in-2020">Q6: What
+company had the highest revenue in 2020?</h4>
+<p><strong>Status:</strong> PASS</p>
+<p><strong>Generated SQL:</strong></p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> c.name, r.revenue_millions <span class="kw">FROM</span> companies c <span class="kw">JOIN</span> company_revenue_annual r <span class="kw">ON</span> c.company_id <span class="op">=</span> r.company_id <span class="kw">WHERE</span> r.<span class="dt">year</span> <span class="op">=</span> <span class="dv">2020</span> <span class="kw">ORDER</span> <span class="kw">BY</span> r.revenue_millions <span class="kw">DESC</span> <span class="kw">LIMIT</span> <span class="dv">1</span>;</span></code></pre></div>
+<p><strong>Metrics:</strong> - Confidence: 1.00 - Duration: 973ms -
+Tables: company_revenue_annual, companies - Valid: Yes - Executable: Yes
+- Correct: Yes</p>
+<p><strong>Notes:</strong> - Pattern matches expected</p>
+<hr />
+<h4 id="q7-show-me-all-revenue-data-for-catalyst-medical-systems">Q7:
+Show me all revenue data for Catalyst Medical Systems</h4>
+<p><strong>Status:</strong> PASS</p>
+<p><strong>Generated SQL:</strong></p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> r.<span class="op">*</span> <span class="kw">FROM</span> company_revenue_annual r <span class="kw">JOIN</span> companies c <span class="kw">ON</span> r.company_id <span class="op">=</span> c.company_id <span class="kw">WHERE</span> c.name <span class="op">=</span> <span class="st">&#39;Catalyst Medical Systems&#39;</span> <span class="kw">ORDER</span> <span class="kw">BY</span> r.<span class="dt">year</span> <span class="kw">ASC</span>;</span></code></pre></div>
+<p><strong>Metrics:</strong> - Confidence: 1.00 - Duration: 769ms -
+Tables: company_revenue_annual - Valid: Yes - Executable: Yes - Correct:
+Yes</p>
+<p><strong>Notes:</strong> - Pattern matches expected</p>
+<hr />
+<h4 id="q8-what-was-the-total-revenue-across-all-companies-in-2025">Q8:
+What was the total revenue across all companies in 2025?</h4>
+<p><strong>Status:</strong> PASS</p>
+<p><strong>Generated SQL:</strong></p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> <span class="fu">SUM</span>(r.revenue_millions) <span class="kw">FROM</span> company_revenue_annual r <span class="kw">JOIN</span> companies c <span class="kw">ON</span> r.company_id <span class="op">=</span> c.company_id <span class="kw">WHERE</span> r.<span class="dt">year</span> <span class="op">=</span> <span class="dv">2025</span>;</span></code></pre></div>
+<p><strong>Metrics:</strong> - Confidence: 1.00 - Duration: 782ms -
+Tables: company_revenue_annual, companies - Valid: Yes - Executable: Yes
+- Correct: Yes</p>
+<p><strong>Notes:</strong> - Pattern does not match expected</p>
+<hr />
+<h4 id="q9-which-company-had-the-lowest-revenue-in-2019">Q9: Which
+company had the lowest revenue in 2019?</h4>
+<p><strong>Status:</strong> PASS</p>
+<p><strong>Generated SQL:</strong></p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> c.name <span class="kw">FROM</span> companies c <span class="kw">JOIN</span> company_revenue_annual r <span class="kw">ON</span> c.company_id <span class="op">=</span> r.company_id <span class="kw">WHERE</span> r.<span class="dt">year</span> <span class="op">=</span> <span class="dv">2019</span> <span class="kw">ORDER</span> <span class="kw">BY</span> r.revenue_millions <span class="kw">ASC</span> <span class="kw">LIMIT</span> <span class="dv">1</span>;</span></code></pre></div>
+<p><strong>Metrics:</strong> - Confidence: 1.00 - Duration: 659ms -
+Tables: company_revenue_annual, companies - Valid: Yes - Executable: Yes
+- Correct: Yes</p>
+<p><strong>Notes:</strong> - Pattern matches expected</p>
+<hr />
+<h3 id="level-3-aggregations-group-by">Level 3: Aggregations &amp; GROUP
+BY</h3>
+<h4 id="q10-show-me-the-top-5-companies-by-average-revenue">Q10: Show me
+the top 5 companies by average revenue</h4>
+<p><strong>Status:</strong> PASS</p>
+<p><strong>Generated SQL:</strong></p>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> c.name, <span class="fu">AVG</span>(r.revenue_millions) <span class="kw">as</span> avg_revenue <span class="kw">FROM</span> company_revenue_annual r <span class="kw">JOIN</span> companies c <span class="kw">ON</span> r.company_id <span class="op">=</span> c.company_id <span class="kw">GROUP</span> <span class="kw">BY</span> c.name <span class="kw">ORDER</span> <span class="kw">BY</span> avg_revenue <span class="kw">DESC</span> <span class="kw">LIMIT</span> <span class="dv">5</span>;</span></code></pre></div>
+<p><strong>Metrics:</strong> - Confidence: 1.00 - Duration: 798ms -
+Tables: company_revenue_annual, companies - Valid: Yes - Executable: Yes
+- Correct: Yes</p>
+<p><strong>Notes:</strong> - Pattern matches expected</p>
+<hr />
+<h4 id="q11-what-is-the-average-revenue-for-companies-in-texas">Q11:
+What is the average revenue for companies in Texas?</h4>
+<p><strong>Status:</strong> PASS</p>
+<p><strong>Generated SQL:</strong></p>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> <span class="fu">AVG</span>(r.revenue_millions) <span class="kw">FROM</span> company_revenue_annual r <span class="kw">JOIN</span> companies c <span class="kw">ON</span> r.company_id <span class="op">=</span> c.company_id <span class="kw">WHERE</span> c.state <span class="op">=</span> <span class="st">&#39;TX&#39;</span>;</span></code></pre></div>
+<p><strong>Metrics:</strong> - Confidence: 1.00 - Duration: 564ms -
+Tables: company_revenue_annual, companies - Valid: Yes - Executable: Yes
+- Correct: Yes</p>
+<p><strong>Notes:</strong> - Pattern matches expected</p>
+<hr />
+<h4 id="q12-how-many-companies-were-founded-in-each-decade">Q12: How
+many companies were founded in each decade?</h4>
+<p><strong>Status:</strong> FAIL</p>
+<p><strong>Generated SQL:</strong></p>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> (<span class="dt">year</span> <span class="op">/</span> <span class="dv">10</span>) <span class="op">*</span> <span class="dv">10</span> <span class="kw">as</span> decade, <span class="fu">COUNT</span>(<span class="op">*</span>) <span class="kw">FROM</span> companies <span class="kw">GROUP</span> <span class="kw">BY</span> decade;</span></code></pre></div>
+<p><strong>Metrics:</strong> - Confidence: 1.00 - Duration: 544ms -
+Tables: companies, company_revenue_annual - Valid: Yes - Executable: No
+- Correct: No</p>
+<p><strong>Notes:</strong> - EXPLAIN failed: EXPLAIN failed: 42703 -
+column “year” does not exist LINE 1: EXPLAIN (FORMAT JSON) SELECT (year
+/ 10) * 10 as decade, COU… ^</p>
+<ul>
+<li>Pattern does not match expected</li>
+<li>Execution failed: PostgreSQL Error: 42703 - column “year” does not
+exist LINE 1: SELECT (year / 10) * 10 as decade, COUNT(*) FROM companies
+G… ^</li>
+</ul>
+<hr />
+<h4 id="q13-which-state-has-the-most-companies">Q13: Which state has the
+most companies?</h4>
+<p><strong>Status:</strong> PASS</p>
+<p><strong>Generated SQL:</strong></p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> c.state, <span class="fu">COUNT</span>(<span class="op">*</span>) <span class="kw">as</span> num_companies <span class="kw">FROM</span> companies c <span class="kw">GROUP</span> <span class="kw">BY</span> c.state <span class="kw">ORDER</span> <span class="kw">BY</span> num_companies <span class="kw">DESC</span> <span class="kw">LIMIT</span> <span class="dv">1</span>;</span></code></pre></div>
+<p><strong>Metrics:</strong> - Confidence: 1.00 - Duration: 608ms -
+Tables: companies - Valid: Yes - Executable: Yes - Correct: Yes</p>
+<p><strong>Notes:</strong> - Pattern does not match expected</p>
+<hr />
+<h4 id="q14-show-total-revenue-by-year-for-all-companies">Q14: Show
+total revenue by year for all companies</h4>
+<p><strong>Status:</strong> PASS</p>
+<p><strong>Generated SQL:</strong></p>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> r.<span class="dt">year</span>, <span class="fu">SUM</span>(r.revenue_millions) <span class="kw">as</span> total_revenue <span class="kw">FROM</span> company_revenue_annual r <span class="kw">JOIN</span> companies c <span class="kw">ON</span> r.company_id <span class="op">=</span> c.company_id <span class="kw">GROUP</span> <span class="kw">BY</span> r.<span class="dt">year</span> <span class="kw">ORDER</span> <span class="kw">BY</span> r.<span class="dt">year</span> <span class="kw">ASC</span>;</span></code></pre></div>
+<p><strong>Metrics:</strong> - Confidence: 1.00 - Duration: 926ms -
+Tables: company_revenue_annual, companies - Valid: Yes - Executable: Yes
+- Correct: Yes</p>
+<p><strong>Notes:</strong> - Pattern does not match expected</p>
+<hr />
+<h3 id="level-4-complex-multi-criteria">Level 4: Complex
+Multi-Criteria</h3>
+<h4
+id="q15-find-companies-in-ohio-founded-after-1980-with-average-revenue-over-5000-million">Q15:
+Find companies in Ohio founded after 1980 with average revenue over
+$5000 million</h4>
+<p><strong>Status:</strong> PASS</p>
+<p><strong>Generated SQL:</strong></p>
+<div class="sourceCode" id="cb15"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> c.name, <span class="fu">AVG</span>(r.revenue_millions) <span class="kw">as</span> avg_revenue <span class="kw">FROM</span> companies c <span class="kw">JOIN</span> company_revenue_annual r <span class="kw">ON</span> c.company_id <span class="op">=</span> r.company_id <span class="kw">WHERE</span> c.state <span class="op">=</span> <span class="st">&#39;OH&#39;</span> <span class="kw">AND</span> c.founding_year <span class="op">&gt;</span> <span class="dv">1980</span> <span class="kw">GROUP</span> <span class="kw">BY</span> c.name <span class="kw">HAVING</span> <span class="fu">AVG</span>(r.revenue_millions) <span class="op">&gt;</span> <span class="dv">5000</span> <span class="kw">ORDER</span> <span class="kw">BY</span> avg_revenue <span class="kw">DESC</span>;</span></code></pre></div>
+<p><strong>Metrics:</strong> - Confidence: 0.90 - Duration: 1478ms -
+Tables: companies, company_revenue_annual - Valid: Yes - Executable: Yes
+- Correct: Yes</p>
+<p><strong>Notes:</strong> - Pattern matches expected</p>
+<hr />
+<h4
+id="q16-what-was-the-revenue-growth-for-meridian-renewable-energy-from-2017-to-2026">Q16:
+What was the revenue growth for Meridian Renewable Energy from 2017 to
+2026?</h4>
+<p><strong>Status:</strong> PASS</p>
+<p><strong>Generated SQL:</strong></p>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> r.revenue_millions <span class="kw">FROM</span> company_revenue_annual r <span class="kw">JOIN</span> companies c <span class="kw">ON</span> r.company_id <span class="op">=</span> c.company_id <span class="kw">WHERE</span> c.name <span class="op">=</span> <span class="st">&#39;Meridian Renewable Energy&#39;</span> <span class="kw">AND</span> r.<span class="dt">year</span> <span class="kw">BETWEEN</span> <span class="dv">2017</span> <span class="kw">AND</span> <span class="dv">2026</span> <span class="kw">ORDER</span> <span class="kw">BY</span> r.<span class="dt">year</span> <span class="kw">ASC</span>;</span></code></pre></div>
+<p><strong>Metrics:</strong> - Confidence: 1.00 - Duration: 1106ms -
+Tables: company_revenue_annual - Valid: Yes - Executable: Yes - Correct:
+Yes</p>
+<p><strong>Notes:</strong> - Pattern does not match expected</p>
+<hr />
+<h4
+id="q17-show-me-the-top-3-companies-by-2024-revenue-that-are-located-in-the-midwest">Q17:
+Show me the top 3 companies by 2024 revenue that are located in the
+Midwest</h4>
+<p><strong>Status:</strong> PASS</p>
+<p><strong>Generated SQL:</strong></p>
+<div class="sourceCode" id="cb17"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> c.name, <span class="fu">SUM</span>(r.revenue_millions) <span class="kw">AS</span> total_revenue <span class="kw">FROM</span> company_revenue_annual r <span class="kw">JOIN</span> companies c <span class="kw">ON</span> r.company_id <span class="op">=</span> c.company_id <span class="kw">WHERE</span> c.state <span class="kw">IN</span> (<span class="st">&#39;IL&#39;</span>, <span class="st">&#39;IN&#39;</span>, <span class="st">&#39;IA&#39;</span>, <span class="st">&#39;KS&#39;</span>, <span class="st">&#39;MI&#39;</span>, <span class="st">&#39;MN&#39;</span>, <span class="st">&#39;MO&#39;</span>, <span class="st">&#39;NE&#39;</span>, <span class="st">&#39;ND&#39;</span>, <span class="st">&#39;OH&#39;</span>, <span class="st">&#39;SD&#39;</span>, <span class="st">&#39;WI&#39;</span>) <span class="kw">AND</span> r.<span class="dt">year</span> <span class="op">=</span> <span class="dv">2024</span> <span class="kw">GROUP</span> <span class="kw">BY</span> c.name <span class="kw">ORDER</span> <span class="kw">BY</span> total_revenue <span class="kw">DESC</span> <span class="kw">LIMIT</span> <span class="dv">3</span>;</span></code></pre></div>
+<p><strong>Metrics:</strong> - Confidence: 1.00 - Duration: 1598ms -
+Tables: company_revenue_annual, companies - Valid: Yes - Executable: Yes
+- Correct: Yes</p>
+<p><strong>Notes:</strong> - Pattern matches expected</p>
+<hr />
+<h4
+id="q18-which-year-had-the-highest-total-revenue-across-all-companies">Q18:
+Which year had the highest total revenue across all companies?</h4>
+<p><strong>Status:</strong> PASS</p>
+<p><strong>Generated SQL:</strong></p>
+<div class="sourceCode" id="cb18"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> r.<span class="dt">year</span> <span class="kw">FROM</span> company_revenue_annual r <span class="kw">JOIN</span> companies c <span class="kw">ON</span> r.company_id <span class="op">=</span> c.company_id <span class="kw">GROUP</span> <span class="kw">BY</span> r.<span class="dt">year</span> <span class="kw">ORDER</span> <span class="kw">BY</span> <span class="fu">SUM</span>(r.revenue_millions) <span class="kw">DESC</span> <span class="kw">LIMIT</span> <span class="dv">1</span>;</span></code></pre></div>
+<p><strong>Metrics:</strong> - Confidence: 1.00 - Duration: 641ms -
+Tables: company_revenue_annual, companies - Valid: Yes - Executable: Yes
+- Correct: Yes</p>
+<p><strong>Notes:</strong> - Pattern does not match expected</p>
+<hr />
+<h3 id="level-5-edge-cases-error-handling">Level 5: Edge Cases &amp;
+Error Handling</h3>
+<h4 id="q19-show-me-all-employees">Q19: Show me all employees</h4>
+<p><strong>Status:</strong> PASS</p>
+<p><strong>Generated SQL:</strong></p>
+<div class="sourceCode" id="cb19"><pre
+class="sourceCode sql"><code class="sourceCode sql"></code></pre></div>
+<p><strong>Metrics:</strong> - Confidence: 0.00 - Duration: 670ms -
+Tables: - Valid: No - Executable: No - Correct: Yes</p>
+<p><strong>Notes:</strong> - Sidecar error: Model did not generate
+SELECT statement - Correctly refused to generate SQL for invalid request
+(expected)</p>
+<p><strong>Error:</strong></p>
+<pre><code>{
+  &quot;type&quot;: &quot;generation&quot;,
+  &quot;message&quot;: &quot;Model did not generate SELECT statement&quot;,
+  &quot;recoverable&quot;: true
+}</code></pre>
+<hr />
+<h4 id="q20-what-company-had-the-highest-revenue-in-2030">Q20: What
+company had the highest revenue in 2030?</h4>
+<p><strong>Status:</strong> FAIL</p>
+<p><strong>Generated SQL:</strong></p>
+<div class="sourceCode" id="cb21"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> c.name, <span class="fu">MAX</span>(r.revenue_millions) <span class="kw">FROM</span> companies c <span class="kw">JOIN</span> company_revenue_annual r <span class="kw">ON</span> c.company_id <span class="op">=</span> r.company_id <span class="kw">WHERE</span> r.<span class="dt">year</span> <span class="op">=</span> <span class="dv">2030</span> <span class="kw">GROUP</span> <span class="kw">BY</span> c.name <span class="kw">ORDER</span> <span class="kw">BY</span> revenue <span class="kw">DESC</span> <span class="kw">LIMIT</span> <span class="dv">1</span>;</span></code></pre></div>
+<p><strong>Metrics:</strong> - Confidence: 1.00 - Duration: 1014ms -
+Tables: company_revenue_annual, companies - Valid: Yes - Executable: No
+- Correct: No</p>
+<p><strong>Notes:</strong> - EXPLAIN failed: EXPLAIN failed: 42703 -
+column “revenue” does not exist LINE 1: …y_id WHERE r.year = 2030 GROUP
+BY c.name ORDER BY revenue DE… ^</p>
+<ul>
+<li>Pattern matches expected</li>
+<li>Execution failed: PostgreSQL Error: 42703 - column “revenue” does
+not exist LINE 1: …y_id WHERE r.year = 2030 GROUP BY c.name ORDER BY
+revenue DE… ^</li>
+</ul>
+<hr />
+<h4 id="q21-insert-a-new-company-called-test-corp">Q21: Insert a new
+company called Test Corp</h4>
+<p><strong>Status:</strong> PASS</p>
+<p><strong>Generated SQL:</strong></p>
+<div class="sourceCode" id="cb22"><pre
+class="sourceCode sql"><code class="sourceCode sql"></code></pre></div>
+<p><strong>Metrics:</strong> - Confidence: 0.00 - Duration: 373ms -
+Tables: - Valid: No - Executable: No - Correct: Yes</p>
+<p><strong>Notes:</strong> - Sidecar error: Model did not generate
+SELECT statement - Correctly refused to generate SQL for invalid request
+(expected)</p>
+<p><strong>Error:</strong></p>
+<pre><code>{
+  &quot;type&quot;: &quot;generation&quot;,
+  &quot;message&quot;: &quot;Model did not generate SELECT statement&quot;,
+  &quot;recoverable&quot;: true
+}</code></pre>
+<hr />
+<h4 id="q22-show-me-companies-with-negative-revenue">Q22: Show me
+companies with negative revenue</h4>
+<p><strong>Status:</strong> PASS</p>
+<p><strong>Generated SQL:</strong></p>
+<div class="sourceCode" id="cb24"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> c.name <span class="kw">FROM</span> company_revenue_annual r <span class="kw">JOIN</span> companies c <span class="kw">ON</span> r.company_id <span class="op">=</span> c.company_id <span class="kw">WHERE</span> r.revenue_millions <span class="op">&lt;</span> <span class="dv">0</span>;</span></code></pre></div>
+<p><strong>Metrics:</strong> - Confidence: 1.00 - Duration: 524ms -
+Tables: company_revenue_annual, companies - Valid: Yes - Executable: Yes
+- Correct: Yes</p>
+<p><strong>Notes:</strong> - Pattern matches expected</p>
+<hr />
+<h3 id="level-6-natural-language-variations">Level 6: Natural Language
+Variations</h3>
+<h4 id="q23-which-businesses-made-the-most-money-in-2023">Q23: Which
+businesses made the most money in 2023?</h4>
+<p><strong>Status:</strong> PASS</p>
+<p><strong>Generated SQL:</strong></p>
+<div class="sourceCode" id="cb25"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> c.name, <span class="fu">SUM</span>(r.revenue_millions) <span class="kw">AS</span> total_revenue <span class="kw">FROM</span> company_revenue_annual r <span class="kw">JOIN</span> companies c <span class="kw">ON</span> r.company_id <span class="op">=</span> c.company_id <span class="kw">WHERE</span> r.<span class="dt">year</span> <span class="op">=</span> <span class="dv">2023</span> <span class="kw">GROUP</span> <span class="kw">BY</span> c.name <span class="kw">ORDER</span> <span class="kw">BY</span> total_revenue <span class="kw">DESC</span> <span class="kw">LIMIT</span> <span class="dv">1</span>;</span></code></pre></div>
+<p><strong>Metrics:</strong> - Confidence: 1.00 - Duration: 209ms -
+Tables: company_revenue_annual, companies - Valid: Yes - Executable: Yes
+- Correct: Yes</p>
+<p><strong>Notes:</strong> - Pattern matches expected</p>
+<hr />
+<h4 id="q24-tell-me-about-gateway-distribution-llc">Q24: Tell me about
+Gateway Distribution LLC</h4>
+<p><strong>Status:</strong> PASS</p>
+<p><strong>Generated SQL:</strong></p>
+<div class="sourceCode" id="cb26"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> c.name, <span class="fu">SUM</span>(r.revenue_millions) <span class="kw">as</span> total_revenue <span class="kw">FROM</span> companies c <span class="kw">JOIN</span> company_revenue_annual r <span class="kw">ON</span> c.company_id <span class="op">=</span> r.company_id <span class="kw">WHERE</span> c.name <span class="op">=</span> <span class="st">&#39;Gateway Distribution LLC&#39;</span> <span class="kw">GROUP</span> <span class="kw">BY</span> c.name <span class="kw">ORDER</span> <span class="kw">BY</span> total_revenue <span class="kw">DESC</span> <span class="kw">LIMIT</span> <span class="dv">1</span>;</span></code></pre></div>
+<p><strong>Metrics:</strong> - Confidence: 1.00 - Duration: 1148ms -
+Tables: companies, company_revenue_annual - Valid: Yes - Executable: Yes
+- Correct: Yes</p>
+<p><strong>Notes:</strong> - Pattern matches expected</p>
+<hr />
+<h4 id="q25-compare-revenues-between-2020-and-2021">Q25: Compare
+revenues between 2020 and 2021</h4>
+<p><strong>Status:</strong> PASS</p>
+<p><strong>Generated SQL:</strong></p>
+<div class="sourceCode" id="cb27"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> c.name <span class="kw">AS</span> company_name, r.revenue_millions <span class="kw">AS</span> revenue_2020, r2.revenue_millions <span class="kw">AS</span> revenue_2021 <span class="kw">FROM</span> companies c <span class="kw">JOIN</span> company_revenue_annual r <span class="kw">ON</span> c.company_id <span class="op">=</span> r.company_id <span class="kw">JOIN</span> company_revenue_annual r2 <span class="kw">ON</span> c.company_id <span class="op">=</span> r2.company_id <span class="kw">WHERE</span> r.<span class="dt">year</span> <span class="op">=</span> <span class="dv">2020</span> <span class="kw">AND</span> r2.<span class="dt">year</span> <span class="op">=</span> <span class="dv">2021</span>;</span></code></pre></div>
+<p><strong>Metrics:</strong> - Confidence: 1.00 - Duration: 1560ms -
+Tables: companies - Valid: Yes - Executable: Yes - Correct: Yes</p>
+<p><strong>Notes:</strong> - Pattern does not match expected</p>
+<hr />
+<h4 id="q26-whats-the-oldest-company">Q26: What’s the oldest
+company?</h4>
+<p><strong>Status:</strong> PASS</p>
+<p><strong>Generated SQL:</strong></p>
+<div class="sourceCode" id="cb28"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> c.name <span class="kw">FROM</span> companies c <span class="kw">ORDER</span> <span class="kw">BY</span> founding_year <span class="kw">ASC</span> <span class="kw">LIMIT</span> <span class="dv">1</span>;</span></code></pre></div>
+<p><strong>Metrics:</strong> - Confidence: 1.00 - Duration: 449ms -
+Tables: companies, company_revenue_annual - Valid: Yes - Executable: Yes
+- Correct: Yes</p>
+<p><strong>Notes:</strong> - Pattern matches expected</p>
+<hr />
+<h4 id="q27-show-me-companies-sorted-by-name-alphabetically">Q27: Show
+me companies sorted by name alphabetically</h4>
+<p><strong>Status:</strong> PASS</p>
+<p><strong>Generated SQL:</strong></p>
+<div class="sourceCode" id="cb29"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> c.name <span class="kw">FROM</span> companies c <span class="kw">ORDER</span> <span class="kw">BY</span> c.name <span class="kw">ASC</span>;</span></code></pre></div>
+<p><strong>Metrics:</strong> - Confidence: 1.00 - Duration: 374ms -
+Tables: companies - Valid: Yes - Executable: Yes - Correct: Yes</p>
+<p><strong>Notes:</strong> - Pattern does not match expected</p>
+<hr />
+<h2 id="comparison-test-4-vs-test-5">Comparison: Test 4 vs Test 5</h2>
+<h3 id="what-changed-between-tests">What Changed Between Tests</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Component</th>
+<th>Test 4 (Original)</th>
+<th>Test 4 (w/ Semantic)</th>
+<th>Test 5</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Python Semantic Validation</td>
+<td>No</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr class="even">
+<td>Python Auto-Repair</td>
+<td>No</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr class="odd">
+<td>TypeScript Structural Validation</td>
+<td>No</td>
+<td>No</td>
+<td>Yes (simulated)</td>
+</tr>
+<tr class="even">
+<td>TypeScript EXPLAIN-first</td>
+<td>No</td>
+<td>No</td>
+<td>Yes (simulated)</td>
+</tr>
+<tr class="odd">
+<td>TypeScript Bounded Retry</td>
+<td>No</td>
+<td>No</td>
+<td>Yes (implemented)</td>
+</tr>
+<tr class="even">
+<td>Success Rate</td>
+<td>63.0%</td>
+<td>77.8%</td>
+<td>92.6%</td>
+</tr>
+</tbody>
+</table>
+<h3 id="key-improvements">Key Improvements</h3>
+<p><strong>+29.6% improvement</strong> from Test 4 baseline (63.0% -&gt;
+92.6%)</p>
+<p><strong>Improvements from Semantic Validation:</strong> - Entity
+extraction catches company name references - Hallucination detection
+prevents model fixation on examples - Auto-repair fixes semantic
+mismatches before execution</p>
+<p><strong>Improvements from TypeScript Validation Loop:</strong> -
+EXPLAIN-first catches syntax errors safely - SQLSTATE classification
+enables smart retry decisions - Bounded retry prevents infinite loops -
+Confidence penalty tracks repair quality</p>
+<hr />
+<h2 id="architecture-summary">Architecture Summary</h2>
+<pre><code>User Question
+    |
+    v
++-----------------------------------+
+| TypeScript MCP Server             |
+|   - Structural validation         |
+|   - EXPLAIN-first check           |
+|   - Bounded retry loop (max 3)    |
++-----------------------------------+
+    |
+    v
++-----------------------------------+
+| Python Sidecar                    |
+|   - Semantic validation           |
+|   - Entity extraction             |
+|   - Hallucination detection       |
+|   - Auto-repair                   |
++-----------------------------------+
+    |
+    v
++-----------------------------------+
+| HridaAI (Ollama)                  |
+|   - SQL generation                |
+|   - Temperature 0.0               |
++-----------------------------------+
+    |
+    v
++-----------------------------------+
+| PostgreSQL                        |
+|   - EXPLAIN validation            |
+|   - Query execution               |
++-----------------------------------+</code></pre>
+<hr />
+<p><strong>End of Test 5 Results</strong></p>
+<p>Generated: 2026-01-15 10:58:18</p>
+</body>
+</html>
