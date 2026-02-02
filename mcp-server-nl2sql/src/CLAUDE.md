@@ -252,19 +252,55 @@ npx tsx scripts/populate_embeddings.ts
 | Hard (15) | 53.3% |
 | **Overall** | **75.0%** |
 
-## Current Error Patterns
+## Current Error Analysis (15 failures, 25%)
 
-| Error Type | Count | Cause |
-|------------|-------|-------|
-| column_miss | 5 (8.3%) | LLM invents column names |
-| llm_reasoning | 7 (11.7%) | Syntax errors, complex queries |
-| execution_error | 2 (3.3%) | Gibberish output |
+### 1. Column Name Errors (5 failures, 8.3%)
 
-## Known Issues
+LLM invents columns not in schema:
 
-1. **Column hallucination** - LLM invents columns not in schema (e.g., `vendor_name` → `name`)
-2. **PostgreSQL syntax** - Uses MySQL functions (`YEAR()` → `EXTRACT(YEAR FROM ...)`)
-3. **Sales module weak** - Only 45.5% success rate
-4. **Complex analytics** - Struggles with window functions, multi-step calculations
+| Question | Wrong Column | Likely Correct |
+|----------|--------------|----------------|
+| Q34: Total spend by vendor | `v.vendor_name` | `v.name` |
+| Q37: Debit/credit by account | `b.amount` | Different column |
+| Q50: Order value by customer | `c.segment` | Doesn't exist |
+| Q55: Trial balance | `ac.asset_id` | Wrong table |
+| Q57: Project profitability | `pe.actual_amount` | `pe.amount` |
+
+**Root cause:** Schema description doesn't clearly communicate column names.
+
+### 2. PostgreSQL Syntax Errors (2 failures)
+
+| Question | Error | Fix |
+|----------|-------|-----|
+| Q26: Sales by year | `YEAR(date)` function | `EXTRACT(YEAR FROM date)` |
+| Q29: Quote conversion | Ambiguous `quote_id` | Needs table qualifier |
+
+**Root cause:** LLM trained on MySQL-style SQL.
+
+### 3. Complex Query Failures (4 failures)
+
+Queries that failed validation after 3 attempts:
+- Q2: Employees hired in 2024 (date filtering)
+- Q38: Posted journal entries (complex joins)
+- Q51: Sales pipeline weighted value (calculations)
+- Q56: Cash flow from transactions (grouping)
+
+**Root cause:** Multi-step analytics beyond LLM capability.
+
+### 4. Generation Failures (2 failures)
+
+- Q27: Top 10 customers - Model didn't generate SELECT
+- Q49: Month-over-month growth - Gibberish detected
+
+**Root cause:** Complex questions confuse the model.
+
+## Potential Fixes
+
+| Fix | Target Errors | Effort | Expected Impact |
+|-----|---------------|--------|-----------------|
+| Add column whitelist to prompt | column_miss (5) | Medium | +8% |
+| Add PostgreSQL examples (EXTRACT) | syntax (2) | Low | +3% |
+| Improve Sales schema descriptions | Sales module (45%) | Medium | +5% |
+| Add window function examples | complex analytics (4) | Medium | +5% |
 
 See `/STATUS.md` for full metrics and recent changes.

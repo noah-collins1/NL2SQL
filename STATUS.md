@@ -173,30 +173,54 @@ MULTI_CANDIDATE_K_HARD=6        # K for hard questions
 | execution_error | 2 | 3.3% | Gibberish output |
 | join_path_miss | 1 | 1.7% | Wrong table relationships |
 
-### Specific Error Patterns
+### 1. Column Name Errors (5 failures, 8.3%)
 
-**1. Column Name Errors (5 failures)**
 LLM invents columns not in schema:
-- `v.vendor_name` → should be `v.name`
-- `c.segment` → column doesn't exist
-- `pe.actual_amount` → should be `pe.amount`
-- `ac.asset_id` → wrong table alias
 
-**2. PostgreSQL Syntax (2 failures)**
-Using MySQL functions instead of PostgreSQL:
-- `YEAR(date)` → should be `EXTRACT(YEAR FROM date)`
-- Ambiguous column references without table qualifiers
+| Question | Wrong Column | Likely Correct |
+|----------|--------------|----------------|
+| Q34: Total spend by vendor | `v.vendor_name` | `v.name` |
+| Q37: Debit/credit by account | `b.amount` | Different column |
+| Q50: Order value by customer | `c.segment` | Doesn't exist |
+| Q55: Trial balance | `ac.asset_id` | Wrong table |
+| Q57: Project profitability | `pe.actual_amount` | `pe.amount` |
 
-**3. Complex Query Failures (4 failures)**
-LLM struggles with:
-- Month-over-month calculations (LAG/LEAD)
-- Trial balance generation
-- Cash flow grouping
-- Multi-table analytics
+**Root cause:** Schema description doesn't clearly communicate column names.
 
-**4. Generation Failures (2 failures)**
-- Model produces gibberish for some complex queries
-- Fails to generate SELECT statement
+### 2. PostgreSQL Syntax Errors (2 failures)
+
+| Question | Error | Fix |
+|----------|-------|-----|
+| Q26: Sales by year | `YEAR(date)` function | `EXTRACT(YEAR FROM date)` |
+| Q29: Quote conversion | Ambiguous `quote_id` | Needs table qualifier |
+
+**Root cause:** LLM trained on MySQL-style SQL.
+
+### 3. Complex Query Failures (4 failures)
+
+Queries that failed validation after 3 attempts:
+- Q2: Employees hired in 2024 (date filtering)
+- Q38: Posted journal entries (complex joins)
+- Q51: Sales pipeline weighted value (calculations)
+- Q56: Cash flow from transactions (grouping)
+
+**Root cause:** Multi-step analytics beyond LLM capability.
+
+### 4. Generation Failures (2 failures)
+
+- Q27: Top 10 customers - Model didn't generate SELECT
+- Q49: Month-over-month growth - Gibberish detected
+
+**Root cause:** Complex questions confuse the model.
+
+### Potential Fixes
+
+| Fix | Target Errors | Effort | Expected Impact |
+|-----|---------------|--------|-----------------|
+| Add column whitelist to prompt | column_miss (5) | Medium | +8% |
+| Add PostgreSQL examples (EXTRACT) | syntax (2) | Low | +3% |
+| Improve Sales schema descriptions | Sales module (45%) | Medium | +5% |
+| Add window function examples | complex analytics (4) | Medium | +5% |
 
 ## Performance History
 

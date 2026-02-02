@@ -201,7 +201,47 @@ With Enterprise ERP database (60 questions):
 - **Easy:** 95.0%
 - **Medium:** 72.0%
 - **Hard:** 53.3%
-- **column_miss:** 8.3%
-- **llm_reasoning:** 11.7%
+
+## Error Analysis (15 failures, 25%)
+
+### 1. Column Name Errors (5 failures, 8.3%)
+
+LLM invents columns not in schema:
+
+| Question | Wrong Column | Likely Correct |
+|----------|--------------|----------------|
+| Q34: Total spend by vendor | `v.vendor_name` | `v.name` |
+| Q37: Debit/credit by account | `b.amount` | Different column |
+| Q50: Order value by customer | `c.segment` | Doesn't exist |
+
+**Root cause:** Schema description doesn't clearly communicate column names.
+
+### 2. PostgreSQL Syntax Errors (2 failures)
+
+| Question | Error | Fix |
+|----------|-------|-----|
+| Q26: Sales by year | `YEAR(date)` function | `EXTRACT(YEAR FROM date)` |
+| Q29: Quote conversion | Ambiguous `quote_id` | Needs table qualifier |
+
+**Root cause:** LLM trained on MySQL-style SQL.
+
+### 3. Complex Query Failures (4 failures)
+
+- Multi-step analytics beyond LLM capability
+- Window functions (LAG/LEAD)
+- Trial balance, cash flow calculations
+
+### 4. Generation Failures (2 failures)
+
+- Model produces gibberish for complex queries
+- Fails to generate SELECT statement
+
+## Potential Fixes
+
+| Fix | Target Errors | Effort |
+|-----|---------------|--------|
+| Add column whitelist to prompt | column_miss (5) | Medium |
+| Add PostgreSQL examples (EXTRACT) | syntax (2) | Low |
+| Add window function examples | complex analytics (4) | Medium |
 
 See `/STATUS.md` for full metrics.
