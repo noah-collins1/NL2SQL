@@ -7,6 +7,7 @@
 This Python sidecar handles AI-powered SQL generation for the NL2SQL MCP server. It communicates with Ollama/HridaAI to generate SQL from natural language questions.
 
 **Database:** Enterprise ERP (60+ tables, 8 modules)
+**Current Success Rate:** 75.0%
 
 ## Components
 
@@ -14,7 +15,7 @@ This Python sidecar handles AI-powered SQL generation for the NL2SQL MCP server.
 |------|---------|
 | `app.py` | FastAPI server with `/generate_sql`, `/repair_sql`, `/embed` endpoints |
 | `config.py` | Prompts, schema configuration, repair delta templates |
-| `hrida_client.py` | Ollama API client (HridaAI/hrida-t2sql) |
+| `hrida_client.py` | Ollama API client - sync + **async parallel generation** |
 | `keyword_filter.py` | Stage 1 table filtering by keywords |
 | `semantic_validator.py` | Semantic validation (entity extraction, hallucination detection) |
 
@@ -28,8 +29,7 @@ Generate SQL from natural language question.
   "question": "Which employees have pending leave requests?",
   "database_id": "enterprise_erp",
   "schema_context": { ... },  // From TypeScript Schema RAG
-  "multi_candidate_k": 4,     // Optional: generate K candidates
-  "multi_candidate_delimiter": "---SQL_CANDIDATE---"  // Optional: delimiter
+  "multi_candidate_k": 4      // Optional: generate K candidates in parallel
 }
 ```
 
@@ -37,8 +37,7 @@ Generate SQL from natural language question.
 ```json
 {
   "sql_generated": "SELECT ...",  // First/best candidate
-  "sql_candidates": ["SELECT ...", "SELECT ...", ...],  // All K candidates
-  "sql_candidates_raw": "SELECT ...---SQL_CANDIDATE---SELECT ...",  // Raw output
+  "sql_candidates": ["SELECT ...", "SELECT ...", ...],  // Deduplicated candidates
   ...
 }
 ```
@@ -64,14 +63,73 @@ Repair failed SQL with error context.
 ### POST /embed
 Generate embeddings for text (used by Schema RAG).
 
-```json
-{
-  "texts": ["employee salaries", "department budget"]
-}
-```
-
 ### GET /health
 Health check endpoint.
+
+## Parallel Multi-Candidate Generation
+
+When `multi_candidate_k > 1`, the sidecar generates K candidates **in parallel** using async HTTP calls.
+
+**Architecture:**
+```
+Request (k=4) → generate_candidates_parallel()
+                    │
+                    ├─ async call 1 (temp=0.3) ─┐
+                    ├─ async call 2 (temp=0.3) ─┤
+                    ├─ async call 3 (temp=0.3) ─┼─→ Gather Results
+                    └─ async call 4 (temp=0.3) ─┘
+                                                │
+                    ┌───────────────────────────┘
+                    ▼
+              Deduplicate by normalized SQL
+                    │
+                    ▼
+              Return sql_candidates[]
+```
+
+**Key Implementation (`hrida_client.py`):**
+
+```python
+async def generate_candidates_parallel(
+    self,
+    prompt: str,
+    k: int = 4,
+    temperature: float = 0.3,  # For diversity
+    max_tokens: int = 200
+) -> List[Tuple[str, float]]:
+    """Generate K SQL candidates in parallel with deduplication."""
+
+    async with aiohttp.ClientSession() as session:
+        tasks = [
+            self.generate_sql_async(prompt, temperature, max_tokens, session)
+            for _ in range(k)
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Deduplicate by normalized SQL
+    seen = set()
+    candidates = []
+    for sql, confidence in results:
+        normalized = normalize_sql(sql)
+        if normalized not in seen:
+            seen.add(normalized)
+            candidates.append((sql, confidence))
+
+    return candidates
+```
+
+**Why Parallel Instead of Delimiter-Based:**
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| Single call + delimiter | 1 LLM call | LLM ignores delimiter format |
+| **Parallel calls** | Clean output, robust | K LLM calls (but parallel) |
+
+The parallel approach is more reliable because:
+1. Each call returns a single, clean SQL statement
+2. No parsing of delimiters needed
+3. Temperature=0.3 provides natural variation
+4. If one call fails, others still work
 
 ## Prompt Architecture
 
@@ -104,38 +162,6 @@ Use only these exact column names: {primary_columns}
 - If you need a concept not present, join a table that has it
 ```
 
-### Multi-Candidate Generation (NEW)
-
-When `multi_candidate_k > 1`, the prompt includes:
-```
-## Multi-Candidate SQL Generation
-
-Generate exactly {k} different valid SQL queries that answer the question.
-Separate each SQL candidate with exactly this delimiter on its own line:
----SQL_CANDIDATE---
-
-**Variation Guidelines:**
-- Candidate 1: Most straightforward approach
-- Candidate 2: Alternative table ordering or JOIN strategy
-...
-```
-
-**Parsing Logic (`parse_multi_candidates()`):**
-1. Split by delimiter `---SQL_CANDIDATE---`
-2. Extract SQL from code blocks if present
-3. Clean: remove comments, normalize whitespace
-4. Validate: must contain SELECT, length > 10
-5. Return list of valid SQL candidates
-
-## Semantic Validator
-
-Catches cases where SQL is syntactically valid but semantically wrong:
-
-1. **Entity Extraction** - Finds company names, values mentioned in question
-2. **Intent Classification** - "which state" → lookup_state intent
-3. **Hallucination Detection** - Values in SQL not mentioned in question
-4. **Auto-Repair** - Triggers repair with semantic issues
-
 ## Configuration
 
 Key settings in `config.py`:
@@ -143,15 +169,10 @@ Key settings in `config.py`:
 ```python
 OLLAMA_BASE_URL = "http://localhost:11434"
 OLLAMA_MODEL = "HridaAI/hrida-t2sql:latest"
-OLLAMA_TEMPERATURE = 0.0  # Deterministic (0.1 for multi-candidate diversity)
-OLLAMA_TIMEOUT = 60
+OLLAMA_TIMEOUT = 90  # Increased for parallel generation
 
-# Multi-candidate generation
-MULTI_CANDIDATE_DELIMITER = "---SQL_CANDIDATE---"
-MULTI_CANDIDATE_PROMPT = """
-## Multi-Candidate SQL Generation
-Generate exactly {k} different valid SQL queries...
-"""
+# Multi-candidate generation uses temperature=0.3 for diversity
+# Deduplication happens automatically in generate_candidates_parallel()
 ```
 
 ## Running the Sidecar
@@ -163,11 +184,24 @@ python app.py
 # Runs on http://localhost:8001
 ```
 
+## Dependencies
+
+```
+fastapi
+uvicorn
+requests
+aiohttp     # For async parallel generation
+pydantic
+```
+
 ## Current Performance
 
 With Enterprise ERP database (60 questions):
-- **Success Rate:** 56.7%
-- **column_miss:** 20%
-- **execution_error:** 5%
+- **Success Rate:** 75.0%
+- **Easy:** 95.0%
+- **Medium:** 72.0%
+- **Hard:** 53.3%
+- **column_miss:** 8.3%
+- **llm_reasoning:** 11.7%
 
 See `/STATUS.md` for full metrics.

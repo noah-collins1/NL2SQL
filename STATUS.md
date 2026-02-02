@@ -1,16 +1,25 @@
 # NL2SQL Project Status
 
 **Last Updated:** 2026-02-02
-**Phase:** Production Development - Schema RAG V1 + Multi-Candidate Generation + Minimal Whitelist Repair
+**Phase:** Production Development - Schema RAG V1 + Parallel Multi-Candidate Generation
 
 ## Current Performance
 
 | Metric | Value |
 |--------|-------|
-| **Success Rate** | 56.7% (34/60) |
-| **column_miss** | 12 (20.0%) |
-| **execution_error** | 3 (5.0%) |
+| **Success Rate** | 75.0% (45/60) |
+| **column_miss** | 5 (8.3%) |
+| **llm_reasoning** | 7 (11.7%) |
+| **execution_error** | 2 (3.3%) |
 | **Database** | Enterprise ERP (60+ tables) |
+
+## Exam Results by Difficulty
+
+| Difficulty | Success Rate |
+|------------|--------------|
+| Easy (20)  | 95.0% (19/20) |
+| Medium (25)| 72.0% (18/25) |
+| Hard (15)  | 53.3% (8/15) |
 
 ## Project Structure
 
@@ -19,19 +28,16 @@ nl2sql-project/
 ├── STATUS.md                     # This file
 ├── roadmap.md                    # Original architecture roadmap
 ├── docs/                         # Technical documentation
-│   ├── schema-rag-v2.md          # V2 retrieval design (not in use)
-│   └── schema-rag-v2-integration.md
 │
 ├── mcp-server-nl2sql/            # TypeScript MCP Server
 │   ├── src/
 │   │   ├── index.ts              # MCP server entry point
 │   │   ├── nl_query_tool.ts      # Main NL2SQL tool
-│   │   ├── multi_candidate.ts    # **NEW** Multi-candidate generation, scoring, selection
+│   │   ├── multi_candidate.ts    # Multi-candidate scoring & selection
 │   │   ├── sql_validator.ts      # SQL validation
 │   │   ├── sql_lint.ts           # SQL linting
 │   │   ├── sql_autocorrect.ts    # SQL autocorrection
 │   │   ├── schema_retriever.ts   # V1 schema retrieval (ACTIVE)
-│   │   ├── schema_retriever_v2.ts # V2 retrieval (NOT IN USE - caused errors)
 │   │   ├── column_candidates.ts  # Column whitelist + minimal repair
 │   │   ├── schema_embedder.ts    # Embedding generation
 │   │   ├── python_client.ts      # HTTP client to sidecar
@@ -41,9 +47,9 @@ nl2sql-project/
 │   └── exam_logs/                # Exam results
 │
 ├── python-sidecar/               # Python AI service
-│   ├── app.py                    # FastAPI server
+│   ├── app.py                    # FastAPI server (async parallel generation)
 │   ├── config.py                 # Prompts and configuration
-│   ├── hrida_client.py           # Ollama API client
+│   ├── hrida_client.py           # Ollama API client (sync + async)
 │   └── semantic_validator.py     # Semantic validation
 │
 ├── enterprise-erp/               # Enterprise ERP test database
@@ -51,7 +57,7 @@ nl2sql-project/
 │   ├── 002_sample_data.sql       # Sample data
 │   └── 003_test_questions.json   # 60 exam questions
 │
-└── mcp-servers/                  # Smithery MCP servers (git clone, reference)
+└── mcp-servers/                  # Smithery MCP servers (reference)
 ```
 
 ## Active Features
@@ -61,8 +67,14 @@ nl2sql-project/
 - M-Schema format for schema representation
 - FK edge detection for join hints
 
-### Multi-Candidate SQL Generation (NEW)
-Generates K SQL candidates per question and selects the best using deterministic scoring.
+### Parallel Multi-Candidate SQL Generation
+Generates K SQL candidates in parallel and selects the best using deterministic scoring.
+
+**Architecture:**
+```
+Question → K Parallel LLM Calls → Deduplicate → Score → Select Best → Execute
+           (temp=0.3 for diversity)
+```
 
 **Configuration:**
 ```bash
@@ -74,15 +86,16 @@ MULTI_CANDIDATE_K_HARD=6        # K for hard questions
 
 **How it works:**
 1. Classify question difficulty → determine K value
-2. Request K candidates from LLM (single call, delimited output)
-3. Parse candidates using `---SQL_CANDIDATE---` delimiter
-4. For each candidate:
+2. Generate K candidates in parallel (async aiohttp calls)
+3. Temperature=0.3 for natural diversity
+4. Deduplicate by normalized SQL
+5. For each unique candidate:
    - Structural validation (fail-fast rejects)
    - Lint analysis (penalty scoring)
    - Parallel EXPLAIN with 2s timeout
-5. Score candidates deterministically (no LLM judge)
-6. Select best candidate (prefer EXPLAIN-passed)
-7. Execute or enter repair loop
+6. Score candidates deterministically (no LLM judge)
+7. Select best candidate (prefer EXPLAIN-passed)
+8. Execute or enter repair loop
 
 **Scoring:**
 | Factor | Points |
@@ -93,17 +106,10 @@ MULTI_CANDIDATE_K_HARD=6        # K for hard questions
 | GROUP BY matches question | +10 |
 | ORDER BY+LIMIT for "top/highest" | +10 |
 
-**Files:** `multi_candidate.ts`, `config.ts`, `python-sidecar/config.py`
-
 ### Minimal Whitelist Repair
 - Extracts failing `alias.column` from 42703 errors
 - Resolves alias to table using SQL FROM/JOIN analysis
 - Builds targeted whitelist (table + 1-hop FK neighbors)
-- Reduces column_miss without increasing execution_error
-
-### NOT IN USE
-- **V2 Dual Retrieval** (`USE_SCHEMA_RAG_V2=true`): Caused regression from 53% to 37% success rate
-- **Pre-execution Column Validation**: Too aggressive, caused false positives
 
 ## Architecture
 
@@ -119,9 +125,9 @@ MULTI_CANDIDATE_K_HARD=6        # K for hard questions
 │  nl_query(question)                     │
 │  ├─ 1. Schema RAG (V1 retrieval)        │
 │  ├─ 2. HTTP POST to Python sidecar      │
-│  │     └─ Request K SQL candidates      │
+│  │     └─ Request K parallel candidates │
 │  ├─ 3. Multi-Candidate Evaluation       │
-│  │     ├─ Parse delimited candidates    │
+│  │     ├─ Receive deduplicated list     │
 │  │     ├─ Structural validation         │
 │  │     ├─ Lint analysis                 │
 │  │     ├─ Parallel EXPLAIN              │
@@ -136,16 +142,17 @@ MULTI_CANDIDATE_K_HARD=6        # K for hard questions
                ▼
 ┌─────────────────────────────────────────┐
 │ Python Sidecar (FastAPI :8001)          │
-│  ├─ Generate K SQL candidates           │
-│  │   (single LLM call, delimited)       │
+│  ├─ Parallel candidate generation       │
+│  │   (K async calls, temp=0.3)          │
+│  ├─ Deduplication by normalized SQL     │
 │  ├─ Repair SQL with error context       │
-│  └─ Return SQL + confidence             │
+│  └─ Return sql_candidates list          │
 └──────────────┬──────────────────────────┘
                │
                ▼
 ┌─────────────────────────────────────────┐
 │ Ollama (HridaAI/hrida-t2sql)            │
-│ Port: 11434, Temperature: 0.0-0.1       │
+│ Port: 11434, GPU: RTX 4060 Ti           │
 └─────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────┐
@@ -155,47 +162,87 @@ MULTI_CANDIDATE_K_HARD=6        # K for hard questions
 └─────────────────────────────────────────┘
 ```
 
-## Exam Results by Difficulty
+## Current Error Analysis
 
-| Difficulty | Success Rate |
-|------------|--------------|
-| Easy (20)  | 95.0% (19/20) |
-| Medium (25)| 52.0% (13/25) |
-| Hard (15)  | 13.3% (2/15) |
+### Failure Breakdown (15 failures)
 
-## Known Issues
+| Category | Count | % | Root Cause |
+|----------|-------|---|------------|
+| column_miss | 5 | 8.3% | LLM invents column names |
+| llm_reasoning | 7 | 11.7% | Syntax errors, complex queries |
+| execution_error | 2 | 3.3% | Gibberish output |
+| join_path_miss | 1 | 1.7% | Wrong table relationships |
 
-1. **Hard queries fail** - LLM struggles with complex multi-table joins
-2. **column_miss still 20%** - LLM invents column names not in schema
-3. **V2 retriever broken** - Causes many execution errors, not in use
+### Specific Error Patterns
+
+**1. Column Name Errors (5 failures)**
+LLM invents columns not in schema:
+- `v.vendor_name` → should be `v.name`
+- `c.segment` → column doesn't exist
+- `pe.actual_amount` → should be `pe.amount`
+- `ac.asset_id` → wrong table alias
+
+**2. PostgreSQL Syntax (2 failures)**
+Using MySQL functions instead of PostgreSQL:
+- `YEAR(date)` → should be `EXTRACT(YEAR FROM date)`
+- Ambiguous column references without table qualifiers
+
+**3. Complex Query Failures (4 failures)**
+LLM struggles with:
+- Month-over-month calculations (LAG/LEAD)
+- Trial balance generation
+- Cash flow grouping
+- Multi-table analytics
+
+**4. Generation Failures (2 failures)**
+- Model produces gibberish for some complex queries
+- Fails to generate SELECT statement
+
+## Performance History
+
+| Date | Success Rate | Key Change |
+|------|--------------|------------|
+| 2026-01-31 | 53.3% | V1 Schema RAG baseline |
+| 2026-02-02 | 56.7% | Minimal whitelist repair |
+| 2026-02-02 | 65.0% | Multi-candidate (delimiter-based) |
+| **2026-02-02** | **75.0%** | **Parallel multi-candidate** |
 
 ## Recent Changes
 
-### 2026-02-02: Multi-Candidate SQL Generation
-- **NEW FEATURE:** Generate K SQL candidates per question, select best via deterministic scoring
-- Files added/modified:
-  - `multi_candidate.ts` - Core module (config, parsing, scoring, orchestration)
-  - `config.ts` - Extended interfaces for multi-candidate support
-  - `nl_query_tool.ts` - Integration with main orchestration loop
-  - `python-sidecar/config.py` - Multi-candidate prompt template
-  - `python-sidecar/app.py` - Multi-candidate generation support
-- Key features:
-  - Difficulty-based K selection (easy=2, medium=4, hard=6)
-  - Single LLM call with delimited output (`---SQL_CANDIDATE---`)
-  - Parallel EXPLAIN with 2s timeout
-  - Deterministic scoring: base (100) - lint errors (25) - EXPLAIN fail (50) + heuristic bonuses
-  - Exam mode logging for candidate evaluation metrics
-- Toggle: `MULTI_CANDIDATE_ENABLED=false` to disable
+### 2026-02-02: Parallel Multi-Candidate Generation
+- **MAJOR IMPROVEMENT:** 65% → 75% success rate (+10%)
+- Replaced delimiter-based single-call with parallel LLM calls
+- Files modified:
+  - `python-sidecar/hrida_client.py` - Async generation with aiohttp
+  - `python-sidecar/app.py` - Parallel candidate orchestration
+  - `mcp-server-nl2sql/src/nl_query_tool.ts` - Handle sql_candidates list
+- Key improvements:
+  - Medium queries: 60% → 72% (+12%)
+  - Hard queries: 33% → 53% (+20%)
+  - column_miss: 15% → 8.3%
+  - Inventory module: 50% → 100%
+
+### 2026-02-02: Multi-Candidate Framework
+- Initial implementation with delimiter-based parsing
+- Success rate: 56.7% → 65.0%
 
 ### 2026-02-02: Minimal Whitelist Repair
-- Implemented targeted 42703 repair (only relevant table + FK neighbors)
-- Success rate: 53.3% → 56.7% (+3.4%)
-- column_miss: 14 → 12 (-2)
-- execution_error: unchanged at 3
+- Targeted 42703 repair for column errors
+- Success rate: 53.3% → 56.7%
 
-### 2026-01-31: Schema RAG V1 Baseline
-- Established 53.3% baseline with V1 retriever
-- V2 tested but caused regression
+## Known Issues
+
+1. **Column name hallucination** - LLM invents columns not in schema (8.3% of failures)
+2. **PostgreSQL syntax** - Uses MySQL functions (YEAR vs EXTRACT)
+3. **Complex analytics** - Struggles with window functions, multi-step calculations
+4. **Sales module weak** - Only 45.5% success (needs better schema context)
+
+## Potential Improvements
+
+1. **Column name enforcement** - Add column whitelist to prompt
+2. **PostgreSQL examples** - Add EXTRACT, window function examples to prompt
+3. **Sales schema enrichment** - Better table/column descriptions for sales module
+4. **Retry with different temperature** - If first batch fails, try temp=0.5
 
 ## Running the Exam
 

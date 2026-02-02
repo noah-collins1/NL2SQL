@@ -4,10 +4,10 @@
 
 ## Overview
 
-TypeScript MCP server that converts natural language to SQL. Handles schema retrieval, multi-candidate SQL generation, validation, repair loops, and execution.
+TypeScript MCP server that converts natural language to SQL. Handles schema retrieval, parallel multi-candidate SQL generation, validation, repair loops, and execution.
 
 **Database:** Enterprise ERP (60+ tables, 8 modules)
-**Current Success Rate:** 56.7%
+**Current Success Rate:** 75.0% (Easy: 95%, Medium: 72%, Hard: 53%)
 
 ## Architecture
 
@@ -86,14 +86,24 @@ buildMinimalWhitelist(errorMessage, sql, schemaContext)
 // Returns: { resolvedTable, whitelist: { table: [columns] } }
 ```
 
-### Multi-Candidate SQL Generation (NEW)
+### Parallel Multi-Candidate SQL Generation
 
-Generates K SQL candidates per question and selects the best one using deterministic scoring.
+Generates K SQL candidates in **parallel** and selects the best one using deterministic scoring.
 
 **Key Files:**
-- `multi_candidate.ts` - Core module with config, parsing, scoring, orchestration
-- `config.ts` - Extended interfaces for multi-candidate support
-- `python-sidecar/config.py` - Multi-candidate prompt template
+- `multi_candidate.ts` - Scoring, evaluation, selection logic
+- `nl_query_tool.ts` - Integration with main pipeline
+- `python-sidecar/hrida_client.py` - Async parallel generation
+- `python-sidecar/app.py` - Candidate orchestration
+
+**Architecture:**
+```
+Question → Python Sidecar → K Parallel LLM Calls → Deduplicate → Return List
+                              (temp=0.3)
+         ← sql_candidates[] ←
+
+TypeScript → Evaluate Each → Score → Select Best → Execute/Repair
+```
 
 **Configuration (`MULTI_CANDIDATE_CONFIG`):**
 ```typescript
@@ -105,17 +115,7 @@ Generates K SQL candidates per question and selects the best one using determini
   max_candidates_to_explain: 4,     // Max parallel EXPLAIN runs
   per_query_time_budget_ms: 10000,  // 10s max total
   explain_timeout_ms: 2000,         // 2s per EXPLAIN
-  sql_delimiter: "---SQL_CANDIDATE---"
 }
-```
-
-**Delimiter Format:**
-```sql
-SELECT e.name FROM employees e WHERE e.dept = 'Sales';
----SQL_CANDIDATE---
-SELECT e.name FROM employees e JOIN departments d ON e.dept_id = d.id WHERE d.name = 'Sales';
----SQL_CANDIDATE---
-SELECT name FROM employees WHERE department_id = (SELECT id FROM departments WHERE name = 'Sales');
 ```
 
 **Scoring (Deterministic, No LLM Judge):**
@@ -131,13 +131,12 @@ SELECT name FROM employees WHERE department_id = (SELECT id FROM departments WHE
 
 **Flow:**
 1. Classify question difficulty → K value
-2. Request K candidates (single LLM call)
-3. Parse candidates from delimited output
-4. Structural validation (fail-fast rejects)
-5. Lint analysis
-6. Parallel EXPLAIN with timeout
-7. Score and select best candidate
-8. Use selected candidate for execution/repair
+2. Python sidecar generates K candidates in parallel (async aiohttp)
+3. Candidates deduplicated by normalized SQL
+4. TypeScript receives `sql_candidates` list
+5. For each candidate: structural validation, lint, EXPLAIN
+6. Score and select best candidate
+7. Execute or enter repair loop
 
 **Toggle:**
 ```bash
@@ -249,14 +248,23 @@ npx tsx scripts/populate_embeddings.ts
 | Difficulty | Success Rate |
 |------------|--------------|
 | Easy (20) | 95.0% |
-| Medium (25) | 52.0% |
-| Hard (15) | 13.3% |
-| **Overall** | **56.7%** |
+| Medium (25) | 72.0% |
+| Hard (15) | 53.3% |
+| **Overall** | **75.0%** |
+
+## Current Error Patterns
+
+| Error Type | Count | Cause |
+|------------|-------|-------|
+| column_miss | 5 (8.3%) | LLM invents column names |
+| llm_reasoning | 7 (11.7%) | Syntax errors, complex queries |
+| execution_error | 2 (3.3%) | Gibberish output |
 
 ## Known Issues
 
-1. **V2 retriever broken** - Causes regression, disabled
-2. **Hard queries fail** - LLM struggles with complex joins
-3. **column_miss 20%** - LLM invents column names
+1. **Column hallucination** - LLM invents columns not in schema (e.g., `vendor_name` → `name`)
+2. **PostgreSQL syntax** - Uses MySQL functions (`YEAR()` → `EXTRACT(YEAR FROM ...)`)
+3. **Sales module weak** - Only 45.5% success rate
+4. **Complex analytics** - Struggles with window functions, multi-step calculations
 
-See `/STATUS.md` for current metrics and recent changes.
+See `/STATUS.md` for full metrics and recent changes.
