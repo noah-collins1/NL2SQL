@@ -280,9 +280,6 @@ export interface RepairSQLRequest {
 		modules: string[]
 	}
 
-	/** Full column whitelist per table (for 42703 repairs) */
-	column_whitelist?: Record<string, string[]>
-
 	/** Include trace info */
 	trace?: boolean
 }
@@ -322,6 +319,24 @@ export interface ColumnCandidateInfo {
 }
 
 /**
+ * Minimal whitelist for targeted 42703 repair
+ */
+export interface MinimalWhitelistInfo {
+	/** The alias used in the failing reference (e.g., "p") */
+	alias: string | null
+	/** The resolved table name (e.g., "projects") */
+	resolved_table: string | null
+	/** The column that failed (e.g., "project_id") */
+	failing_column: string | null
+	/** Whitelist: only columns for the resolved table and FK neighbors */
+	whitelist: Record<string, string[]>
+	/** FK neighbor tables included */
+	neighbor_tables?: string[]
+	/** Pre-formatted text for repair prompt */
+	formatted_text?: string
+}
+
+/**
  * PostgreSQL error context for repair
  */
 export interface PostgresErrorContext {
@@ -335,8 +350,8 @@ export interface PostgresErrorContext {
 	undefined_column?: string
 	column_candidates?: ColumnCandidateInfo[]
 
-	// Full column whitelist per table (for 42703 repairs)
-	column_whitelist?: Record<string, string[]>
+	// Minimal whitelist for 42703 repairs (only relevant table + FK neighbors)
+	minimal_whitelist?: MinimalWhitelistInfo
 }
 
 /**

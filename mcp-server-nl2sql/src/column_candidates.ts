@@ -660,6 +660,226 @@ export function buildColumnWhitelist(
 }
 
 // ============================================================================
+// Minimal Whitelist for 42703 Repairs
+// ============================================================================
+
+/**
+ * Result of minimal whitelist extraction
+ */
+export interface MinimalWhitelistResult {
+	/** The extracted alias (e.g., "p" from "p.project_id") */
+	alias: string | null
+	/** The resolved table name (e.g., "projects") */
+	resolvedTable: string | null
+	/** The failing column name (e.g., "project_id") */
+	failingColumn: string | null
+	/** Minimal whitelist: only columns for the resolved table */
+	whitelist: Record<string, string[]>
+	/** FK neighbor tables (1-hop) if available */
+	neighborTables?: string[]
+}
+
+/**
+ * Extract alias.column from PostgreSQL error message
+ *
+ * Handles various formats:
+ * - column "alias.column" does not exist
+ * - column alias.column does not exist
+ * - column "column" does not exist (no alias)
+ */
+export function extractAliasColumnFromError(errorMessage: string): { alias: string | null; column: string } | null {
+	// Pattern 1: column "alias.column" or "column" (quoted)
+	const quotedMatch = errorMessage.match(/column\s+"([^"]+)"\s+does not exist/i)
+	if (quotedMatch) {
+		const ref = quotedMatch[1]
+		if (ref.includes(".")) {
+			const [alias, column] = ref.split(".")
+			return { alias, column }
+		}
+		return { alias: null, column: ref }
+	}
+
+	// Pattern 2: column alias.column (unquoted with dot)
+	const unquotedQualifiedMatch = errorMessage.match(/column\s+([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)\s+does not exist/i)
+	if (unquotedQualifiedMatch) {
+		return { alias: unquotedQualifiedMatch[1], column: unquotedQualifiedMatch[2] }
+	}
+
+	// Pattern 3: column column (unquoted simple)
+	const unquotedMatch = errorMessage.match(/column\s+(\w+)\s+does not exist/i)
+	if (unquotedMatch) {
+		return { alias: null, column: unquotedMatch[1] }
+	}
+
+	return null
+}
+
+/**
+ * Get 1-hop FK neighbor tables for a given table
+ *
+ * Returns tables that are directly connected via FK relationships.
+ */
+export function getFKNeighborTables(
+	tableName: string,
+	schemaContext: SchemaContextPacket,
+): string[] {
+	const neighbors = new Set<string>()
+	const tableNameLower = tableName.toLowerCase()
+
+	for (const edge of schemaContext.fk_edges || []) {
+		const fromTable = edge.from_table.toLowerCase()
+		const toTable = edge.to_table.toLowerCase()
+
+		if (fromTable === tableNameLower) {
+			neighbors.add(toTable)
+		} else if (toTable === tableNameLower) {
+			neighbors.add(fromTable)
+		}
+	}
+
+	return Array.from(neighbors)
+}
+
+/**
+ * Build minimal column whitelist for 42703 repair
+ *
+ * Extracts the failing alias.column from the error, resolves the alias to a table,
+ * and returns a whitelist containing ONLY that table's columns (plus optional 1-hop FK neighbors).
+ *
+ * @param errorMessage PostgreSQL error message
+ * @param sql The SQL that failed
+ * @param schemaContext Schema context from retrieval
+ * @param includeNeighbors Whether to include 1-hop FK neighbor tables (default: true)
+ */
+export function buildMinimalWhitelist(
+	errorMessage: string,
+	sql: string,
+	schemaContext: SchemaContextPacket,
+	includeNeighbors: boolean = true,
+): MinimalWhitelistResult {
+	const result: MinimalWhitelistResult = {
+		alias: null,
+		resolvedTable: null,
+		failingColumn: null,
+		whitelist: {},
+	}
+
+	// Extract alias.column from error
+	const extracted = extractAliasColumnFromError(errorMessage)
+	if (!extracted) {
+		return result
+	}
+
+	result.failingColumn = extracted.column
+
+	// If no alias in error, try to find it in SQL
+	let alias = extracted.alias
+	if (!alias) {
+		// Look for unqualified column reference in SQL and find its context
+		const { tableOrAlias } = extractTableContextFromSQL(sql, extracted.column)
+		alias = tableOrAlias
+	}
+
+	result.alias = alias
+
+	// Resolve alias to table
+	let resolvedTable: string | null = null
+	if (alias) {
+		resolvedTable = resolveAliasToTable(sql, alias)
+	}
+
+	// If still no table, try to match alias directly to a table name in schema
+	if (!resolvedTable && alias) {
+		const aliasLower = alias.toLowerCase()
+		for (const table of schemaContext.tables) {
+			if (table.table_name.toLowerCase() === aliasLower) {
+				resolvedTable = table.table_name.toLowerCase()
+				break
+			}
+		}
+	}
+
+	result.resolvedTable = resolvedTable
+
+	// Build whitelist for resolved table
+	if (resolvedTable) {
+		const tableLower = resolvedTable.toLowerCase()
+
+		// Find the table in schema context
+		for (const table of schemaContext.tables) {
+			if (table.table_name.toLowerCase() === tableLower) {
+				const columns = parseColumnsFromMSchema(table.m_schema)
+				result.whitelist[tableLower] = columns.map(c => c.name.toLowerCase())
+				break
+			}
+		}
+
+		// Optionally include 1-hop FK neighbors
+		if (includeNeighbors) {
+			const neighbors = getFKNeighborTables(resolvedTable, schemaContext)
+			result.neighborTables = neighbors
+
+			for (const neighbor of neighbors) {
+				const neighborLower = neighbor.toLowerCase()
+				// Only include if in schema context
+				for (const table of schemaContext.tables) {
+					if (table.table_name.toLowerCase() === neighborLower) {
+						const columns = parseColumnsFromMSchema(table.m_schema)
+						result.whitelist[neighborLower] = columns.map(c => c.name.toLowerCase())
+						break
+					}
+				}
+			}
+		}
+	}
+
+	return result
+}
+
+/**
+ * Format minimal whitelist for repair prompt
+ *
+ * Produces short, targeted repair text.
+ */
+export function formatMinimalWhitelistForRepair(
+	result: MinimalWhitelistResult,
+): string {
+	if (!result.resolvedTable || Object.keys(result.whitelist).length === 0) {
+		return ""
+	}
+
+	const lines: string[] = []
+
+	// Primary table columns
+	const primaryColumns = result.whitelist[result.resolvedTable.toLowerCase()]
+	if (primaryColumns) {
+		lines.push(`## Column Whitelist for \`${result.resolvedTable}\``)
+		lines.push("")
+		lines.push("Use only these exact column names:")
+		lines.push(`  ${primaryColumns.join(", ")}`)
+		lines.push("")
+	}
+
+	// Neighbor tables (if any)
+	if (result.neighborTables && result.neighborTables.length > 0) {
+		lines.push("If you need a column not listed above, you may JOIN these related tables:")
+		for (const neighbor of result.neighborTables) {
+			const neighborColumns = result.whitelist[neighbor.toLowerCase()]
+			if (neighborColumns) {
+				lines.push(`  **${neighbor}:** ${neighborColumns.join(", ")}`)
+			}
+		}
+		lines.push("")
+	}
+
+	lines.push("**Rules:**")
+	lines.push("- Do not invent columns.")
+	lines.push("- If a concept is not available, join a table that has it.")
+
+	return lines.join("\n")
+}
+
+// ============================================================================
 // Pre-Execution Column Validator
 // ============================================================================
 
@@ -818,10 +1038,11 @@ export function validateSQLColumns(
 			continue
 		}
 
-		// Check if table is in whitelist
+		// Check if table is in whitelist with actual columns
 		const tableColumns = columnWhitelist[table]
-		if (!tableColumns) {
-			// Table not in schema context - skip validation
+		if (!tableColumns || tableColumns.length === 0) {
+			// Table not in schema context OR has no columns - skip validation
+			// (Empty whitelist means m_schema was not available for this table)
 			continue
 		}
 

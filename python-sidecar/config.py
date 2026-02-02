@@ -168,7 +168,21 @@ The column `{undefined_column}` does not exist in the table you referenced.
 3. Check that your table alias matches the actual table
 """
 
-# Full column whitelist for 42703 repairs - shows ALL columns for ALL tables
+# MINIMAL column whitelist for 42703 repairs - ONLY the relevant table + FK neighbors
+REPAIR_DELTA_MINIMAL_WHITELIST = """
+## Column Whitelist for `{resolved_table}`
+
+Use only these exact column names for `{resolved_table}`:
+  {primary_columns}
+
+{neighbor_section}
+
+**Rules:**
+- Do not invent columns.
+- If you need a concept not present, join a table that has it.
+"""
+
+# Legacy: Full column whitelist (NOT USED - kept for reference)
 REPAIR_DELTA_COLUMN_WHITELIST = """
 ## COLUMN WHITELIST (MANDATORY)
 
@@ -523,9 +537,36 @@ def build_rag_repair_prompt(
             "Review the error message and previous SQL carefully."
         ).format(allowed_tables=", ".join(allowed_tables))
 
-        # Format column candidates grouped by table (for 42703 errors)
+        # For 42703 errors: Use MINIMAL whitelist (not full whitelist)
         column_candidates_section = ""
-        if postgres_error.get("column_candidates"):
+        if sqlstate == "42703" and postgres_error.get("minimal_whitelist"):
+            minimal = postgres_error["minimal_whitelist"]
+            resolved_table = minimal.get("resolved_table")
+            whitelist = minimal.get("whitelist", {})
+
+            # Only apply whitelist if we have actual columns (non-empty list)
+            primary_cols_list = whitelist.get(resolved_table.lower(), []) if resolved_table else []
+            if resolved_table and primary_cols_list:
+                primary_columns = ", ".join(primary_cols_list)
+
+                # Format neighbor tables section
+                neighbor_section = ""
+                neighbor_tables = minimal.get("neighbor_tables", [])
+                if neighbor_tables:
+                    neighbor_lines = ["If you need a column not listed above, you may JOIN these related tables:"]
+                    for neighbor in neighbor_tables:
+                        neighbor_cols = whitelist.get(neighbor.lower(), [])
+                        if neighbor_cols:
+                            neighbor_lines.append(f"  **{neighbor}:** {', '.join(neighbor_cols)}")
+                    neighbor_section = "\n".join(neighbor_lines)
+
+                column_candidates_section = REPAIR_DELTA_MINIMAL_WHITELIST.format(
+                    resolved_table=resolved_table,
+                    primary_columns=primary_columns,
+                    neighbor_section=neighbor_section
+                )
+        elif postgres_error.get("column_candidates"):
+            # Fallback: use candidates if no minimal whitelist
             candidates = postgres_error["column_candidates"]
             undefined_col = postgres_error.get("undefined_column", "unknown")
             candidates_by_table = format_candidates_by_table(candidates)

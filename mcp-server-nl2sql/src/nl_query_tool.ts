@@ -58,9 +58,12 @@ import {
 	extractUndefinedColumn,
 	generateColumnWhitelistBlock,
 	buildColumnWhitelist,
+	buildMinimalWhitelist,
+	formatMinimalWhitelistForRepair,
 	validateSQLColumns,
 	formatColumnValidationErrors,
 	ColumnValidationResult,
+	MinimalWhitelistResult,
 } from "./column_candidates.js"
 import { SchemaContextPacket, RetrievalMetrics, renderSchemaBlock } from "./schema_types.js"
 import { attemptAutocorrect, AutocorrectResult } from "./sql_autocorrect.js"
@@ -236,8 +239,6 @@ export async function executeNLQuery(
 			} else {
 				// Repair attempt: send previous SQL with error context
 				// IMPORTANT: Same schema context across retries (stateless)
-				// Build column whitelist for 42703 repairs
-				const repairColumnWhitelist = schemaContext ? buildColumnWhitelist(schemaContext) : undefined
 
 				const repairRequest: RepairSQLRequest = {
 					question,
@@ -250,8 +251,7 @@ export async function executeNLQuery(
 					trace,
 					// Include schema context for RAG-based databases
 					schema_context: schemaContext || undefined,
-					// Include column whitelist for 42703 repairs
-					column_whitelist: repairColumnWhitelist,
+					// Minimal whitelist is passed via postgres_error.minimal_whitelist for 42703 repairs
 				}
 
 				logger.debug("Sending repair request", {
@@ -422,12 +422,14 @@ export async function executeNLQuery(
 				.map(i => `LINT: ${i.message}`)
 			validationWarnings.push(...lintWarnings)
 
-			// --- Step 2.6: Pre-Execution Column Validation ---
-			// Validate column references against schema before hitting Postgres
+			// --- Step 2.6: Pre-Execution Column Validation (DISABLED) ---
+			// Pre-execution validation was too aggressive and caused false positives.
+			// We now rely solely on post-EXPLAIN 42703 error repair with minimal whitelist.
+			// This preserves baseline behavior while still providing targeted repair guidance.
 			let columnWhitelist: Record<string, string[]> | undefined
-			if (schemaContext && USE_SCHEMA_RAG_V2) {
+			const PRE_EXECUTION_VALIDATION_ENABLED = false  // Disabled due to false positives
+			if (schemaContext && PRE_EXECUTION_VALIDATION_ENABLED) {
 				columnWhitelist = buildColumnWhitelist(schemaContext)
-
 				const columnValidation = validateSQLColumns(finalSQL, columnWhitelist)
 
 				if (!columnValidation.valid) {
@@ -456,17 +458,36 @@ export async function executeNLQuery(
 
 						lastValidatorIssues = [...lastValidatorIssues, ...columnIssues]
 
-						// Also set as postgres-like error to trigger whitelist in repair
+						// Build minimal whitelist for the first missing column
+						const firstMissing = columnValidation.missingColumns[0]
+						const minimalWhitelistText = firstMissing && firstMissing.resolvedTable
+							? formatMinimalWhitelistForRepair({
+								alias: firstMissing.alias,
+								resolvedTable: firstMissing.resolvedTable,
+								failingColumn: firstMissing.column,
+								whitelist: columnWhitelist, // This is already built above
+								neighborTables: [],
+							})
+							: ""
+
+						// Set as postgres-like error to trigger minimal whitelist in repair
 						lastPostgresError = {
 							sqlstate: "42703",
-							message: `Pre-execution check: ${columnValidation.missingColumns.length} column(s) not found`,
-							column_whitelist: columnWhitelist,
+							message: `Pre-execution check: Column '${firstMissing?.column || "unknown"}' does not exist in table '${firstMissing?.resolvedTable || "unknown"}'`,
+							minimal_whitelist: firstMissing && firstMissing.resolvedTable ? {
+								alias: firstMissing.alias,
+								resolved_table: firstMissing.resolvedTable,
+								failing_column: firstMissing.column,
+								whitelist: { [firstMissing.resolvedTable]: firstMissing.availableColumns },
+								formatted_text: minimalWhitelistText,
+							} : undefined,
 						}
 
 						logger.info("Column validation failed, skipping EXPLAIN and triggering repair", {
 							query_id: queryId,
 							attempt,
 							missing_count: columnValidation.missingColumns.length,
+							first_missing: firstMissing ? `${firstMissing.alias}.${firstMissing.column} -> ${firstMissing.resolvedTable}` : null,
 						})
 
 						currentSQL = finalSQL
@@ -502,8 +523,9 @@ export async function executeNLQuery(
 				// Parse PostgreSQL error
 				let pgError = parsePostgresError(explainError)
 
-				// Enrich 42703 (undefined column) errors with column candidates and whitelist
-				if (pgError.sqlstate === "42703" && schemaContext && USE_SCHEMA_RAG_V2) {
+				// Enrich 42703 (undefined column) errors with column candidates and MINIMAL whitelist
+				// Note: Works with both V1 and V2 retrievers - only needs schemaContext
+				if (pgError.sqlstate === "42703" && schemaContext) {
 					try {
 						const candidateFinder = getColumnCandidateFinder(pool, logger)
 						const enrichedError = await candidateFinder.enrichErrorWithCandidates(
@@ -512,17 +534,38 @@ export async function executeNLQuery(
 							schemaContext,
 							finalSQL, // Pass the failed SQL for table context extraction
 						)
-						// Add column whitelist to error context
-						const whitelist = buildColumnWhitelist(schemaContext)
+
+						// Build MINIMAL whitelist (only the relevant table + FK neighbors)
+						const minimalResult = buildMinimalWhitelist(
+							pgError.message,
+							finalSQL,
+							schemaContext,
+							true, // Include 1-hop FK neighbors
+						)
+
+						// Format the minimal whitelist for the repair prompt
+						const minimalWhitelistText = formatMinimalWhitelistForRepair(minimalResult)
+
 						pgError = {
 							...enrichedError,
-							column_whitelist: whitelist,
+							// Include minimal whitelist data for Python sidecar
+							minimal_whitelist: {
+								alias: minimalResult.alias,
+								resolved_table: minimalResult.resolvedTable,
+								failing_column: minimalResult.failingColumn,
+								whitelist: minimalResult.whitelist,
+								neighbor_tables: minimalResult.neighborTables,
+								formatted_text: minimalWhitelistText,
+							},
 						}
-						logger.debug("Enriched 42703 error with column candidates and whitelist", {
+
+						logger.debug("Enriched 42703 error with minimal whitelist", {
 							query_id: queryId,
 							undefined_column: enrichedError.undefined_column,
-							candidates: enrichedError.column_candidates?.map(c => `${c.table_name}.${c.column_name}`),
-							whitelist_tables: Object.keys(whitelist),
+							resolved_table: minimalResult.resolvedTable,
+							alias: minimalResult.alias,
+							whitelist_tables: Object.keys(minimalResult.whitelist),
+							neighbor_tables: minimalResult.neighborTables,
 						})
 					} catch (candidateError) {
 						logger.warn("Failed to enrich error with column candidates", {

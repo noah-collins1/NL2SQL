@@ -189,6 +189,9 @@ export class SchemaRetrieverV2 {
 				from_column_only: metrics.tables_from_column_only,
 			})
 
+			// Step 5b: Fetch m_schema for column-only tables (they have empty m_schema_compact)
+			await this.fetchMSchemaForColumnOnlyTables(client, databaseId, fusedScores)
+
 			// Step 6: Select top N tables by fused score
 			const topTables = fusedScores
 				.sort((a, b) => b.fused_score - a.fused_score)
@@ -475,6 +478,68 @@ export class SchemaRetrieverV2 {
 			tables,
 			minScore: this.config.fkEvidenceThreshold,
 		}
+	}
+
+	/**
+	 * Fetch m_schema_compact for column-only tables that have empty m_schema.
+	 *
+	 * Column-only tables (discovered only via column retrieval, not table retrieval)
+	 * don't have m_schema_compact populated. This method fetches it from the DB
+	 * so we can build proper column whitelists for repair.
+	 */
+	private async fetchMSchemaForColumnOnlyTables(
+		client: PoolClient,
+		databaseId: string,
+		fusedScores: FusedTableScore[],
+	): Promise<void> {
+		// Find tables with empty m_schema_compact
+		const tablesNeedingMSchema = fusedScores.filter(
+			(t) => !t.m_schema_compact || t.m_schema_compact.trim() === "",
+		)
+
+		if (tablesNeedingMSchema.length === 0) {
+			return
+		}
+
+		const tableNames = tablesNeedingMSchema.map((t) => t.table_name)
+
+		this.logger.debug("Fetching m_schema for column-only tables", {
+			tables: tableNames,
+		})
+
+		// Query m_schema from schema_embeddings
+		const query = `
+			SELECT table_name, m_schema_compact
+			FROM rag.schema_embeddings
+			WHERE database_id = $1
+				AND entity_type = 'table'
+				AND table_name = ANY($2)
+		`
+
+		const result = await client.query(query, [databaseId, tableNames])
+
+		// Build lookup map
+		const mSchemaMap = new Map<string, string>()
+		for (const row of result.rows) {
+			if (row.m_schema_compact) {
+				mSchemaMap.set(row.table_name, row.m_schema_compact)
+			}
+		}
+
+		// Update fusedScores in place
+		for (const table of tablesNeedingMSchema) {
+			const mSchema = mSchemaMap.get(table.table_name)
+			if (mSchema) {
+				table.m_schema_compact = mSchema
+			}
+		}
+
+		this.logger.debug("Fetched m_schema for column-only tables", {
+			requested: tableNames.length,
+			found: mSchemaMap.size,
+			tables_fetched: Array.from(mSchemaMap.keys()),
+			tables_updated: tablesNeedingMSchema.filter(t => t.m_schema_compact).map(t => t.table_name),
+		})
 	}
 
 	/**
