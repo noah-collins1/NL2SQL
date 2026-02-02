@@ -1,5 +1,9 @@
 # Schema RAG V2 - Dual Retrieval with Score Fusion
 
+> **Status: NOT IN USE** - V2 retrieval caused regression from 53% to 37% success rate. Currently using V1 retriever. This document is kept for reference.
+
+---
+
 ## Overview
 
 Schema RAG V2 improves retrieval accuracy for large databases (85+ tables) by using **dual retrieval** (tables + columns) with **score fusion**. This approach captures both high-level table relevance and specific column-level signals.

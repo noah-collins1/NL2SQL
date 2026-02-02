@@ -1,5 +1,9 @@
 # NL2SQL Architecture Roadmap
 
+> **Historical Document:** This roadmap was created during initial project design (Jan 2026). For current status, see **`STATUS.md`**.
+
+---
+
 ## Architecture Overview
 
 **Goal:** Implement Option A: TypeScript Smithery Postgres MCP server extended with a stateless `nl_query` tool that routes:

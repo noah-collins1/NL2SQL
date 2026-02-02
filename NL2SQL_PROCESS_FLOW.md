@@ -1,5 +1,9 @@
 # NL2SQL MCP Server - Process Flow
 
+> **Note:** This document describes the original MCPtest architecture. For current status with Enterprise ERP database and Schema RAG, see **`STATUS.md`**.
+
+---
+
 ## End-to-End Architecture
 
 ```
