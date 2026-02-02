@@ -255,17 +255,27 @@ export async function executeNLQuery(
 				pythonResponse = await pythonClient.generateSQL(pythonRequest)
 
 				// Multi-candidate evaluation and selection
-				if (useMultiCandidate && pythonResponse.sql_candidates_raw) {
+				// Support both sql_candidates (list from parallel generation) and sql_candidates_raw (delimited string)
+				const hasCandidates = pythonResponse.sql_candidates && pythonResponse.sql_candidates.length > 0
+				const hasRawCandidates = pythonResponse.sql_candidates_raw && pythonResponse.sql_candidates_raw.length > 0
+
+				if (useMultiCandidate && (hasCandidates || hasRawCandidates)) {
+					// Build raw string for evaluateCandidates - join list with delimiter if we have list
+					const rawForEval = hasCandidates
+						? pythonResponse.sql_candidates!.join(`\n${MULTI_CANDIDATE_CONFIG.sql_delimiter}\n`)
+						: pythonResponse.sql_candidates_raw!
+
 					logger.info("Multi-candidate generation enabled", {
 						query_id: queryId,
 						k: kValue,
 						difficulty,
-						raw_length: pythonResponse.sql_candidates_raw.length,
+						candidates_count: hasCandidates ? pythonResponse.sql_candidates!.length : "raw",
+						raw_length: rawForEval.length,
 					})
 
 					// Evaluate candidates and select best
 					const multiResult = await evaluateCandidates(
-						pythonResponse.sql_candidates_raw,
+						rawForEval,
 						question,
 						allowedTables,
 						pool,

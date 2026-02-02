@@ -8,11 +8,14 @@ Features:
 - Gibberish detection (catches Test 3 failure patterns)
 - Confidence scoring
 - Timeout handling
+- Parallel candidate generation with asyncio
 """
 
 import re
+import asyncio
 import requests
-from typing import Optional, Tuple
+import aiohttp
+from typing import Optional, Tuple, List
 import logging
 
 from config import OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT
@@ -222,6 +225,133 @@ class HridaClient:
             return response.status_code == 200
         except Exception:
             return False
+
+    async def generate_sql_async(
+        self,
+        prompt: str,
+        temperature: float = 0.0,
+        max_tokens: int = 200,
+        session: Optional[aiohttp.ClientSession] = None
+    ) -> Tuple[str, float]:
+        """
+        Async version of generate_sql for parallel candidate generation.
+
+        Args:
+            prompt: Complete prompt including schema and question
+            temperature: Sampling temperature (use >0 for diversity)
+            max_tokens: Maximum tokens to generate
+            session: Optional aiohttp session for connection reuse
+
+        Returns:
+            Tuple of (sql, confidence_score)
+
+        Raises:
+            HridaError: If generation fails
+        """
+        logger.debug(f"Async calling Ollama API: {self.model}, temp={temperature}")
+
+        close_session = False
+        if session is None:
+            session = aiohttp.ClientSession()
+            close_session = True
+
+        try:
+            async with session.post(
+                f"{self.base_url}/api/generate",
+                json={
+                    "model": self.model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": temperature,
+                        "num_predict": max_tokens,
+                        "stop": [";", "\n\n"],
+                    }
+                },
+                timeout=aiohttp.ClientTimeout(total=self.timeout)
+            ) as response:
+                response.raise_for_status()
+                data = await response.json()
+
+                sql = data.get("response", "").strip()
+
+                # Validate output
+                if self._is_gibberish(sql):
+                    raise HridaError("Model generated gibberish")
+
+                if not sql.upper().startswith("SELECT"):
+                    raise HridaError("Model did not generate SELECT statement")
+
+                if not sql.endswith(";"):
+                    sql += ";"
+
+                confidence = self._estimate_confidence(sql)
+                return sql, confidence
+
+        except asyncio.TimeoutError:
+            raise HridaError(f"Async request timed out after {self.timeout}s")
+        except aiohttp.ClientError as e:
+            raise HridaError(f"Async API error: {str(e)}")
+        finally:
+            if close_session:
+                await session.close()
+
+    async def generate_candidates_parallel(
+        self,
+        prompt: str,
+        k: int = 4,
+        temperature: float = 0.3,
+        max_tokens: int = 200
+    ) -> List[Tuple[str, float]]:
+        """
+        Generate K SQL candidates in parallel with temperature for diversity.
+
+        Args:
+            prompt: Base prompt for SQL generation
+            k: Number of candidates to generate
+            temperature: Sampling temperature (0.2-0.4 recommended for diversity)
+            max_tokens: Maximum tokens per candidate
+
+        Returns:
+            List of (sql, confidence) tuples, deduplicated
+        """
+        logger.info(f"Generating {k} candidates in parallel, temp={temperature}")
+
+        async with aiohttp.ClientSession() as session:
+            tasks = [
+                self.generate_sql_async(
+                    prompt=prompt,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    session=session
+                )
+                for _ in range(k)
+            ]
+
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Filter successful results and deduplicate
+        candidates = []
+        seen_normalized = set()
+
+        for result in results:
+            if isinstance(result, Exception):
+                logger.warning(f"Candidate generation failed: {result}")
+                continue
+
+            sql, confidence = result
+            # Normalize for deduplication: lowercase, collapse whitespace
+            normalized = re.sub(r'\s+', ' ', sql.lower().strip())
+
+            if normalized not in seen_normalized:
+                seen_normalized.add(normalized)
+                candidates.append((sql, confidence))
+                logger.debug(f"Candidate added: {sql[:50]}...")
+            else:
+                logger.debug(f"Duplicate candidate skipped")
+
+        logger.info(f"Generated {len(candidates)} unique candidates from {k} attempts")
+        return candidates
 
 
 # Singleton instance for convenience
