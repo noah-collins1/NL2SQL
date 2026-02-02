@@ -463,7 +463,8 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
             sql, confidence = hrida_client.generate_sql(
                 prompt=prompt,
                 temperature=0.0 if not is_multi_candidate else 0.1,  # Slight temperature for diversity
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
+                multi_candidate=is_multi_candidate  # Skip SELECT validation for multi-candidate
             )
             hrida_duration_ms = int((time.time() - hrida_start) * 1000)
 

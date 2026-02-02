@@ -44,7 +44,8 @@ class HridaClient:
         self,
         prompt: str,
         temperature: float = 0.0,
-        max_tokens: int = 200
+        max_tokens: int = 200,
+        multi_candidate: bool = False
     ) -> Tuple[str, float]:
         """
         Generate SQL from prompt using Hrida
@@ -53,6 +54,7 @@ class HridaClient:
             prompt: Complete prompt including schema and question
             temperature: Sampling temperature (default 0.0 for deterministic)
             max_tokens: Maximum tokens to generate (default 200)
+            multi_candidate: If True, skip SELECT validation (output may start with delimiter)
 
         Returns:
             Tuple of (sql, confidence_score)
@@ -65,6 +67,8 @@ class HridaClient:
 
         try:
             # Call Ollama generate endpoint
+            # For multi-candidate mode, don't stop at semicolon (multiple statements)
+            stop_tokens = ["\n\n"] if multi_candidate else [";", "\n\n"]
             response = requests.post(
                 f"{self.base_url}/api/generate",
                 json={
@@ -74,7 +78,7 @@ class HridaClient:
                     "options": {
                         "temperature": temperature,
                         "num_predict": max_tokens,
-                        "stop": [";", "\n\n"],  # Stop at semicolon or double newline
+                        "stop": stop_tokens,
                     }
                 },
                 timeout=self.timeout
@@ -89,18 +93,24 @@ class HridaClient:
             logger.debug(f"Hrida generated: {sql[:100]}...")
 
             # Check for gibberish (patterns from Test 3)
-            if self._is_gibberish(sql):
+            # For multi-candidate mode, relax the check since output is larger
+            if self._is_gibberish(sql, multi_candidate=multi_candidate):
                 logger.warning(f"Gibberish detected: {sql[:50]}...")
                 raise HridaError("Model generated invalid output (gibberish detected)")
 
-            # Check basic structure
-            if not sql.upper().startswith("SELECT"):
-                logger.warning(f"SQL does not start with SELECT: {sql[:50]}...")
-                raise HridaError("Model did not generate SELECT statement")
-
-            # Ensure semicolon at end
-            if not sql.endswith(";"):
-                sql += ";"
+            # Check basic structure (skip for multi-candidate mode - output may start with delimiter)
+            if not multi_candidate:
+                if not sql.upper().startswith("SELECT"):
+                    logger.warning(f"SQL does not start with SELECT: {sql[:50]}...")
+                    raise HridaError("Model did not generate SELECT statement")
+                # Ensure semicolon at end (only for single-candidate)
+                if not sql.endswith(";"):
+                    sql += ";"
+            else:
+                # For multi-candidate, just verify it contains SELECT somewhere
+                if "SELECT" not in sql.upper():
+                    logger.warning(f"Multi-candidate output contains no SELECT: {sql[:50]}...")
+                    raise HridaError("Model did not generate any SELECT statements")
 
             # Estimate confidence based on output quality
             confidence = self._estimate_confidence(sql)
@@ -117,7 +127,7 @@ class HridaClient:
             logger.error(f"Ollama API error: {e}")
             raise HridaError(f"Ollama API error: {str(e)}")
 
-    def _is_gibberish(self, text: str) -> bool:
+    def _is_gibberish(self, text: str, multi_candidate: bool = False) -> bool:
         """
         Detect gibberish output patterns from Test 3
 
@@ -125,6 +135,10 @@ class HridaClient:
         - "00 (02.15er00000ment "b's "Gal"
         - "INSERT(ta (insert (semals"
         - Random character sequences
+
+        Args:
+            text: Text to check
+            multi_candidate: If True, relax limits for larger multi-candidate output
         """
         # Pattern 1: Excessive numbers mixed with random characters
         if re.search(r'\d{2,4}er\d+', text):
@@ -139,11 +153,15 @@ class HridaClient:
             return True
 
         # Pattern 4: Excessive parentheses or brackets
-        if text.count("(") > 10 or text.count("[") > 5:
+        # For multi-candidate mode, allow more since we have multiple SQL statements
+        paren_limit = 60 if multi_candidate else 10
+        bracket_limit = 30 if multi_candidate else 5
+        if text.count("(") > paren_limit or text.count("[") > bracket_limit:
             return True
 
         # Pattern 5: Very short output that's not a valid SQL pattern
-        if len(text) < 20 and not text.upper().startswith("SELECT"):
+        # For multi-candidate, check contains SELECT instead of starts with
+        if not multi_candidate and len(text) < 20 and not text.upper().startswith("SELECT"):
             return True
 
         # Pattern 6: Contains "CANNOT_GENERATE" (our failure signal)
