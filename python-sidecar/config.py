@@ -10,7 +10,7 @@ import os
 # Ollama Configuration
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "HridaAI/hrida-t2sql:latest")
-OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "30"))  # seconds
+OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "90"))  # seconds (increased for multi-candidate generation)
 
 # Server Configuration
 PORT = int(os.getenv("PORT", "8001"))
@@ -228,6 +228,39 @@ your SQL MUST include `WHERE name = 'Titan Financial Services'` (or similar).
 
 Generate corrected SQL that properly references ALL entities from the question.
 """
+
+# Multi-Candidate SQL Generation Template
+MULTI_CANDIDATE_PROMPT = """
+## Multi-Candidate SQL Generation
+
+Generate exactly {k} different valid SQL queries that answer the question.
+Each query should be a complete, executable SELECT statement.
+Separate each SQL candidate with exactly this delimiter on its own line:
+{delimiter}
+
+**Variation Guidelines:**
+- Candidate 1: Most straightforward approach (simple JOINs, minimal subqueries)
+- Candidate 2: Alternative table ordering or JOIN strategy
+{extra_guidelines}
+
+**Rules for each candidate:**
+- Must be a valid PostgreSQL SELECT statement
+- Must use only tables/columns from the schema
+- Must return data that answers the question
+- Each candidate should be DIFFERENT (not just whitespace/formatting changes)
+
+**Output Format:**
+```sql
+SELECT a, b FROM table1 WHERE c = 'value';
+{delimiter}
+SELECT x, y FROM table2 JOIN table1 ON ... WHERE z = 'value';
+```
+
+Generate {k} SQL candidates now:
+"""
+
+# Default delimiter for multi-candidate output
+MULTI_CANDIDATE_DELIMITER = "---SQL_CANDIDATE---"
 
 # SQLSTATE-specific hints
 SQLSTATE_HINTS = {

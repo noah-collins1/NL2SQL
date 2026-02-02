@@ -27,7 +27,19 @@ Generate SQL from natural language question.
 {
   "question": "Which employees have pending leave requests?",
   "database_id": "enterprise_erp",
-  "schema_context": { ... }  // From TypeScript Schema RAG
+  "schema_context": { ... },  // From TypeScript Schema RAG
+  "multi_candidate_k": 4,     // Optional: generate K candidates
+  "multi_candidate_delimiter": "---SQL_CANDIDATE---"  // Optional: delimiter
+}
+```
+
+**Multi-Candidate Response:**
+```json
+{
+  "sql_generated": "SELECT ...",  // First/best candidate
+  "sql_candidates": ["SELECT ...", "SELECT ...", ...],  // All K candidates
+  "sql_candidates_raw": "SELECT ...---SQL_CANDIDATE---SELECT ...",  // Raw output
+  ...
 }
 ```
 
@@ -84,13 +96,36 @@ Message: {message}
 {column_candidates_section}
 ```
 
-**REPAIR_DELTA_MINIMAL_WHITELIST** - Targeted column repair (NEW)
+**REPAIR_DELTA_MINIMAL_WHITELIST** - Targeted column repair
 ```
 ## Column Whitelist for `{resolved_table}`
 Use only these exact column names: {primary_columns}
 - Do not invent columns
 - If you need a concept not present, join a table that has it
 ```
+
+### Multi-Candidate Generation (NEW)
+
+When `multi_candidate_k > 1`, the prompt includes:
+```
+## Multi-Candidate SQL Generation
+
+Generate exactly {k} different valid SQL queries that answer the question.
+Separate each SQL candidate with exactly this delimiter on its own line:
+---SQL_CANDIDATE---
+
+**Variation Guidelines:**
+- Candidate 1: Most straightforward approach
+- Candidate 2: Alternative table ordering or JOIN strategy
+...
+```
+
+**Parsing Logic (`parse_multi_candidates()`):**
+1. Split by delimiter `---SQL_CANDIDATE---`
+2. Extract SQL from code blocks if present
+3. Clean: remove comments, normalize whitespace
+4. Validate: must contain SELECT, length > 10
+5. Return list of valid SQL candidates
 
 ## Semantic Validator
 
@@ -108,8 +143,15 @@ Key settings in `config.py`:
 ```python
 OLLAMA_BASE_URL = "http://localhost:11434"
 OLLAMA_MODEL = "HridaAI/hrida-t2sql:latest"
-OLLAMA_TEMPERATURE = 0.0  # Deterministic
+OLLAMA_TEMPERATURE = 0.0  # Deterministic (0.1 for multi-candidate diversity)
 OLLAMA_TIMEOUT = 60
+
+# Multi-candidate generation
+MULTI_CANDIDATE_DELIMITER = "---SQL_CANDIDATE---"
+MULTI_CANDIDATE_PROMPT = """
+## Multi-Candidate SQL Generation
+Generate exactly {k} different valid SQL queries...
+"""
 ```
 
 ## Running the Sidecar

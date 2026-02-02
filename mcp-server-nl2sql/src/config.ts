@@ -175,6 +175,10 @@ export interface NLQueryRequest {
 	/** Debugging */
 	explain?: boolean
 	trace?: boolean
+
+	/** Multi-candidate generation */
+	multi_candidate_k?: number
+	multi_candidate_delimiter?: string
 }
 
 /**
@@ -218,6 +222,7 @@ export interface PythonSidecarResponse {
 		stage3_tables?: string[]
 		hrida_latency_ms: number
 		total_latency_ms: number
+		multi_candidate_k?: number
 	}
 
 	/** Error information */
@@ -226,6 +231,12 @@ export interface PythonSidecarResponse {
 		message: string
 		recoverable: boolean
 	}
+
+	/** Multi-candidate SQL responses */
+	sql_candidates?: string[]
+
+	/** Raw multi-candidate output for downstream parsing */
+	sql_candidates_raw?: string
 }
 
 /**

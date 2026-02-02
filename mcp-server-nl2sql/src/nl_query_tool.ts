@@ -67,6 +67,15 @@ import {
 } from "./column_candidates.js"
 import { SchemaContextPacket, RetrievalMetrics, renderSchemaBlock } from "./schema_types.js"
 import { attemptAutocorrect, AutocorrectResult } from "./sql_autocorrect.js"
+import {
+	MULTI_CANDIDATE_CONFIG,
+	evaluateCandidates,
+	classifyDifficulty,
+	getKForDifficulty,
+	buildCandidateExamLog,
+	MultiCandidateResult,
+	CandidateExamLog,
+} from "./multi_candidate.js"
 import fs from "fs"
 import path from "path"
 
@@ -224,6 +233,11 @@ export async function executeNLQuery(
 
 			if (attempt === 1) {
 				// First attempt: generate fresh SQL
+				// Determine if multi-candidate generation is enabled
+				const useMultiCandidate = MULTI_CANDIDATE_CONFIG.enabled
+				const difficulty = useMultiCandidate ? classifyDifficulty(question, schemaContext) : "medium"
+				const kValue = useMultiCandidate ? getKForDifficulty(difficulty) : 1
+
 				const pythonRequest: NLQueryRequest = {
 					question,
 					database_id: databaseId,
@@ -233,9 +247,62 @@ export async function executeNLQuery(
 					trace,
 					// Include schema context for RAG-based databases
 					schema_context: schemaContext || undefined,
+					// Multi-candidate parameters
+					multi_candidate_k: useMultiCandidate ? kValue : undefined,
+					multi_candidate_delimiter: useMultiCandidate ? MULTI_CANDIDATE_CONFIG.sql_delimiter : undefined,
 				}
 
 				pythonResponse = await pythonClient.generateSQL(pythonRequest)
+
+				// Multi-candidate evaluation and selection
+				if (useMultiCandidate && pythonResponse.sql_candidates_raw) {
+					logger.info("Multi-candidate generation enabled", {
+						query_id: queryId,
+						k: kValue,
+						difficulty,
+						raw_length: pythonResponse.sql_candidates_raw.length,
+					})
+
+					// Evaluate candidates and select best
+					const multiResult = await evaluateCandidates(
+						pythonResponse.sql_candidates_raw,
+						question,
+						allowedTables,
+						pool,
+						schemaContext,
+						dbConfig.maxLimit,
+						dbConfig.requireLimit,
+						logger,
+					)
+
+					// Record multi-candidate evaluation for exam mode
+					if (EXAM_MODE) {
+						recordExamMultiCandidate(multiResult)
+					}
+
+					// Use the selected candidate
+					if (multiResult.selectedCandidate) {
+						pythonResponse = {
+							...pythonResponse,
+							sql_generated: multiResult.selectedCandidate.sql,
+						}
+
+						logger.info("Multi-candidate: selected best candidate", {
+							query_id: queryId,
+							selected_index: multiResult.selectedCandidate.index,
+							selected_score: multiResult.selectedCandidate.score,
+							explain_passed: multiResult.selectedCandidate.explainPassed,
+							candidates_generated: multiResult.candidatesGenerated,
+							candidates_passed_explain: multiResult.candidatesPassedExplain,
+						})
+					} else {
+						logger.warn("Multi-candidate: no valid candidate found, using first generated", {
+							query_id: queryId,
+							candidates_generated: multiResult.candidatesGenerated,
+							candidates_rejected: multiResult.candidatesRejected,
+						})
+					}
+				}
 			} else {
 				// Repair attempt: send previous SQL with error context
 				// IMPORTANT: Same schema context across retries (stateless)
@@ -1372,6 +1439,27 @@ interface FullExamLogEntry {
 	lint_warnings?: number
 	lint_issues?: Array<{ code: string; severity: string }>
 
+	// Multi-candidate evaluation
+	multi_candidate?: {
+		enabled: boolean
+		k_used: number
+		difficulty: string
+		candidates_generated: number
+		candidates_passed_explain: number
+		candidates_rejected: number
+		selected_candidate_index: number | null
+		evaluation_time_ms: number
+		timed_out: boolean
+		candidate_scores: Array<{
+			index: number
+			score: number
+			explain_result: string
+			lint_errors: number
+			rejected: boolean
+			rejection_reason: string | null
+		}>
+	}
+
 	// Pre-execution column validation
 	pre_exec_column_validation?: {
 		valid: boolean
@@ -1495,6 +1583,33 @@ function recordExamColumnValidation(result: ColumnValidationResult): void {
 			suggested_columns: m.availableColumns.slice(0, 3),
 		})),
 		unresolved_aliases: result.unresolvedAliases,
+	}
+}
+
+/**
+ * Record multi-candidate evaluation result to exam entry
+ */
+function recordExamMultiCandidate(result: MultiCandidateResult): void {
+	if (!EXAM_MODE || !currentExamEntry) return
+
+	currentExamEntry.multi_candidate = {
+		enabled: true,
+		k_used: result.kUsed,
+		difficulty: result.difficulty,
+		candidates_generated: result.candidatesGenerated,
+		candidates_passed_explain: result.candidatesPassedExplain,
+		candidates_rejected: result.candidatesRejected,
+		selected_candidate_index: result.selectedCandidate?.index || null,
+		evaluation_time_ms: result.evaluationTimeMs,
+		timed_out: result.timedOut,
+		candidate_scores: result.allCandidates.map(c => ({
+			index: c.index,
+			score: c.score,
+			explain_result: c.explainPassed === true ? "pass" : c.explainPassed === false ? "fail" : "skipped",
+			lint_errors: c.scoreBreakdown.lintErrors,
+			rejected: c.rejected,
+			rejection_reason: c.rejectionReason,
+		})),
 	}
 }
 

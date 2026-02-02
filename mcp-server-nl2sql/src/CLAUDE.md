@@ -4,7 +4,7 @@
 
 ## Overview
 
-TypeScript MCP server that converts natural language to SQL. Handles schema retrieval, SQL validation, repair loops, and execution.
+TypeScript MCP server that converts natural language to SQL. Handles schema retrieval, multi-candidate SQL generation, validation, repair loops, and execution.
 
 **Database:** Enterprise ERP (60+ tables, 8 modules)
 **Current Success Rate:** 56.7%
@@ -19,7 +19,12 @@ User Question
 │  nl_query_tool.ts                   │
 │  ├─ Schema RAG (V1 retriever)       │
 │  ├─ HTTP POST to Python sidecar     │
-│  ├─ SQL Validation + EXPLAIN        │
+│  │   └─ Multi-Candidate Generation  │
+│  ├─ Candidate Evaluation & Selection│
+│  │   ├─ Structural Validation       │
+│  │   ├─ Lint Analysis               │
+│  │   ├─ Parallel EXPLAIN            │
+│  │   └─ Deterministic Scoring       │
 │  ├─ Repair Loop (max 3 attempts)    │
 │  │   └─ Minimal Whitelist (42703)   │
 │  └─ Execute + Return Results        │
@@ -36,6 +41,7 @@ User Question
 | `nl_query_tool.ts` | Main orchestration (generate → validate → repair → execute) |
 | `config.ts` | Types, constants, error classification |
 | `python_client.ts` | HTTP client to Python sidecar |
+| `multi_candidate.ts` | **NEW** Multi-candidate generation, parsing, scoring, selection |
 
 ### Schema RAG
 
@@ -66,7 +72,7 @@ Retrieves relevant tables for each question:
 3. Expand via FK relationships
 4. Build SchemaContextPacket with M-Schema format
 
-### Minimal Whitelist Repair (New)
+### Minimal Whitelist Repair
 
 For SQLSTATE 42703 (undefined column) errors:
 1. Extract failing `alias.column` from error message
@@ -78,6 +84,68 @@ For SQLSTATE 42703 (undefined column) errors:
 // column_candidates.ts
 buildMinimalWhitelist(errorMessage, sql, schemaContext)
 // Returns: { resolvedTable, whitelist: { table: [columns] } }
+```
+
+### Multi-Candidate SQL Generation (NEW)
+
+Generates K SQL candidates per question and selects the best one using deterministic scoring.
+
+**Key Files:**
+- `multi_candidate.ts` - Core module with config, parsing, scoring, orchestration
+- `config.ts` - Extended interfaces for multi-candidate support
+- `python-sidecar/config.py` - Multi-candidate prompt template
+
+**Configuration (`MULTI_CANDIDATE_CONFIG`):**
+```typescript
+{
+  enabled: true,                    // Toggle on/off (env: MULTI_CANDIDATE_ENABLED)
+  k_default: 4,                     // Default candidates (env: MULTI_CANDIDATE_K)
+  k_easy: 2,                        // Easy questions
+  k_hard: 6,                        // Hard questions
+  max_candidates_to_explain: 4,     // Max parallel EXPLAIN runs
+  per_query_time_budget_ms: 10000,  // 10s max total
+  explain_timeout_ms: 2000,         // 2s per EXPLAIN
+  sql_delimiter: "---SQL_CANDIDATE---"
+}
+```
+
+**Delimiter Format:**
+```sql
+SELECT e.name FROM employees e WHERE e.dept = 'Sales';
+---SQL_CANDIDATE---
+SELECT e.name FROM employees e JOIN departments d ON e.dept_id = d.id WHERE d.name = 'Sales';
+---SQL_CANDIDATE---
+SELECT name FROM employees WHERE department_id = (SELECT id FROM departments WHERE name = 'Sales');
+```
+
+**Scoring (Deterministic, No LLM Judge):**
+| Factor | Points |
+|--------|--------|
+| Base score | +100 |
+| Lint error | -25 each |
+| Lint warning | -5 each |
+| EXPLAIN fail | -50 |
+| GROUP BY matches question | +10 |
+| ORDER BY + LIMIT matches "top/highest" | +10 |
+| DISTINCT matches question | +5 |
+
+**Flow:**
+1. Classify question difficulty → K value
+2. Request K candidates (single LLM call)
+3. Parse candidates from delimited output
+4. Structural validation (fail-fast rejects)
+5. Lint analysis
+6. Parallel EXPLAIN with timeout
+7. Score and select best candidate
+8. Use selected candidate for execution/repair
+
+**Toggle:**
+```bash
+# Disable multi-candidate
+MULTI_CANDIDATE_ENABLED=false npm start
+
+# Custom K value
+MULTI_CANDIDATE_K=6 npm start
 ```
 
 ### Repair Loop
@@ -116,8 +184,19 @@ Return safe failure
 ### Environment Variables
 
 ```bash
+# Schema RAG
 USE_SCHEMA_RAG_V2=false  # V2 retriever (disabled - causes errors)
+
+# Exam Mode
 EXAM_MODE=false          # Enable exam logging
+
+# Multi-Candidate Generation
+MULTI_CANDIDATE_ENABLED=true    # Toggle multi-candidate (default: true)
+MULTI_CANDIDATE_K=4             # Default K value (default: 4)
+MULTI_CANDIDATE_K_EASY=2        # K for easy questions (default: 2)
+MULTI_CANDIDATE_K_HARD=6        # K for hard questions (default: 6)
+MULTI_CANDIDATE_TIME_BUDGET_MS=10000  # Total time budget (default: 10000)
+MULTI_CANDIDATE_EXPLAIN_TIMEOUT_MS=2000  # Per-candidate EXPLAIN timeout (default: 2000)
 ```
 
 ### Repair Config

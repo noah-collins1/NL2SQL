@@ -28,11 +28,14 @@ from config import (
     build_repair_prompt,
     build_rag_prompt,
     build_rag_repair_prompt,
-    HRIDA_BASE_PROMPT_VERSION
+    HRIDA_BASE_PROMPT_VERSION,
+    MULTI_CANDIDATE_PROMPT,
+    MULTI_CANDIDATE_DELIMITER,
 )
 from hrida_client import HridaClient, HridaError, get_hrida_client, get_embedding
 from keyword_filter import filter_tables, build_filtered_schema, classify_intent
 from semantic_validator import validate_semantic_match, format_semantic_issues
+import re
 
 # Configure logging
 logging.basicConfig(
@@ -47,6 +50,87 @@ app = FastAPI(
     description="AI-powered SQL generation via Ollama/Hrida",
     version="0.1.0"
 )
+
+
+def parse_multi_candidates(raw_output: str, delimiter: str = MULTI_CANDIDATE_DELIMITER) -> List[str]:
+    """
+    Parse multiple SQL candidates from LLM output.
+
+    Handles various output formats:
+    - Delimiter-separated SQL statements
+    - SQL in code blocks
+    - Mixed formats
+
+    Args:
+        raw_output: Raw LLM output containing multiple SQL statements
+        delimiter: Delimiter used to separate candidates
+
+    Returns:
+        List of SQL candidate strings
+    """
+    candidates = []
+
+    # Normalize line endings
+    output = raw_output.replace('\r\n', '\n').strip()
+
+    # Split by delimiter
+    parts = output.split(delimiter)
+
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+
+        # Extract SQL from code blocks if present
+        code_block_match = re.search(r'```(?:sql)?\s*([\s\S]*?)```', part, re.IGNORECASE)
+        if code_block_match:
+            sql = code_block_match.group(1).strip()
+        else:
+            sql = part
+
+        # Clean up the SQL
+        sql = sql.strip()
+        sql = re.sub(r'^--.*$', '', sql, flags=re.MULTILINE)  # Remove SQL comments
+        sql = re.sub(r';\s*$', '', sql)  # Remove trailing semicolons
+        sql = re.sub(r'\s+', ' ', sql).strip()  # Normalize whitespace
+
+        # Skip if too short or doesn't look like SQL
+        if len(sql) < 10:
+            continue
+        if 'SELECT' not in sql.upper():
+            continue
+
+        # Ensure starts with SELECT
+        upper_sql = sql.upper()
+        if not upper_sql.startswith('SELECT'):
+            select_idx = upper_sql.find('SELECT')
+            if select_idx > 0:
+                sql = sql[select_idx:]
+            else:
+                continue
+
+        candidates.append(sql)
+
+    # If delimiter parsing failed, try to extract from code blocks
+    if not candidates:
+        code_blocks = re.findall(r'```(?:sql)?\s*([\s\S]*?)```', output, re.IGNORECASE)
+        for block in code_blocks:
+            sql = block.strip()
+            sql = re.sub(r';\s*$', '', sql)
+            sql = re.sub(r'\s+', ' ', sql).strip()
+            if len(sql) >= 10 and 'SELECT' in sql.upper():
+                candidates.append(sql)
+
+    # Last resort: treat entire output as single candidate
+    if not candidates:
+        sql = re.sub(r'```(?:sql)?', '', output)
+        sql = re.sub(r'```', '', sql)
+        sql = re.sub(r';\s*$', '', sql)
+        sql = re.sub(r'\s+', ' ', sql).strip()
+        if len(sql) >= 10 and 'SELECT' in sql.upper():
+            candidates.append(sql)
+
+    return candidates
 
 
 # Request/Response Models (matching TypeScript interfaces)
@@ -91,6 +175,9 @@ class NLQueryRequest(BaseModel):
     explain: Optional[bool] = Field(False, description="Include execution plan")
     trace: Optional[bool] = Field(False, description="Include trace info")
     schema_context: Optional[SchemaContext] = Field(None, description="RAG-retrieved schema context")
+    # Multi-candidate generation
+    multi_candidate_k: Optional[int] = Field(None, description="Number of SQL candidates to generate (if > 1, returns multiple candidates)")
+    multi_candidate_delimiter: Optional[str] = Field("---SQL_CANDIDATE---", description="Delimiter for multi-candidate output")
 
 
 class ErrorResponse(BaseModel):
@@ -114,13 +201,17 @@ class TraceInfo(BaseModel):
 class PythonSidecarResponse(BaseModel):
     """Response to TypeScript MCP server"""
     query_id: str = Field(..., description="Unique query ID")
-    sql_generated: str = Field(..., description="Generated SQL query")
+    sql_generated: str = Field(..., description="Generated SQL query (first/best candidate)")
     confidence_score: float = Field(..., description="Confidence 0.0-1.0")
     tables_selected: List[str] = Field(..., description="Tables used in query")
     intent: str = Field(..., description="Query intent classification")
     notes: Optional[str] = Field(None, description="Generation notes")
     error: Optional[ErrorResponse] = Field(None, description="Error if failed")
     trace: Optional[TraceInfo] = Field(None, description="Debug trace info")
+    # Multi-candidate response fields
+    sql_candidates: Optional[List[str]] = Field(None, description="Multiple SQL candidates (if multi_candidate_k > 1)")
+    sql_candidates_raw: Optional[str] = Field(None, description="Raw multi-candidate output for downstream parsing")
+    tables_used_in_sql: Optional[List[str]] = Field(None, description="Tables used in the generated SQL")
 
 
 # Endpoints
@@ -331,18 +422,48 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
             # Build Hrida prompt
             prompt = build_hrida_prompt(request.question, filtered_schema)
 
+        # Multi-candidate generation: append instructions if k > 1
+        multi_k = request.multi_candidate_k or 1
+        delimiter = request.multi_candidate_delimiter or MULTI_CANDIDATE_DELIMITER
+        is_multi_candidate = multi_k > 1
+
+        if is_multi_candidate:
+            # Build extra guidelines based on k
+            extra_lines = []
+            if multi_k >= 3:
+                extra_lines.append("- Candidate 3: Different column selection or grouping approach")
+            if multi_k >= 4:
+                extra_lines.append("- Candidate 4: Alternative aggregation or filtering strategy")
+            if multi_k >= 5:
+                extra_lines.append("- Candidate 5: More complex but potentially more accurate approach")
+            if multi_k >= 6:
+                extra_lines.append("- Candidate 6: Edge case handling (NULLs, empty results)")
+            extra_guidelines = "\n".join(extra_lines)
+
+            multi_candidate_block = MULTI_CANDIDATE_PROMPT.format(
+                k=multi_k,
+                delimiter=delimiter,
+                extra_guidelines=extra_guidelines
+            )
+            prompt = prompt + "\n\n" + multi_candidate_block
+
+            logger.info(f"[{query_id}] Multi-candidate generation with k={multi_k}")
+
         if trace_data is not None:
             trace_data["hrida_prompt_length"] = len(prompt)
+            trace_data["multi_candidate_k"] = multi_k
 
         # Stage 2: Call Hrida to generate SQL
         hrida_start = time.time()
         hrida_client = get_hrida_client()
 
         try:
+            # Increase max_tokens for multi-candidate generation
+            max_tokens = 200 if not is_multi_candidate else min(200 * multi_k, 1000)
             sql, confidence = hrida_client.generate_sql(
                 prompt=prompt,
-                temperature=0.0,  # Deterministic
-                max_tokens=200
+                temperature=0.0 if not is_multi_candidate else 0.1,  # Slight temperature for diversity
+                max_tokens=max_tokens
             )
             hrida_duration_ms = int((time.time() - hrida_start) * 1000)
 
@@ -420,15 +541,34 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
                     total_duration_ms=total_duration_ms
                 )
 
+            # Multi-candidate parsing
+            sql_candidates = None
+            sql_candidates_raw = None
+            final_sql = sql
+
+            if is_multi_candidate:
+                sql_candidates_raw = sql  # Keep raw output for downstream parsing
+                # Parse candidates from raw output
+                candidates = parse_multi_candidates(sql, delimiter)
+                if candidates:
+                    sql_candidates = candidates
+                    final_sql = candidates[0]  # First candidate as primary
+                    logger.info(f"[{query_id}] Parsed {len(candidates)} candidates from multi-candidate output")
+                else:
+                    logger.warning(f"[{query_id}] Failed to parse multi-candidate output, using raw SQL")
+
             return PythonSidecarResponse(
                 query_id=query_id,
-                sql_generated=sql,
+                sql_generated=final_sql,
                 confidence_score=confidence,
                 tables_selected=selected_tables,
                 intent=intent,
                 notes=notes,
                 error=None,
-                trace=trace_info
+                trace=trace_info,
+                sql_candidates=sql_candidates,
+                sql_candidates_raw=sql_candidates_raw,
+                tables_used_in_sql=selected_tables
             )
 
         except HridaError as e:

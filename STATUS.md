@@ -1,7 +1,7 @@
 # NL2SQL Project Status
 
 **Last Updated:** 2026-02-02
-**Phase:** Production Development - Schema RAG V1 + Minimal Whitelist Repair
+**Phase:** Production Development - Schema RAG V1 + Multi-Candidate Generation + Minimal Whitelist Repair
 
 ## Current Performance
 
@@ -26,6 +26,7 @@ nl2sql-project/
 │   ├── src/
 │   │   ├── index.ts              # MCP server entry point
 │   │   ├── nl_query_tool.ts      # Main NL2SQL tool
+│   │   ├── multi_candidate.ts    # **NEW** Multi-candidate generation, scoring, selection
 │   │   ├── sql_validator.ts      # SQL validation
 │   │   ├── sql_lint.ts           # SQL linting
 │   │   ├── sql_autocorrect.ts    # SQL autocorrection
@@ -60,7 +61,41 @@ nl2sql-project/
 - M-Schema format for schema representation
 - FK edge detection for join hints
 
-### Minimal Whitelist Repair (NEW)
+### Multi-Candidate SQL Generation (NEW)
+Generates K SQL candidates per question and selects the best using deterministic scoring.
+
+**Configuration:**
+```bash
+MULTI_CANDIDATE_ENABLED=true    # Toggle on/off (default: true)
+MULTI_CANDIDATE_K=4             # Default K (default: 4)
+MULTI_CANDIDATE_K_EASY=2        # K for easy questions
+MULTI_CANDIDATE_K_HARD=6        # K for hard questions
+```
+
+**How it works:**
+1. Classify question difficulty → determine K value
+2. Request K candidates from LLM (single call, delimited output)
+3. Parse candidates using `---SQL_CANDIDATE---` delimiter
+4. For each candidate:
+   - Structural validation (fail-fast rejects)
+   - Lint analysis (penalty scoring)
+   - Parallel EXPLAIN with 2s timeout
+5. Score candidates deterministically (no LLM judge)
+6. Select best candidate (prefer EXPLAIN-passed)
+7. Execute or enter repair loop
+
+**Scoring:**
+| Factor | Points |
+|--------|--------|
+| Base | +100 |
+| Lint error | -25 |
+| EXPLAIN fail | -50 |
+| GROUP BY matches question | +10 |
+| ORDER BY+LIMIT for "top/highest" | +10 |
+
+**Files:** `multi_candidate.ts`, `config.ts`, `python-sidecar/config.py`
+
+### Minimal Whitelist Repair
 - Extracts failing `alias.column` from 42703 errors
 - Resolves alias to table using SQL FROM/JOIN analysis
 - Builds targeted whitelist (table + 1-hop FK neighbors)
@@ -84,17 +119,25 @@ nl2sql-project/
 │  nl_query(question)                     │
 │  ├─ 1. Schema RAG (V1 retrieval)        │
 │  ├─ 2. HTTP POST to Python sidecar      │
-│  ├─ 3. Validate + EXPLAIN SQL           │
-│  ├─ 4. Repair loop (max 3 attempts)     │
+│  │     └─ Request K SQL candidates      │
+│  ├─ 3. Multi-Candidate Evaluation       │
+│  │     ├─ Parse delimited candidates    │
+│  │     ├─ Structural validation         │
+│  │     ├─ Lint analysis                 │
+│  │     ├─ Parallel EXPLAIN              │
+│  │     └─ Deterministic scoring         │
+│  ├─ 4. Select best candidate            │
+│  ├─ 5. Repair loop (max 3 attempts)     │
 │  │     └─ Minimal whitelist for 42703   │
-│  ├─ 5. Execute on Postgres              │
-│  └─ 6. Return results                   │
+│  ├─ 6. Execute on Postgres              │
+│  └─ 7. Return results                   │
 └──────────────┬──────────────────────────┘
                │
                ▼
 ┌─────────────────────────────────────────┐
 │ Python Sidecar (FastAPI :8001)          │
-│  ├─ Generate SQL (Ollama/Hrida)         │
+│  ├─ Generate K SQL candidates           │
+│  │   (single LLM call, delimited)       │
 │  ├─ Repair SQL with error context       │
 │  └─ Return SQL + confidence             │
 └──────────────┬──────────────────────────┘
@@ -102,7 +145,7 @@ nl2sql-project/
                ▼
 ┌─────────────────────────────────────────┐
 │ Ollama (HridaAI/hrida-t2sql)            │
-│ Port: 11434, Temperature: 0.0           │
+│ Port: 11434, Temperature: 0.0-0.1       │
 └─────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────┐
@@ -127,6 +170,22 @@ nl2sql-project/
 3. **V2 retriever broken** - Causes many execution errors, not in use
 
 ## Recent Changes
+
+### 2026-02-02: Multi-Candidate SQL Generation
+- **NEW FEATURE:** Generate K SQL candidates per question, select best via deterministic scoring
+- Files added/modified:
+  - `multi_candidate.ts` - Core module (config, parsing, scoring, orchestration)
+  - `config.ts` - Extended interfaces for multi-candidate support
+  - `nl_query_tool.ts` - Integration with main orchestration loop
+  - `python-sidecar/config.py` - Multi-candidate prompt template
+  - `python-sidecar/app.py` - Multi-candidate generation support
+- Key features:
+  - Difficulty-based K selection (easy=2, medium=4, hard=6)
+  - Single LLM call with delimited output (`---SQL_CANDIDATE---`)
+  - Parallel EXPLAIN with 2s timeout
+  - Deterministic scoring: base (100) - lint errors (25) - EXPLAIN fail (50) + heuristic bonuses
+  - Exam mode logging for candidate evaluation metrics
+- Toggle: `MULTI_CANDIDATE_ENABLED=false` to disable
 
 ### 2026-02-02: Minimal Whitelist Repair
 - Implemented targeted 42703 repair (only relevant table + FK neighbors)
