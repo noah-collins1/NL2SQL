@@ -48,7 +48,8 @@ class HridaClient:
         prompt: str,
         temperature: float = 0.0,
         max_tokens: int = 200,
-        multi_candidate: bool = False
+        multi_candidate: bool = False,
+        seed: Optional[int] = None
     ) -> Tuple[str, float]:
         """
         Generate SQL from prompt using Hrida
@@ -58,6 +59,7 @@ class HridaClient:
             temperature: Sampling temperature (default 0.0 for deterministic)
             max_tokens: Maximum tokens to generate (default 200)
             multi_candidate: If True, skip SELECT validation (output may start with delimiter)
+            seed: Optional seed for reproducible generation
 
         Returns:
             Tuple of (sql, confidence_score)
@@ -66,23 +68,28 @@ class HridaClient:
             HridaError: If generation fails or produces gibberish
             requests.RequestException: If Ollama API call fails
         """
-        logger.debug(f"Calling Ollama API: {self.model}")
+        logger.debug(f"Calling Ollama API: {self.model}, seed={seed}")
 
         try:
             # Call Ollama generate endpoint
             # For multi-candidate mode, don't stop at semicolon (multiple statements)
             stop_tokens = ["\n\n"] if multi_candidate else [";", "\n\n"]
+            # Build options dict
+            options = {
+                "temperature": temperature,
+                "num_predict": max_tokens,
+                "stop": stop_tokens,
+            }
+            if seed is not None:
+                options["seed"] = seed
+
             response = requests.post(
                 f"{self.base_url}/api/generate",
                 json={
                     "model": self.model,
                     "prompt": prompt,
                     "stream": False,
-                    "options": {
-                        "temperature": temperature,
-                        "num_predict": max_tokens,
-                        "stop": stop_tokens,
-                    }
+                    "options": options
                 },
                 timeout=self.timeout
             )
@@ -231,7 +238,8 @@ class HridaClient:
         prompt: str,
         temperature: float = 0.0,
         max_tokens: int = 200,
-        session: Optional[aiohttp.ClientSession] = None
+        session: Optional[aiohttp.ClientSession] = None,
+        seed: Optional[int] = None
     ) -> Tuple[str, float]:
         """
         Async version of generate_sql for parallel candidate generation.
@@ -241,6 +249,7 @@ class HridaClient:
             temperature: Sampling temperature (use >0 for diversity)
             max_tokens: Maximum tokens to generate
             session: Optional aiohttp session for connection reuse
+            seed: Optional seed for reproducible generation
 
         Returns:
             Tuple of (sql, confidence_score)
@@ -248,7 +257,7 @@ class HridaClient:
         Raises:
             HridaError: If generation fails
         """
-        logger.debug(f"Async calling Ollama API: {self.model}, temp={temperature}")
+        logger.debug(f"Async calling Ollama API: {self.model}, temp={temperature}, seed={seed}")
 
         close_session = False
         if session is None:
@@ -256,17 +265,22 @@ class HridaClient:
             close_session = True
 
         try:
+            # Build options dict
+            options = {
+                "temperature": temperature,
+                "num_predict": max_tokens,
+                "stop": [";", "\n\n"],
+            }
+            if seed is not None:
+                options["seed"] = seed
+
             async with session.post(
                 f"{self.base_url}/api/generate",
                 json={
                     "model": self.model,
                     "prompt": prompt,
                     "stream": False,
-                    "options": {
-                        "temperature": temperature,
-                        "num_predict": max_tokens,
-                        "stop": [";", "\n\n"],
-                    }
+                    "options": options
                 },
                 timeout=aiohttp.ClientTimeout(total=self.timeout)
             ) as response:
@@ -300,22 +314,24 @@ class HridaClient:
         self,
         prompt: str,
         k: int = 4,
-        temperature: float = 0.3,
-        max_tokens: int = 200
+        temperature: float = 0.0,
+        max_tokens: int = 200,
+        base_seed: int = 42
     ) -> List[Tuple[str, float]]:
         """
-        Generate K SQL candidates in parallel with temperature for diversity.
+        Generate K SQL candidates in parallel with different seeds for reproducible diversity.
 
         Args:
             prompt: Base prompt for SQL generation
             k: Number of candidates to generate
-            temperature: Sampling temperature (0.2-0.4 recommended for diversity)
+            temperature: Sampling temperature (0.0 for deterministic with seed-based diversity)
             max_tokens: Maximum tokens per candidate
+            base_seed: Base seed value (each candidate uses base_seed + index)
 
         Returns:
             List of (sql, confidence) tuples, deduplicated
         """
-        logger.info(f"Generating {k} candidates in parallel, temp={temperature}")
+        logger.info(f"Generating {k} candidates in parallel, temp={temperature}, base_seed={base_seed}")
 
         async with aiohttp.ClientSession() as session:
             tasks = [
@@ -323,9 +339,10 @@ class HridaClient:
                     prompt=prompt,
                     temperature=temperature,
                     max_tokens=max_tokens,
-                    session=session
+                    session=session,
+                    seed=base_seed + i  # Different seed per candidate for diversity
                 )
-                for _ in range(k)
+                for i in range(k)
             ]
 
             results = await asyncio.gather(*tasks, return_exceptions=True)

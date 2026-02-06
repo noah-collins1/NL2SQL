@@ -364,8 +364,9 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
                 candidates = await hrida_client.generate_candidates_parallel(
                     prompt=prompt,
                     k=multi_k,
-                    temperature=0.3,  # Temperature for diversity
-                    max_tokens=200
+                    temperature=0.0,  # Deterministic with seed-based diversity
+                    max_tokens=200,
+                    base_seed=42  # Fixed base seed for reproducibility
                 )
 
                 hrida_duration_ms = int((time.time() - hrida_start) * 1000)
@@ -382,7 +383,8 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
                     sql, confidence = hrida_client.generate_sql(
                         prompt=prompt,
                         temperature=0.0,
-                        max_tokens=200
+                        max_tokens=200,
+                        seed=42  # Fixed seed for reproducibility
                     )
                     hrida_duration_ms = int((time.time() - hrida_start) * 1000)
 
@@ -391,7 +393,8 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
                 sql, confidence = hrida_client.generate_sql(
                     prompt=prompt,
                     temperature=0.0,
-                    max_tokens=200
+                    max_tokens=200,
+                    seed=42  # Fixed seed for reproducibility
                 )
                 hrida_duration_ms = int((time.time() - hrida_start) * 1000)
 
@@ -422,7 +425,8 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
                     repaired_sql, repaired_confidence = hrida_client.generate_sql(
                         prompt=repair_prompt,
                         temperature=0.0,
-                        max_tokens=200
+                        max_tokens=200,
+                        seed=99  # Fixed seed for semantic repair
                     )
 
                     # Re-validate after repair
@@ -620,10 +624,13 @@ async def repair_sql(request: dict) -> PythonSidecarResponse:
         hrida_client = get_hrida_client()
 
         try:
+            # Use attempt-based seed for reproducible repairs
+            repair_seed = 100 + attempt
             sql, confidence = hrida_client.generate_sql(
                 prompt=prompt,
                 temperature=0.0,  # Deterministic
-                max_tokens=200
+                max_tokens=200,
+                seed=repair_seed
             )
             hrida_duration_ms = int((time.time() - hrida_start) * 1000)
 
