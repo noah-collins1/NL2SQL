@@ -1,13 +1,13 @@
 # NL2SQL MCP Server - TypeScript Layer
 
-**Last Updated:** 2026-02-02
+**Last Updated:** 2026-02-07
 
 ## Overview
 
 TypeScript MCP server that converts natural language to SQL. Handles schema retrieval, parallel multi-candidate SQL generation, validation, repair loops, and execution.
 
 **Database:** Enterprise ERP (60+ tables, 8 modules)
-**Current Success Rate:** 75.0% (Easy: 95%, Medium: 72%, Hard: 53%)
+**Current Success Rate:** 78.3% ± 1.4% (Easy: 95%, Medium: 76-80%, Hard: 53-60%)
 
 ## Architecture
 
@@ -216,7 +216,11 @@ npm run build
 
 ### Run Exam
 ```bash
+# Single run
 npx tsx scripts/run_exam.ts
+
+# Multi-run with statistical analysis (recommended)
+npx tsx scripts/run_exam_multi.ts 3    # Run 3 times, report mean ± std dev
 ```
 
 ### Populate Embeddings
@@ -245,14 +249,26 @@ npx tsx scripts/populate_embeddings.ts
 
 ## Performance
 
+Benchmark results with statistical analysis (3 runs):
+
+| Metric | Value |
+|--------|-------|
+| **Mean** | **78.3% ± 1.4%** |
+| Range | 76.7% - 80.0% |
+| Median | 78.3% |
+
 | Difficulty | Success Rate |
 |------------|--------------|
-| Easy (20) | 95.0% |
-| Medium (25) | 72.0% |
-| Hard (15) | 53.3% |
-| **Overall** | **75.0%** |
+| Easy (20) | 95% |
+| Medium (25) | 76-80% |
+| Hard (15) | 53-60% |
 
-## Current Error Analysis (15 failures, 25%)
+**Question Stability:**
+- Always Pass: 41 questions
+- Always Fail: 10 questions (IDs: 2, 26, 32, 34, 38, 51, 55, 56, 57, 60)
+- Flaky: 9 questions (67% pass rate)
+
+## Current Error Analysis (10 consistent failures, 17%)
 
 ### 1. Column Name Errors (5 failures, 8.3%)
 
