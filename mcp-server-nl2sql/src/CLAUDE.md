@@ -1,13 +1,13 @@
 # NL2SQL MCP Server - TypeScript Layer
 
-**Last Updated:** 2026-02-07
+**Last Updated:** 2026-02-08
 
 ## Overview
 
 TypeScript MCP server that converts natural language to SQL. Handles schema retrieval, parallel multi-candidate SQL generation, validation, repair loops, and execution.
 
 **Database:** Enterprise ERP (60+ tables, 8 modules)
-**Current Success Rate:** 78.3% ± 1.4% (Easy: 95%, Medium: 76-80%, Hard: 53-60%)
+**Current Success Rate:** 73.3% (Easy: 95%, Medium: 68%, Hard: 53%) — single run 2026-02-08
 
 ## Architecture
 
@@ -41,7 +41,7 @@ User Question
 | `nl_query_tool.ts` | Main orchestration (generate → validate → repair → execute) |
 | `config.ts` | Types, constants, error classification |
 | `python_client.ts` | HTTP client to Python sidecar |
-| `multi_candidate.ts` | **NEW** Multi-candidate generation, parsing, scoring, selection |
+| `multi_candidate.ts` | Multi-candidate generation, parsing, scoring, selection |
 
 ### Schema RAG
 
@@ -60,7 +60,9 @@ User Question
 | `sql_validator.ts` | Core validation (SELECT-only, dangerous keywords, tables) |
 | `sql_lint.ts` | SQL linting (syntax patterns, common errors) |
 | `sql_autocorrect.ts` | Automatic SQL fixes (aliases, quotes) |
-| `column_candidates.ts` | **Minimal whitelist repair** for 42703 errors |
+| `column_candidates.ts` | Legacy minimal whitelist repair |
+| `surgical_whitelist.ts` | Surgical column whitelist with two-tier gating + risk blacklist |
+| `surgical_whitelist.test.ts` | Unit tests for surgical whitelist |
 
 ## Key Features
 
@@ -72,19 +74,89 @@ Retrieves relevant tables for each question:
 3. Expand via FK relationships
 4. Build SchemaContextPacket with M-Schema format
 
-### Minimal Whitelist Repair
+### Surgical Column Whitelist (Two-Tier Gating)
 
-For SQLSTATE 42703 (undefined column) errors:
-1. Extract failing `alias.column` from error message
-2. Resolve alias to table using FROM/JOIN analysis
-3. Build whitelist with ONLY that table's columns + 1-hop FK neighbors
-4. Send targeted repair prompt to Python sidecar
+For SQLSTATE 42703 (undefined column) errors — table-scoped column repair with two-tier safety gating.
+
+**Pipeline:**
+1. **Extract failing reference** from error message (`e.salary_amount`)
+2. **Robust alias resolution** via FROM/JOIN clause parsing
+3. **Build surgical whitelist** scoped to resolved table + FK neighbors
+4. **Attempt deterministic rewrite** (conservative, high-confidence only)
+5. **If rewrite fails**, generate compact repair prompt (<2000 chars)
+
+**Two-Tier Gating Architecture:**
+
+| Tier | Function | Purpose |
+|------|----------|---------|
+| Observe | `evaluateStrictGating` | Logs what whitelist WOULD do. Shadow-only, no behavior change. |
+| Active | `evaluateActiveGating` | Stricter gate that guarantees `correctedSQL` when `passed === true`. |
+
+**Observe tier** runs in all modes to build telemetry. **Active tier** is the sole decision-maker when `mode: "active"` — it bypasses `rewriteMinConfidence` and calls `findColumnMatches` directly with its own 9-gate evaluation.
+
+**Active Gating — 9 Gates (all must pass):**
+1. Keyword rejection (SQL functions like `year`, `count`)
+2. Alias resolves unambiguously
+3. Autocorrect was attempted and failed
+4. Has candidate columns
+5. Score floor (>= 0.80)
+6. Dominance: best - second >= 0.60 (2+ candidates only)
+7. Score separation: delta >= 0.10 OR ratio >= 1.15 (2+ candidates only)
+8. Containment OR exact match (token-level)
+9. Risk blacklist clear
+
+**Key invariant:** `passed === true` guarantees `correctedSQL` is present.
+
+**Risk Blacklist (`checkRiskBlacklist`):**
+Uses token-diff approach — computes `refOnly`/`candOnly` token sets and checks against configured dangerous pairs. Prevents semantic flips like `vendor_name → vendor_number`.
 
 ```typescript
-// column_candidates.ts
-buildMinimalWhitelist(errorMessage, sql, schemaContext)
-// Returns: { resolvedTable, whitelist: { table: [columns] } }
+// Configured pairs: ["name","number"], ["name","id"], ["amount","total"],
+//                   ["date","id"], ["vendor","customer"]
+// Action: "block" (default) | "penalize"
+// applyToObserve: false (only blocks in active mode)
 ```
+
+**Key Exported Functions:**
+- `processSurgicalWhitelist(sql, errorMessage, schemaContext)` — main entry, builds whitelist + attempts rewrite
+- `evaluateStrictGating(surgicalResult, autocorrectAttempted, autocorrectSucceeded)` — observe tier
+- `evaluateActiveGating(surgicalResult, autocorrectAttempted, autocorrectSucceeded, sql, errorMessage)` — active tier
+- `checkRiskBlacklist(refColumn, candidateColumn)` — token-diff blacklist check
+
+**Configuration (`SURGICAL_WHITELIST_CONFIG`):**
+```typescript
+{
+  enabled: true,
+  mode: "observe",           // "observe" | "active"
+  observeInExamOnly: true,
+  includeFkNeighbors: true,
+  maxNeighborTables: 3,
+  maxTablesTotal: 4,
+  maxColumnsPerTable: 60,
+  rewriteMinConfidence: 0.75,   // bypassed in active mode
+  rewriteAmbiguityDelta: 0.1,
+  activeRewriteGate: {
+    minScore: 0.80,
+    minDominance: 0.60,
+    requireContainmentOrExact: true,
+    requireScoreSeparation: true,
+    minScoreDelta: 0.10,
+    minScoreRatio: 1.15,
+  },
+  riskBlacklist: {
+    enabled: true,
+    pairs: [["name","number"], ["name","id"], ["amount","total"],
+            ["date","id"], ["vendor","customer"]],
+    action: "block",
+    applyToObserve: false,
+  },
+}
+```
+
+**To safely enable active mode:**
+1. Run exams in observe mode — review `shadow_whitelist_observations` in exam logs
+2. Verify `active_gating_passed` precision is acceptable
+3. Switch `mode` from `"observe"` to `"active"`
 
 ### Parallel Multi-Candidate SQL Generation
 
@@ -244,71 +316,80 @@ npx tsx scripts/populate_embeddings.ts
 |----------|---------|-----------------|
 | 42601 | Syntax error | Fix based on message |
 | 42P01 | Undefined table | Use correct table from schema |
-| 42703 | Undefined column | **Minimal whitelist** |
+| 42703 | Undefined column | **Surgical whitelist** (two-tier gating) |
 | 42804 | Type mismatch | Fix comparison types |
 
 ## Performance
 
-Benchmark results with statistical analysis (3 runs):
+**Latest single run (2026-02-08):** 73.3% (44/60)
+
+| Difficulty | Pass | Fail | Rate |
+|------------|------|------|------|
+| Easy (20) | 19 | 1 | 95% |
+| Medium (25) | 17 | 8 | 68% |
+| Hard (15) | 8 | 7 | 53% |
+
+**Historical reference (multi-run, 3 runs, 2026-02-07):**
 
 | Metric | Value |
 |--------|-------|
-| **Mean** | **78.3% ± 1.4%** |
+| Mean | 78.3% ± 1.4% |
 | Range | 76.7% - 80.0% |
-| Median | 78.3% |
 
-| Difficulty | Success Rate |
-|------------|--------------|
-| Easy (20) | 95% |
-| Medium (25) | 76-80% |
-| Hard (15) | 53-60% |
+Note: The 2026-02-08 run is a single run, not a multi-run average. Variance between runs is ~±2-4%.
 
-**Question Stability:**
-- Always Pass: 41 questions
-- Always Fail: 10 questions (IDs: 2, 26, 32, 34, 38, 51, 55, 56, 57, 60)
-- Flaky: 9 questions (67% pass rate)
+## Current Error Analysis (16 failures, 2026-02-08)
 
-## Current Error Analysis (10 consistent failures, 17%)
+| Category | Count | % |
+|----------|-------|---|
+| column_miss | 5 | 8.3% |
+| llm_reasoning | 10 | 16.7% |
+| execution_error | 1 | 1.7% |
 
 ### 1. Column Name Errors (5 failures, 8.3%)
 
 LLM invents columns not in schema:
 
-| Question | Wrong Column | Likely Correct |
-|----------|--------------|----------------|
-| Q34: Total spend by vendor | `v.vendor_name` | `v.name` |
-| Q37: Debit/credit by account | `b.amount` | Different column |
-| Q50: Order value by customer | `c.segment` | Doesn't exist |
-| Q55: Trial balance | `ac.asset_id` | Wrong table |
-| Q57: Project profitability | `pe.actual_amount` | `pe.amount` |
+| Question | Wrong Column | SQLSTATE |
+|----------|--------------|----------|
+| Q21: Employees >5yr & >$100k | `year` (DATEDIFF keyword) | 42703 |
+| Q25: Expiring certifications | `ec.status` | 42703 |
+| Q32: Inventory value by warehouse | `il.quantity` | 42703 |
+| Q50: Order value by customer | `c.segment` | 42703 |
+| Q55: Trial balance | `ba.asset_id` | 42703 |
 
-**Root cause:** Schema description doesn't clearly communicate column names.
+### 2. LLM Reasoning Failures (10 failures, 16.7%)
 
-### 2. PostgreSQL Syntax Errors (2 failures)
+Validation failures, wrong logic, or gibberish:
+- Q2: Employees hired in 2024 (validation failure)
+- Q26: Sales by year (alias mismatch `c.customer_id` without defining `c`)
+- Q34: Total spend by vendor (`v.vendor_name` — column is `v.name`)
+- Q38: Posted journal entries (validation failure)
+- Q44: Assets due for maintenance (MySQL `DATE_ADD` syntax)
+- Q46: Employee turnover rate (validation failure)
+- Q51: Sales pipeline weighted value (validation failure)
+- Q56: Cash flow from transactions (validation failure)
+- Q57: Project profitability (duplicate alias `pb`)
+- Q60: Employee cost report (gibberish/model collapse)
 
-| Question | Error | Fix |
-|----------|-------|-----|
-| Q26: Sales by year | `YEAR(date)` function | `EXTRACT(YEAR FROM date)` |
-| Q29: Quote conversion | Ambiguous `quote_id` | Needs table qualifier |
+### 3. Execution Errors (1 failure, 1.7%)
 
-**Root cause:** LLM trained on MySQL-style SQL.
+- Q37: Debit/credit by account (subquery returned multiple rows, 21000)
 
-### 3. Complex Query Failures (4 failures)
+### Surgical Whitelist Observation Results (2026-02-08)
 
-Queries that failed validation after 3 attempts:
-- Q2: Employees hired in 2024 (date filtering)
-- Q38: Posted journal entries (complex joins)
-- Q51: Sales pipeline weighted value (calculations)
-- Q56: Cash flow from transactions (grouping)
+Shadow observations from observe mode (no behavior change):
 
-**Root cause:** Multi-step analytics beyond LLM capability.
+| Metric | Value |
+|--------|-------|
+| Queries with 42703 observations | 9 |
+| Total observations | 16 |
+| Strict gating passed | 4/16 (25%) |
+| Active gating passed | 0/16 (0%) |
+| Max top1_score | 0.77 (below 0.80 floor) |
+| Dominant failure | `no_candidates` (62.5%) |
 
-### 4. Generation Failures (2 failures)
-
-- Q27: Top 10 customers - Model didn't generate SELECT
-- Q49: Month-over-month growth - Gibberish detected
-
-**Root cause:** Complex questions confuse the model.
+**Conclusion:** Column-miss failures in this exam are primarily semantic misunderstandings (LLM uses wrong table entirely, invents non-existent concepts like `segment`, or confuses SQL keywords with columns). These are not close-typo cases where the surgical whitelist can help. Active mode would not have changed results for this run.
 
 ## Potential Fixes
 
