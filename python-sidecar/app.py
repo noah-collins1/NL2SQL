@@ -30,6 +30,10 @@ from config import (
     build_rag_prompt,
     build_rag_repair_prompt,
     HRIDA_BASE_PROMPT_VERSION,
+    OLLAMA_MODEL,
+    OLLAMA_NUM_CTX,
+    SEQUENTIAL_CANDIDATES,
+    SQL_SYSTEM_PROMPT,
 )
 from hrida_client import HridaClient, HridaError, get_hrida_client, get_embedding
 from keyword_filter import filter_tables, build_filtered_schema, classify_intent
@@ -96,6 +100,9 @@ class NLQueryRequest(BaseModel):
     # Multi-candidate generation
     multi_candidate_k: Optional[int] = Field(None, description="Number of SQL candidates to generate (if > 1, returns multiple candidates)")
     multi_candidate_delimiter: Optional[str] = Field("---SQL_CANDIDATE---", description="Delimiter for multi-candidate output")
+    # Schema grounding (Phase 1+2)
+    schema_link_text: Optional[str] = Field(None, description="Pre-formatted schema link section for prompt")
+    join_plan_text: Optional[str] = Field(None, description="Pre-formatted join plan section for prompt")
 
 
 class ErrorResponse(BaseModel):
@@ -130,6 +137,14 @@ class PythonSidecarResponse(BaseModel):
     sql_candidates: Optional[List[str]] = Field(None, description="Multiple SQL candidates (if multi_candidate_k > 1)")
     sql_candidates_raw: Optional[str] = Field(None, description="Raw multi-candidate output for downstream parsing")
     tables_used_in_sql: Optional[List[str]] = Field(None, description="Tables used in the generated SQL")
+
+
+# Initialize Hrida client with model-appropriate system prompt
+_system_prompt = None if "hrida" in OLLAMA_MODEL.lower() else SQL_SYSTEM_PROMPT
+get_hrida_client(system_prompt=_system_prompt)
+
+logger.info(f"Hrida client initialized: model={OLLAMA_MODEL}, num_ctx={OLLAMA_NUM_CTX}, "
+            f"sequential={SEQUENTIAL_CANDIDATES}, system_prompt={'yes' if _system_prompt else 'no (Hrida)'}")
 
 
 # Endpoints
@@ -285,7 +300,12 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
             intent = classify_intent(request.question)
 
             # Build prompt from RAG schema context
-            prompt = build_rag_prompt(request.question, schema_context)
+            prompt = build_rag_prompt(
+                request.question,
+                schema_context,
+                schema_link_text=request.schema_link_text,
+                join_plan_text=request.join_plan_text,
+            )
 
             # For semantic validation, build a compatible schema dict
             filtered_schema = {}
@@ -357,17 +377,30 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
             notes = None
 
             if is_multi_candidate:
-                # === PARALLEL MULTI-CANDIDATE GENERATION ===
-                # Generate K candidates in parallel with temperature for diversity
-                logger.info(f"[{query_id}] Parallel multi-candidate generation with k={multi_k}")
+                if SEQUENTIAL_CANDIDATES:
+                    # === SEQUENTIAL MULTI-CANDIDATE GENERATION ===
+                    # Generate K candidates one at a time (avoids VRAM contention with large models)
+                    logger.info(f"[{query_id}] Sequential multi-candidate generation with k={multi_k}")
 
-                candidates = await hrida_client.generate_candidates_parallel(
-                    prompt=prompt,
-                    k=multi_k,
-                    temperature=0.0,  # Deterministic with seed-based diversity
-                    max_tokens=200,
-                    base_seed=42  # Fixed base seed for reproducibility
-                )
+                    candidates = hrida_client.generate_candidates_sequential(
+                        prompt=prompt,
+                        k=multi_k,
+                        temperature=0.3,  # Non-zero for candidate diversity
+                        max_tokens=200,
+                        base_seed=42  # Fixed base seed for reproducibility
+                    )
+                else:
+                    # === PARALLEL MULTI-CANDIDATE GENERATION ===
+                    # Generate K candidates in parallel with temperature for diversity
+                    logger.info(f"[{query_id}] Parallel multi-candidate generation with k={multi_k}")
+
+                    candidates = await hrida_client.generate_candidates_parallel(
+                        prompt=prompt,
+                        k=multi_k,
+                        temperature=0.3,  # Non-zero for candidate diversity
+                        max_tokens=200,
+                        base_seed=42  # Fixed base seed for reproducibility
+                    )
 
                 hrida_duration_ms = int((time.time() - hrida_start) * 1000)
 

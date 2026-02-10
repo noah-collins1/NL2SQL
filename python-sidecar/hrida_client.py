@@ -18,7 +18,7 @@ import aiohttp
 from typing import Optional, Tuple, List
 import logging
 
-from config import OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT
+from config import OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT, OLLAMA_NUM_CTX
 
 logger = logging.getLogger(__name__)
 
@@ -37,11 +37,15 @@ class HridaClient:
         self,
         base_url: str = OLLAMA_BASE_URL,
         model: str = OLLAMA_MODEL,
-        timeout: int = OLLAMA_TIMEOUT
+        timeout: int = OLLAMA_TIMEOUT,
+        num_ctx: int = OLLAMA_NUM_CTX,
+        system_prompt: Optional[str] = None
     ):
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.timeout = timeout
+        self.num_ctx = num_ctx
+        self.system_prompt = system_prompt
 
     def generate_sql(
         self,
@@ -82,15 +86,21 @@ class HridaClient:
             }
             if seed is not None:
                 options["seed"] = seed
+            if self.num_ctx > 0:
+                options["num_ctx"] = self.num_ctx
+
+            json_body = {
+                "model": self.model,
+                "prompt": prompt,
+                "stream": False,
+                "options": options
+            }
+            if self.system_prompt:
+                json_body["system"] = self.system_prompt
 
             response = requests.post(
                 f"{self.base_url}/api/generate",
-                json={
-                    "model": self.model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": options
-                },
+                json=json_body,
                 timeout=self.timeout
             )
 
@@ -273,15 +283,21 @@ class HridaClient:
             }
             if seed is not None:
                 options["seed"] = seed
+            if self.num_ctx > 0:
+                options["num_ctx"] = self.num_ctx
+
+            json_body = {
+                "model": self.model,
+                "prompt": prompt,
+                "stream": False,
+                "options": options
+            }
+            if self.system_prompt:
+                json_body["system"] = self.system_prompt
 
             async with session.post(
                 f"{self.base_url}/api/generate",
-                json={
-                    "model": self.model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": options
-                },
+                json=json_body,
                 timeout=aiohttp.ClientTimeout(total=self.timeout)
             ) as response:
                 response.raise_for_status()
@@ -370,16 +386,66 @@ class HridaClient:
         logger.info(f"Generated {len(candidates)} unique candidates from {k} attempts")
         return candidates
 
+    def generate_candidates_sequential(
+        self,
+        prompt: str,
+        k: int = 4,
+        temperature: float = 0.3,
+        max_tokens: int = 200,
+        base_seed: int = 42
+    ) -> List[Tuple[str, float]]:
+        """
+        Generate K SQL candidates sequentially (one at a time).
+
+        Use this instead of parallel generation when VRAM is limited
+        (e.g. large model on small GPU where parallel requests cause OOM).
+
+        Args:
+            prompt: Base prompt for SQL generation
+            k: Number of candidates to generate
+            temperature: Sampling temperature (use >0 for diversity)
+            max_tokens: Maximum tokens per candidate
+            base_seed: Base seed value (each candidate uses base_seed + index)
+
+        Returns:
+            List of (sql, confidence) tuples, deduplicated
+        """
+        logger.info(f"Generating {k} candidates sequentially, temp={temperature}, base_seed={base_seed}")
+
+        candidates = []
+        seen_normalized = set()
+
+        for i in range(k):
+            try:
+                sql, confidence = self.generate_sql(
+                    prompt=prompt,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    seed=base_seed + i
+                )
+                normalized = re.sub(r'\s+', ' ', sql.lower().strip())
+                if normalized not in seen_normalized:
+                    seen_normalized.add(normalized)
+                    candidates.append((sql, confidence))
+                    logger.debug(f"Sequential candidate {i} added: {sql[:50]}...")
+                else:
+                    logger.debug(f"Sequential candidate {i} is duplicate, skipped")
+            except HridaError as e:
+                logger.warning(f"Sequential candidate {i} failed: {e}")
+
+        logger.info(f"Generated {len(candidates)} unique candidates from {k} sequential attempts")
+        return candidates
+
 
 # Singleton instance for convenience
 _default_client: Optional[HridaClient] = None
 
 
-def get_hrida_client() -> HridaClient:
-    """Get or create default Hrida client"""
+def get_hrida_client(**kwargs) -> HridaClient:
+    """Get or create default Hrida client. Pass kwargs to override defaults on first creation."""
     global _default_client
     if _default_client is None:
-        _default_client = HridaClient()
+        _default_client = HridaClient(**kwargs)
     return _default_client
 
 

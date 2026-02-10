@@ -11,6 +11,12 @@ import os
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "HridaAI/hrida-t2sql:latest")
 OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "90"))  # seconds (increased for multi-candidate generation)
+OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "0"))  # 0 = use model default
+SEQUENTIAL_CANDIDATES = os.getenv("SEQUENTIAL_CANDIDATES", "false").lower() == "true"
+SQL_SYSTEM_PROMPT = os.getenv("SQL_SYSTEM_PROMPT",
+    "You are an expert PostgreSQL query generator. Given a database schema and a question, "
+    "output ONLY a single SELECT query. No explanations, no markdown, no commentary."
+)
 
 # Server Configuration
 PORT = int(os.getenv("PORT", "8001"))
@@ -355,13 +361,15 @@ Use these FK relationships for JOINs:
 """
 
 
-def build_rag_prompt(question: str, schema_context: dict) -> str:
+def build_rag_prompt(question: str, schema_context: dict, schema_link_text: str = None, join_plan_text: str = None) -> str:
     """
     Build prompt from RAG-retrieved schema context (V2 Enhanced)
 
     Args:
         question: Natural language question
         schema_context: SchemaContextPacket from TypeScript
+        schema_link_text: Pre-formatted schema link section (Phase 1, opt-in)
+        join_plan_text: Pre-formatted join plan section (Phase 2, opt-in)
 
     Returns:
         Complete prompt string for Hrida
@@ -440,7 +448,7 @@ def build_rag_prompt(question: str, schema_context: dict) -> str:
         join_hints_block = "Use FK relationships from schema to determine JOINs."
         join_paths_block = ""
 
-    # Build complete prompt
+    # Build the base prompt (unchanged template for backward compatibility)
     prompt = HRIDA_RAG_PROMPT.format(
         database_id=database_id,
         schema_block=schema_block,
@@ -448,6 +456,20 @@ def build_rag_prompt(question: str, schema_context: dict) -> str:
         join_paths_block=join_paths_block,
         question=question
     )
+
+    # Prepend schema link section if provided (opt-in only)
+    if schema_link_text:
+        prompt = prompt.replace(
+            f"Generate PostgreSQL SELECT query for the {database_id} database.",
+            f"Generate PostgreSQL SELECT query for the {database_id} database.\n\n{schema_link_text}"
+        )
+
+    # Insert join plan section if provided (opt-in only)
+    if join_plan_text:
+        prompt = prompt.replace(
+            "## Column Selection Rules (CRITICAL)",
+            f"{join_plan_text}\n\n## Column Selection Rules (CRITICAL)"
+        )
 
     return prompt
 
@@ -512,7 +534,9 @@ def build_rag_repair_prompt(
     schema_context: dict,
     validator_issues: list = None,
     postgres_error: dict = None,
-    semantic_issues: list = None
+    semantic_issues: list = None,
+    schema_link_text: str = None,
+    join_plan_text: str = None
 ) -> str:
     """
     Build repair prompt for RAG-based schema context (V2 Enhanced)
@@ -524,12 +548,14 @@ def build_rag_repair_prompt(
         validator_issues: Validation issues from TypeScript
         postgres_error: PostgreSQL error context
         semantic_issues: Semantic validation issues
+        schema_link_text: Pre-formatted schema link section (Phase 1, opt-in)
+        join_plan_text: Pre-formatted join plan section (Phase 2, opt-in)
 
     Returns:
         Complete repair prompt
     """
     # Start with base RAG prompt
-    base = build_rag_prompt(question, schema_context)
+    base = build_rag_prompt(question, schema_context, schema_link_text=schema_link_text, join_plan_text=join_plan_text)
 
     # Get allowed tables from schema context
     allowed_tables = [t.get("table_name") for t in schema_context.get("tables", [])]
@@ -745,6 +771,9 @@ __all__ = [
     'OLLAMA_BASE_URL',
     'OLLAMA_MODEL',
     'OLLAMA_TIMEOUT',
+    'OLLAMA_NUM_CTX',
+    'SEQUENTIAL_CANDIDATES',
+    'SQL_SYSTEM_PROMPT',
     'PORT',
     'LOG_LEVEL',
     'MCPTEST_SCHEMA',
