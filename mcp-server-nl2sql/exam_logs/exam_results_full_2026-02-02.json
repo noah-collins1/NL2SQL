@@ -1,19 +1,19 @@
 {
   "summary": {
     "total": 60,
-    "success_rate": "75.0",
+    "success_rate": "73.3",
     "by_difficulty": {
       "easy": {
         "pass": 19,
         "fail": 1
       },
       "medium": {
-        "pass": 18,
-        "fail": 7
+        "pass": 19,
+        "fail": 6
       },
       "hard": {
-        "pass": 8,
-        "fail": 7
+        "pass": 6,
+        "fail": 9
       }
     },
     "by_module": {
@@ -22,46 +22,106 @@
         "fail": 2
       },
       "Sales": {
-        "pass": 5,
-        "fail": 6
-      },
-      "Inventory": {
-        "pass": 8,
-        "fail": 0
-      },
-      "Procurement": {
-        "pass": 4,
-        "fail": 1
-      },
-      "Finance": {
-        "pass": 4,
+        "pass": 7,
         "fail": 4
       },
-      "Projects": {
-        "pass": 5,
+      "Inventory": {
+        "pass": 7,
         "fail": 1
+      },
+      "Procurement": {
+        "pass": 3,
+        "fail": 2
+      },
+      "Finance": {
+        "pass": 5,
+        "fail": 3
+      },
+      "Projects": {
+        "pass": 4,
+        "fail": 2
       },
       "Assets": {
-        "pass": 4,
-        "fail": 1
-      },
-      "Common": {
-        "pass": 2,
+        "pass": 5,
         "fail": 0
       },
-      "Cross-Module": {
+      "Common": {
         "pass": 1,
+        "fail": 1
+      },
+      "Cross-Module": {
+        "pass": 0,
+        "fail": 1
+      }
+    },
+    "by_hardness_bucket": {
+      "easy": {
+        "pass": 0,
+        "fail": 0
+      },
+      "medium": {
+        "pass": 44,
+        "fail": 16
+      },
+      "hard": {
+        "pass": 0,
         "fail": 0
       }
     },
     "failure_counts": {
       "retrieval_miss": 0,
       "join_path_miss": 1,
-      "column_miss": 5,
+      "column_miss": 7,
       "value_miss": 0,
-      "llm_reasoning": 7,
-      "execution_error": 2,
-      "success": 45
+      "llm_reasoning": 8,
+      "execution_error": 0,
+      "success": 44
+    },
+    "hardness_summary": {
+      "totalQuestions": 60,
+      "bucketCounts": {
+        "easy": 0,
+        "medium": 60,
+        "hard": 0
+      },
+      "bucketSuccessRate": {
+        "easy": 0,
+        "medium": 0.7333333333333333,
+        "hard": 0
+      },
+      "bucketAvgLatencyMs": {
+        "easy": 0,
+        "medium": 5471,
+        "hard": 0
+      },
+      "bucketAvgScore": {
+        "easy": 0,
+        "medium": 0,
+        "hard": 0
+      },
+      "degradationRate": 0,
+      "axisContribution": {
+        "structural": {
+          "avgScore": 0,
+          "maxScore": 0
+        },
+        "compositional": {
+          "avgScore": 0,
+          "maxScore": 0
+        },
+        "temporal": {
+          "avgScore": 0,
+          "maxScore": 0
+        },
+        "negation": {
+          "avgScore": 0,
+          "maxScore": 0
+        },
+        "derived": {
+          "avgScore": 0,
+          "maxScore": 0
+        }
+      }
     }
   },
   "results": [
@@ -93,8 +153,12 @@
       ],
       "sql_generated": "SELECT e.* FROM employees e JOIN departments d ON e.department_id = d.department_id WHERE d.name = 'Sales' LIMIT 1000;",
       "success": true,
-      "latency_ms": 6435,
+      "latency_ms": 4541,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "positions",
         "positions",
@@ -120,10 +184,14 @@
       "success": false,
       "error_type": "validation",
       "error_message": "Failed to generate valid SQL after 3 attempts",
-      "latency_ms": 3070,
+      "latency_ms": 2335,
       "retrieval_miss": [
         "employees"
       ],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": []
     },
     {
@@ -154,8 +222,12 @@
       ],
       "sql_generated": "SELECT d.name AS department_name, AVG(e.salary) AS avg_salary FROM departments d LEFT JOIN employees e ON d.department_id = e.department_id GROUP BY d.name LIMIT 1000;",
       "success": true,
-      "latency_ms": 1051,
+      "latency_ms": 1513,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "positions",
         "positions",
@@ -195,8 +267,12 @@
       ],
       "sql_generated": "SELECT c.* FROM customers c WHERE c.credit_limit > 100000;",
       "success": true,
-      "latency_ms": 1928,
+      "latency_ms": 1963,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "customer_contacts",
         "sales_regions",
@@ -239,8 +315,12 @@
       ],
       "sql_generated": "SELECT COUNT(*) FROM (SELECT * FROM sales_orders WHERE status = 'pending') AS pending_sales_orders LIMIT 1000;",
       "success": true,
-      "latency_ms": 2244,
+      "latency_ms": 1940,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "purchase_orders",
         "purchase_orders",
@@ -282,10 +362,14 @@
         "benefit_types",
         "benefit_types"
       ],
-      "sql_generated": "SELECT p.* FROM products AS p JOIN product_categories AS pc ON p.category_id = pc.category_id WHERE pc.name = 'Electronics' AND p.is_active LIMIT 1000;",
+      "sql_generated": "SELECT p.* FROM products AS p JOIN product_categories AS pc ON p.category_id = pc.category_id WHERE pc.name = 'Electronics' LIMIT 1000;",
       "success": true,
-      "latency_ms": 2984,
+      "latency_ms": 3096,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "asset_categories",
         "asset_categories",
@@ -323,10 +407,14 @@
         "stock_transfers",
         "stock_transfers"
       ],
-      "sql_generated": "SELECT DISTINCT w.name FROM warehouses w LIMIT 1000;",
+      "sql_generated": "SELECT w.name FROM warehouses w LIMIT 1000;",
       "success": true,
-      "latency_ms": 1127,
+      "latency_ms": 1132,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "warehouse_locations",
         "warehouse_locations",
@@ -367,10 +455,14 @@
         "vendor_invoice_lines",
         "purchase_orders"
       ],
-      "sql_generated": "SELECT v.* FROM vendors v WHERE v.is_active = TRUE LIMIT 1000;",
+      "sql_generated": "SELECT v.* FROM vendors v WHERE v.is_active = true LIMIT 1000;",
       "success": true,
-      "latency_ms": 2321,
+      "latency_ms": 1535,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "vendor_contacts",
         "vendor_contacts",
@@ -413,8 +505,12 @@
       ],
       "sql_generated": "SELECT DISTINCT a.name FROM account_types a JOIN chart_of_accounts c ON a.type_id = c.account_type_id LIMIT 1000;",
       "success": true,
-      "latency_ms": 2208,
+      "latency_ms": 2701,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "chart_of_accounts",
         "chart_of_accounts",
@@ -455,10 +551,14 @@
         "budget_lines",
         "budget_lines"
       ],
-      "sql_generated": "SELECT b.account_number, b.bank_name, b.current_balance FROM bank_accounts b LIMIT 1000;",
+      "sql_generated": "SELECT b.account_number, b.account_name, b.bank_name, b.current_balance FROM bank_accounts b LIMIT 1000;",
       "success": true,
-      "latency_ms": 3451,
+      "latency_ms": 4834,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "bank_transactions",
         "bank_transactions",
@@ -501,8 +601,12 @@
       ],
       "sql_generated": "SELECT COUNT(*) FROM projects WHERE status = 'active' LIMIT 1000;",
       "success": true,
-      "latency_ms": 1326,
+      "latency_ms": 1211,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "project_tasks",
         "project_tasks",
@@ -543,10 +647,14 @@
         "asset_transfers",
         "asset_transfers"
       ],
-      "sql_generated": "SELECT fa.* FROM fixed_assets AS fa LIMIT 1000;",
+      "sql_generated": "SELECT fa.asset_id AS asset_id, fa.name AS name, fa.purchase_cost AS purchase_cost FROM fixed_assets fa LIMIT 1000;",
       "success": true,
-      "latency_ms": 2445,
+      "latency_ms": 2476,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "asset_maintenance",
         "asset_maintenance",
@@ -587,10 +695,14 @@
         "account_types",
         "account_types"
       ],
-      "sql_generated": "SELECT lt.name FROM leave_types AS lt LIMIT 1000;",
+      "sql_generated": "SELECT lt.name FROM leave_types lt LIMIT 1000;",
       "success": true,
-      "latency_ms": 1127,
+      "latency_ms": 1153,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "leave_requests",
         "leave_requests",
@@ -631,10 +743,14 @@
         "maintenance_types",
         "maintenance_types"
       ],
-      "sql_generated": "SELECT tc.name AS course_name, tc.duration_hours, tc.cost FROM employee_training et JOIN training_courses tc ON et.course_id = tc.course_id WHERE tc.is_mandatory = TRUE LIMIT 1000;",
+      "sql_generated": "SELECT tc.* FROM employee_training et JOIN training_courses tc ON et.course_id = tc.course_id WHERE tc.is_mandatory = true LIMIT 1000;",
       "success": true,
-      "latency_ms": 4539,
+      "latency_ms": 3538,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "employee_training",
         "employee_training",
@@ -675,10 +791,14 @@
         "positions",
         "positions"
       ],
-      "sql_generated": "SELECT DISTINCT stage_id FROM sales_opportunities LIMIT 1000;",
+      "sql_generated": "SELECT DISTINCT stage_id, name FROM sales_opportunities LIMIT 1000;",
       "success": true,
-      "latency_ms": 2402,
+      "latency_ms": 2952,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "sales_opportunities",
         "sales_opportunities",
@@ -705,10 +825,14 @@
       "retrieved_tables": [],
       "sql_generated": "SELECT c.name FROM countries AS c LIMIT 1000;",
       "success": true,
-      "latency_ms": 1688,
+      "latency_ms": 357,
       "retrieval_miss": [
         "countries"
       ],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": []
     },
     {
@@ -738,8 +862,12 @@
       ],
       "sql_generated": "SELECT COUNT(*) FROM departments LIMIT 1000;",
       "success": true,
-      "latency_ms": 940,
+      "latency_ms": 914,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "positions",
         "positions",
@@ -782,8 +910,12 @@
       ],
       "sql_generated": "SELECT uom.* FROM units_of_measure AS uom LIMIT 1000;",
       "success": true,
-      "latency_ms": 1115,
+      "latency_ms": 1273,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "products",
         "business_units",
@@ -824,10 +956,14 @@
         "budget_lines",
         "budget_lines"
       ],
-      "sql_generated": "SELECT fy.year FROM fiscal_years AS fy LIMIT 1000;",
+      "sql_generated": "SELECT fy.year FROM fiscal_years fy LIMIT 1000;",
       "success": true,
-      "latency_ms": 1475,
+      "latency_ms": 1421,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "fiscal_periods",
         "fiscal_periods",
@@ -868,10 +1004,14 @@
         "asset_maintenance",
         "product_categories"
       ],
-      "sql_generated": "SELECT DISTINCT ac.category_id, ac.name FROM asset_categories ac LIMIT 1000;",
+      "sql_generated": "SELECT DISTINCT category_id FROM fixed_assets LIMIT 1000;",
       "success": true,
-      "latency_ms": 2275,
+      "latency_ms": 2698,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "fixed_assets",
         "asset_locations",
@@ -912,10 +1052,14 @@
         "employment_history",
         "project_expenses"
       ],
-      "sql_generated": "SELECT e.* FROM employees e JOIN employee_salaries s ON e.employee_id = s.employee_id WHERE e.hire_date <= (CURRENT_DATE - INTERVAL '5 years') AND s.amount > 100000 LIMIT 1000;",
+      "sql_generated": "SELECT e.* FROM employees e JOIN employee_salaries s ON e.employee_id = s.employee_id WHERE termination_date IS NULL AND salary > 100000 LIMIT 1000;",
       "success": true,
-      "latency_ms": 5030,
+      "latency_ms": 5266,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "employee_salaries",
         "employee_salaries",
@@ -956,10 +1100,14 @@
         "employment_history",
         "employee_salaries"
       ],
-      "sql_generated": "SELECT e.employee_id AS employee_id, e.first_name || ' ' || e.last_name AS employee_name, m.first_name || ' ' || m.last_name AS manager_name FROM employees e LEFT JOIN employees m ON e.manager_id = m.employee_id LIMIT 1000;",
+      "sql_generated": "SELECT e.first_name || ' ' || e.last_name AS employee_name, m.first_name || ' ' || m.last_name AS manager_name FROM employees e INNER JOIN employees m ON e.manager_id = m.employee_id LIMIT 1000;",
       "success": true,
-      "latency_ms": 4934,
+      "latency_ms": 5392,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "departments",
         "departments",
@@ -985,13 +1133,17 @@
         "leave_requests"
       ],
       "retrieved_tables": [],
-      "sql_generated": "SELECT e.employee_id AS employee_id, e.first_name AS first_name, lr.leave_type_id AS leave_type_id, lt.is_paid AS is_paid FROM employees e JOIN leave_requests lr ON e.employee_id = lr.employee_id LEFT JOIN leave_types lt ON lt.name = lt.name LIMIT 1000;",
+      "sql_generated": "SELECT DISTINCT e.employee_id, e.first_name, e.last_name FROM employees e JOIN leave_requests lr ON e.employee_id = lr.employee_id WHERE lr.status = 'pending' LIMIT 1000;",
       "success": true,
-      "latency_ms": 6302,
+      "latency_ms": 5951,
       "retrieval_miss": [
         "employees",
         "leave_requests"
       ],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": []
     },
     {
@@ -1020,10 +1172,14 @@
         "sales_regions",
         "sales_regions"
       ],
-      "sql_generated": "SELECT p.title AS PositionTitle, COUNT(e.employee_id) AS NumEmployees FROM positions p JOIN employees e ON p.position_id = e.position_id GROUP BY p.title LIMIT 1000;",
+      "sql_generated": "SELECT p.title AS PositionTitle, COUNT(e.employee_id) AS NumberOfEmployees FROM positions p INNER JOIN employee_salaries e ON p.position_id = e.salary_id GROUP BY p.title LIMIT 1000;",
       "success": true,
-      "latency_ms": 3671,
+      "latency_ms": 4004,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "employee_salaries",
         "employee_salaries",
@@ -1063,10 +1219,14 @@
         "employment_history",
         "employment_history"
       ],
-      "sql_generated": "SELECT e.* FROM employee_certifications ec JOIN employees e ON ec.employee_id = e.employee_id WHERE ec.expiry_date BETWEEN CURRENT_DATE AND (CURRENT_DATE + INTERVAL '6 month') GROUP BY e.employee_id LIMIT 1000;",
+      "sql_generated": "SELECT e.* FROM employee_salaries s JOIN employee_certifications c ON s.employee_id = c.employee_id AND s.effective_date <= CURRENT_DATE AND (s.end_date IS NULL OR s.end_date > CURRENT_DATE) JOIN employees e ON c.employee_id = e.employee_id WHERE c.expiry_date BETWEEN CURRENT_DATE AND DATE_ADD(CURRENT_DATE, INTERVAL '6 months') LIMIT 1000;",
       "success": true,
-      "latency_ms": 6190,
+      "latency_ms": 5709,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "employee_training",
         "employee_training",
@@ -1087,16 +1247,20 @@
         "sales_orders"
       ],
       "retrieved_tables": [],
-      "sql_generated": "SELECT c.customer_id AS customer_id, SUM(sales_orders.total) AS total_sales FROM customers c JOIN sales_orders ON c.customer_id = sales_orders.customer_id WHERE YEAR(sales_orders.order_date) = 2024 GROUP BY c.customer_id LIMIT 1000;",
+      "sql_generated": "SELECT c.customer_id AS customer_id, SUM(sales_orders.total) AS total_sales FROM sales_orders JOIN customers ON sales_orders.customer_id = customers.customer_id WHERE YEAR(sales_orders.order_date) = 2024 GROUP BY c.customer_id LIMIT 1000;",
       "success": false,
       "error_type": "execution",
-      "error_message": "Database error after 3 attempts: function year(date) does not exist",
-      "sqlstate": "42883",
-      "latency_ms": 3842,
+      "error_message": "Database error after 3 attempts: missing FROM-clause entry for table \"c\"",
+      "sqlstate": "42P01",
+      "latency_ms": 4242,
       "retrieval_miss": [
         "customers",
         "sales_orders"
       ],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": []
     },
     {
@@ -1108,17 +1272,42 @@
         "customers",
         "sales_orders"
       ],
-      "retrieved_tables": [],
-      "sql_generated": "",
-      "success": false,
-      "error_type": "generation",
-      "error_message": "Model did not generate SELECT statement",
-      "latency_ms": 12363,
-      "retrieval_miss": [
+      "retrieved_tables": [
+        "sales_orders",
+        "order_lines",
+        "purchase_orders",
+        "sales_orders",
+        "sales_orders",
+        "order_lines",
+        "order_lines",
+        "purchase_orders",
+        "purchase_orders",
         "customers",
-        "sales_orders"
+        "customers",
+        "customers",
+        "product_suppliers",
+        "vendor_invoices",
+        "customer_contacts"
       ],
-      "extra_tables": []
+      "sql_generated": "SELECT c.customer_id, SUM(po.total) AS customer_order_value FROM sales_orders po JOIN customers c ON po.customer_id = c.customer_id GROUP BY c.customer_id ORDER BY customer_order_value DESC LIMIT 10;",
+      "success": true,
+      "latency_ms": 5942,
+      "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
+      "extra_tables": [
+        "order_lines",
+        "purchase_orders",
+        "order_lines",
+        "order_lines",
+        "purchase_orders",
+        "purchase_orders",
+        "product_suppliers",
+        "vendor_invoices",
+        "customer_contacts"
+      ]
     },
     {
       "id": 28,
@@ -1147,12 +1336,16 @@
         "sales_orders",
         "sales_regions"
       ],
-      "sql_generated": "SELECT so.* FROM sales_opportunities so JOIN opportunity_stages os ON so.stage_id = os.stage_id WHERE os.name = 'Negotiation' AND so.amount > 50000 LIMIT 1000;",
+      "sql_generated": "SELECT s.* FROM sales_opportunities s JOIN opportunity_stages o ON s.stage_id = o.stage_id WHERE o.name = 'Negotiation' AND s.amount > 50000 LIMIT 1000;",
       "success": true,
-      "latency_ms": 4248,
+      "latency_ms": 4241,
       "retrieval_miss": [
         "customers"
       ],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "sales_quotes",
         "sales_quotes",
@@ -1175,16 +1368,20 @@
         "sales_orders"
       ],
       "retrieved_tables": [],
-      "sql_generated": "SELECT COUNT(DISTINCT quote_id) AS total_quotes, COUNT(order_id) AS total_orders FROM sales_orders JOIN order_lines ON sales_orders.order_id = order_lines.order_id JOIN quote_lines ON order_lines.line_id = quote_lines.line_id WHERE sales_orders.status = 'Completed' AND quote_lines.discount_percent > 0 LIMIT 1000;",
+      "sql_generated": "SELECT s.order_id AS \"Order ID\", COUNT(q.quote_id) AS \"Quote Count\", (COUNT(q.quote_id)/SUM(s.quantity)) * 100 AS \"Conversion Rate\" FROM sales_orders s JOIN quote_lines q ON s.order_id = q.order_id GROUP BY s.order_id LIMIT 1000;",
       "success": false,
       "error_type": "execution",
-      "error_message": "Database error after 3 attempts: column reference \"quote_id\" is ambiguous",
-      "sqlstate": "42702",
-      "latency_ms": 3925,
+      "error_message": "Database error after 3 attempts: column q.order_id does not exist",
+      "sqlstate": "42703",
+      "latency_ms": 4363,
       "retrieval_miss": [
         "sales_quotes",
         "sales_orders"
       ],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": []
     },
     {
@@ -1199,11 +1396,15 @@
       "retrieved_tables": [],
       "sql_generated": "SELECT s.sales_rep_id AS rep_id, COUNT(s.order_id) AS total_orders FROM sales_orders s GROUP BY s.sales_rep_id LIMIT 1000;",
       "success": true,
-      "latency_ms": 5375,
+      "latency_ms": 5255,
       "retrieval_miss": [
         "sales_orders",
         "employees"
       ],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": []
     },
     {
@@ -1219,12 +1420,16 @@
       "retrieved_tables": [],
       "sql_generated": "SELECT p.product_id, p.name FROM products p INNER JOIN reorder_rules r ON p.product_id = r.product_id INNER JOIN inventory_levels i ON p.product_id = i.product_id WHERE i.quantity_available < r.min_quantity LIMIT 1000;",
       "success": true,
-      "latency_ms": 6764,
+      "latency_ms": 6728,
       "retrieval_miss": [
         "products",
         "inventory_levels",
         "reorder_rules"
       ],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": []
     },
     {
@@ -1237,40 +1442,23 @@
         "products",
         "warehouses"
       ],
-      "retrieved_tables": [
-        "inventory_levels",
-        "inventory_levels",
-        "inventory_levels",
-        "inventory_transactions",
-        "inventory_transactions",
-        "inventory_transactions",
-        "warehouse_locations",
-        "warehouse_locations",
-        "warehouse_locations",
-        "inventory_adjustments",
-        "warehouses",
-        "warehouses",
-        "warehouses",
-        "goods_receipts",
-        "inventory_adjustments"
-      ],
-      "sql_generated": "SELECT wh.name AS WarehouseName, SUM(il.quantity_on_hand * il.product_id::numeric) AS TotalInventoryValue FROM inventory_levels il JOIN warehouses wh ON il.warehouse_id = wh.warehouse_id GROUP BY wh.name LIMIT 1000;",
-      "success": true,
-      "latency_ms": 5222,
+      "retrieved_tables": [],
+      "sql_generated": "SELECT w.warehouse_id, SUM(i.quantity * i.quantity_on_hand) AS total_inventory_value FROM inventory_levels i JOIN warehouses w ON i.location_id = w.warehouse_id GROUP BY w.warehouse_id LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: column i.quantity does not exist",
+      "sqlstate": "42703",
+      "latency_ms": 7057,
       "retrieval_miss": [
-        "products"
+        "inventory_levels",
+        "products",
+        "warehouses"
       ],
-      "extra_tables": [
-        "inventory_transactions",
-        "inventory_transactions",
-        "inventory_transactions",
-        "warehouse_locations",
-        "warehouse_locations",
-        "warehouse_locations",
-        "inventory_adjustments",
-        "goods_receipts",
-        "inventory_adjustments"
-      ]
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
+      "extra_tables": []
     },
     {
       "id": 33,
@@ -1299,10 +1487,14 @@
         "products",
         "goods_receipts"
       ],
-      "sql_generated": "SELECT p.sku AS product_sku, p.name AS product_name FROM products p INNER JOIN transfer_lines tl ON p.product_id = tl.product_id INNER JOIN stock_transfers st ON tl.transfer_id = st.transfer_id WHERE st.transfer_date >= CURRENT_DATE - INTERVAL '30 days' LIMIT 1000;",
+      "sql_generated": "SELECT p.sku, p.name FROM products p INNER JOIN transfer_lines tl ON p.product_id = tl.product_id INNER JOIN stock_transfers st ON tl.transfer_id = st.transfer_id WHERE st.transfer_date >= CURRENT_DATE - INTERVAL '30 days' LIMIT 1000;",
       "success": true,
-      "latency_ms": 4495,
+      "latency_ms": 4985,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "asset_transfers",
         "asset_transfers",
@@ -1324,16 +1516,19 @@
         "purchase_orders"
       ],
       "retrieved_tables": [],
-      "sql_generated": "SELECT v.vendor_name, SUM(vi.amount) AS total_spend FROM vendor_invoices vi JOIN vendors v ON vi.vendor_id = v.vendor_id WHERE YEAR(fiscal_years.start_date) = fiscal_years.year GROUP BY v.vendor_name LIMIT 1000;",
+      "sql_generated": "SELECT v.vendor_id, SUM(vi.amount) AS total_spend FROM vendor_invoices vi JOIN vendors v ON vi.vendor_id = v.vendor_id WHERE EXTRACT(YEAR FROM fiscal_years.start_date) = EXTRACT(YEAR FROM CURRENT_DATE) GROUP BY v.vendor_id;",
       "success": false,
-      "error_type": "execution",
-      "error_message": "Database error after 3 attempts: column v.vendor_name does not exist",
-      "sqlstate": "42703",
-      "latency_ms": 5082,
+      "error_type": "validation",
+      "error_message": "Failed to generate valid SQL after 3 attempts",
+      "latency_ms": 5207,
       "retrieval_miss": [
         "vendors",
         "purchase_orders"
       ],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": []
     },
     {
@@ -1362,12 +1557,16 @@
         "goods_receipts",
         "goods_receipts"
       ],
-      "sql_generated": "SELECT s.* FROM sales_orders s JOIN goods_receipts g ON g.po_id = s.order_id WHERE s.ship_date IS NULL AND s.required_date < CURRENT_DATE LIMIT 1000;",
+      "sql_generated": "SELECT po.* FROM purchase_orders AS po LEFT JOIN goods_receipts AS gr ON po.po_id = gr.receipt_id WHERE po.status = 'Open' AND po.order_date < CURRENT_DATE - INTERVAL '30 days' AND (gr.receipt_date IS NULL OR gr.receipt_date > po.expected_date) ORDER BY po.po_id LIMIT 1000;",
       "success": true,
-      "latency_ms": 4496,
+      "latency_ms": 5157,
       "retrieval_miss": [
         "vendors"
       ],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "sales_orders",
         "goods_receipts",
@@ -1408,10 +1607,14 @@
         "vendor_invoices",
         "performance_reviews"
       ],
-      "sql_generated": "SELECT ROUND((SUM(CASE WHEN status = 'Approved' THEN 1 ELSE 0 END) / COUNT(*)) * 100, 2) AS approval_rate FROM purchase_requisitions LIMIT 1000;",
+      "sql_generated": "SELECT COUNT(pr.requisition_id) FILTER (WHERE pr.status = 'Approved') / COUNT(*) FROM purchase_requisitions pr LIMIT 1000;",
       "success": true,
-      "latency_ms": 3694,
+      "latency_ms": 4294,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "purchase_orders",
         "purchase_orders",
@@ -1439,18 +1642,19 @@
         "fiscal_periods"
       ],
       "retrieved_tables": [],
-      "sql_generated": "SELECT b.account_number AS account_number, SUM(b.amount) AS total_debit, SUM(t.amount) AS total_credit FROM bank_transactions t JOIN bank_accounts b ON t.bank_account_id = b.bank_account_id WHERE t.transaction_date BETWEEN CURRENT_DATE AND (SELECT MAX(fiscal_periods.end_date) FROM fiscal_periods) GROUP BY b.account_number LIMIT 1000;",
-      "success": false,
-      "error_type": "execution",
-      "error_message": "Database error after 3 attempts: column b.amount does not exist",
-      "sqlstate": "42703",
-      "latency_ms": 5354,
+      "sql_generated": "SELECT ca.account_number AS account_no, ca.current_balance AS current_debit, 0 AS current_credit FROM bank_accounts ca WHERE ca.is_active = true LIMIT 1000;",
+      "success": true,
+      "latency_ms": 4745,
       "retrieval_miss": [
         "chart_of_accounts",
         "journal_lines",
         "journal_entries",
         "fiscal_periods"
       ],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": []
     },
     {
@@ -1467,11 +1671,15 @@
       "success": false,
       "error_type": "validation",
       "error_message": "Failed to generate valid SQL after 3 attempts",
-      "latency_ms": 7657,
+      "latency_ms": 8561,
       "retrieval_miss": [
         "journal_entries",
         "fiscal_periods"
       ],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": []
     },
     {
@@ -1501,10 +1709,14 @@
         "departments",
         "cost_centers"
       ],
-      "sql_generated": "SELECT d.name AS department_name, SUM(b.total_amount) - SUM(p.actual_amount) AS variance FROM budgets b INNER JOIN departments d ON b.department_id = d.department_id LEFT JOIN project_budgets p ON b.budget_id = p.budget_id GROUP BY d.name LIMIT 1000;",
+      "sql_generated": "SELECT d.name AS department_name, b.total_amount AS budgeted_amount, SUM(p.actual_amount) AS total_spent FROM departments d LEFT JOIN budgets b ON d.department_id = b.department_id LEFT JOIN project_budgets p ON b.budget_id = p.budget_id GROUP BY d.name, b.total_amount LIMIT 1000;",
       "success": true,
-      "latency_ms": 6391,
+      "latency_ms": 6382,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "project_budgets",
         "project_budgets",
@@ -1542,8 +1754,12 @@
       ],
       "sql_generated": "SELECT p.project_id, SUM(pe.amount) AS total_expenses FROM projects p JOIN project_expenses pe ON p.project_id = pe.project_id GROUP BY p.project_id LIMIT 1000;",
       "success": true,
-      "latency_ms": 1567,
+      "latency_ms": 1430,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "project_budgets",
         "project_budgets",
@@ -1582,10 +1798,14 @@
         "budgets",
         "budgets"
       ],
-      "sql_generated": "SELECT p.* FROM projects AS p JOIN budgets AS b ON p.project_id = b.budget_id WHERE p.actual_end_date IS NOT NULL AND (p.planned_end_date - p.start_date) < 0 GROUP BY p.project_id, p.name HAVING SUM(b.total_amount) > p.budget LIMIT 1000;",
+      "sql_generated": "SELECT p.* FROM projects p INNER JOIN budgets b ON p.project_id = b.budget_id WHERE p.status = 'over_budget' LIMIT 1000;",
       "success": true,
-      "latency_ms": 5560,
+      "latency_ms": 4239,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "project_expenses",
         "project_expenses",
@@ -1625,12 +1845,16 @@
         "projects",
         "projects"
       ],
-      "sql_generated": "SELECT r.project_id, p.name AS project_name, r.role, r.allocation_percent FROM project_resources r JOIN projects p ON r.project_id = p.project_id LIMIT 1000;",
+      "sql_generated": "SELECT r.employee_id AS employee_id, r.role AS role, r.allocation_percent AS allocation_percentage FROM project_resources r JOIN projects p ON p.project_id = r.project_id LIMIT 1000;",
       "success": true,
-      "latency_ms": 3960,
+      "latency_ms": 4743,
       "retrieval_miss": [
         "employees"
       ],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "project_budgets",
         "project_budgets",
@@ -1669,10 +1893,14 @@
         "products",
         "depreciation_schedules"
       ],
-      "sql_generated": "SELECT f.category_id, SUM(f.purchase_cost) AS total_purchase_cost FROM fixed_assets f JOIN asset_categories ac ON f.category_id = ac.category_id GROUP BY f.category_id LIMIT 1000;",
+      "sql_generated": "SELECT fa.category_id, SUM(fa.purchase_cost) AS total_purchase_cost FROM fixed_assets fa JOIN asset_categories ac ON fa.category_id = ac.category_id GROUP BY fa.category_id LIMIT 1000;",
       "success": true,
-      "latency_ms": 3892,
+      "latency_ms": 4297,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "asset_maintenance",
         "asset_maintenance",
@@ -1694,18 +1922,42 @@
         "fixed_assets",
         "asset_maintenance"
       ],
-      "retrieved_tables": [],
-      "sql_generated": "SELECT a.asset_id, a.name AS AssetName, am.maintenance_type_id, am.scheduled_date, at.from_location_id, at.to_location_id, dt.created_at FROM fixed_assets a INNER JOIN asset_maintenance am ON a.asset_id = am.asset_id INNER JOIN asset_transfers at ON a.asset_id = at.asset_id INNER JOIN depreciation_schedules ds ON a.asset_id = ds.asset_id INNER JOIN maintenance_types mt ON am.maintenance_type_id = mt.type_id WHERE am.completed_date IS NULL OR am.completed_date > CURRENT_DATE + INTERVAL '30 days' ORDER BY a.created_at DESC LIMIT 1000;",
-      "success": false,
-      "error_type": "execution",
-      "error_message": "Database error after 3 attempts: missing FROM-clause entry for table \"dt\"",
-      "sqlstate": "42P01",
-      "latency_ms": 13133,
-      "retrieval_miss": [
+      "retrieved_tables": [
+        "asset_maintenance",
+        "asset_maintenance",
+        "asset_maintenance",
         "fixed_assets",
-        "asset_maintenance"
+        "fixed_assets",
+        "fixed_assets",
+        "depreciation_schedules",
+        "depreciation_schedules",
+        "depreciation_schedules",
+        "maintenance_types",
+        "maintenance_types",
+        "asset_transfers",
+        "maintenance_types",
+        "asset_transfers",
+        "asset_transfers"
       ],
-      "extra_tables": []
+      "sql_generated": "SELECT fa.* FROM fixed_assets AS fa JOIN asset_maintenance AS am ON fa.asset_id = am.asset_id WHERE am.completed_date IS NULL OR (am.completed_date > CURRENT_DATE - INTERVAL '30 days') AND fa.status = 'maintenance' LIMIT 1000;",
+      "success": true,
+      "latency_ms": 7142,
+      "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
+      "extra_tables": [
+        "depreciation_schedules",
+        "depreciation_schedules",
+        "depreciation_schedules",
+        "maintenance_types",
+        "maintenance_types",
+        "asset_transfers",
+        "maintenance_types",
+        "asset_transfers",
+        "asset_transfers"
+      ]
     },
     {
       "id": 45,
@@ -1715,41 +1967,20 @@
       "tables_needed": [
         "document_attachments"
       ],
-      "retrieved_tables": [
-        "document_attachments",
-        "document_attachments",
-        "document_attachments",
-        "account_types",
-        "account_types",
-        "maintenance_types",
-        "maintenance_types",
-        "benefit_types",
-        "benefit_types",
-        "asset_categories",
-        "asset_categories",
-        "asset_categories",
-        "certifications",
-        "certifications",
-        "account_types"
+      "retrieved_tables": [],
+      "sql_generated": "SELECT entity_type, COUNT(*) FROM document_attachments d1 JOIN entities e ON d1.entity_id = e.id GROUP BY entity_type;",
+      "success": false,
+      "error_type": "validation",
+      "error_message": "Failed to generate valid SQL after 3 attempts",
+      "latency_ms": 4363,
+      "retrieval_miss": [
+        "document_attachments"
       ],
-      "sql_generated": "SELECT d.entity_type, COUNT(d.attachment_id) AS num_documents FROM document_attachments d GROUP BY d.entity_type LIMIT 1000;",
-      "success": true,
-      "latency_ms": 3319,
-      "retrieval_miss": [],
-      "extra_tables": [
-        "account_types",
-        "account_types",
-        "maintenance_types",
-        "maintenance_types",
-        "benefit_types",
-        "benefit_types",
-        "asset_categories",
-        "asset_categories",
-        "asset_categories",
-        "certifications",
-        "certifications",
-        "account_types"
-      ]
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
+      "extra_tables": []
     },
     {
       "id": 46,
@@ -1760,38 +1991,19 @@
         "employees",
         "departments"
       ],
-      "retrieved_tables": [
-        "employees",
-        "employees",
-        "employees",
-        "employee_salaries",
-        "employee_salaries",
-        "employee_salaries",
-        "departments",
-        "positions",
-        "positions",
-        "positions",
-        "sales_territories",
-        "departments",
-        "departments",
-        "sales_regions",
-        "budgets"
-      ],
-      "sql_generated": "SELECT d.name AS department_name, (CAST(COUNT(CASE WHEN e.termination_date BETWEEN '2024-01-01' AND '2024-12-31' THEN 1 END) AS FLOAT) / COUNT(*)) * 100 AS turnover_rate FROM employees e JOIN departments d ON e.department_id = d.department_id GROUP BY department_name LIMIT 1000;",
+      "retrieved_tables": [],
+      "sql_generated": "SELECT d.name AS department_name, (COUNT(e.employee_id) / NULLIF(COUNT(DISTINCT e.employee_number), 0)) * 100 AS turnover_rate FROM departments d LEFT JOIN employees e ON d.department_id = e.department_id AND e.termination_date BETWEEN '2024-01-01' AND '2024-12-31' GROUP BY d.name ORDER BY turnover_rate DESC LIMIT 1000;",
       "success": true,
-      "latency_ms": 8464,
-      "retrieval_miss": [],
-      "extra_tables": [
-        "employee_salaries",
-        "employee_salaries",
-        "employee_salaries",
-        "positions",
-        "positions",
-        "positions",
-        "sales_territories",
-        "sales_regions",
-        "budgets"
-      ]
+      "latency_ms": 11223,
+      "retrieval_miss": [
+        "employees",
+        "departments"
+      ],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
+      "extra_tables": []
     },
     {
       "id": 47,
@@ -1803,16 +2015,20 @@
         "departments"
       ],
       "retrieved_tables": [],
-      "sql_generated": "SELECT e.employee_id, CONCAT(e.first_name, ' ', e.last_name) AS full_name, p.title, s.amount, (s.amount / d.budget) * 100 AS salary_percentile FROM employees e JOIN departments d ON e.department_id = d.department\n                    department_id LEFT JOIN positions p ON e.position_id = p.position_id LEFT JOIN employee_salaries s ON e.employee_id = s.employee_id AND (s.effective_date <= CURRENT_DATE OR s.end_date IS NULL) WHERE d.department_id IN (SELECT department_id FROM employees GROUP BY department_id) LIMIT 1000;",
+      "sql_generated": "SELECT e.employee_id, CONCAT(e.first_name, ' ', e.last_name) AS name, d.department_id, p.position_id, s.amount, (s.amount / SUM(s.amount) OVER (PARTITION BY e.department_id)) * 100 AS salary_percentile FROM employees e JOIN departments d ON e.department_id = d.department\n                    department_id JOIN positions p ON d.department_id = p.department_id JOIN employee_salaries s ON e.employee_id = s.employee_id GROUP BY e.employee_id, e.first_name, e.last_name, d.department_id, p.position_id, s.amount LIMIT 1000;",
       "success": false,
       "error_type": "execution",
       "error_message": "Database error after 3 attempts: syntax error at or near \"department_id\"",
       "sqlstate": "42601",
-      "latency_ms": 17741,
+      "latency_ms": 16132,
       "retrieval_miss": [
         "employees",
         "departments"
       ],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": []
     },
     {
@@ -1842,10 +2058,14 @@
         "employee_salaries",
         "employee_salaries"
       ],
-      "sql_generated": "SELECT e.* FROM employees e LEFT JOIN employee_training et ON e.employee_id = et.employee_id AND et.status = 'completed' WHERE et.employee_id IS NULL AND et.course_id IN (SELECT course_id FROM training_courses WHERE is_mandatory = TRUE) LIMIT 1000;",
+      "sql_generated": "SELECT e.employee_id, e.first_name, e.last_name FROM employees e LEFT JOIN employee_training et ON e.employee_id = et.employee_id AND et.status = 'completed' WHERE et.course_id IS NULL LIMIT 1000;",
       "success": true,
-      "latency_ms": 6392,
+      "latency_ms": 4828,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "employee_certifications",
         "employee_certifications",
@@ -1863,16 +2083,45 @@
       "tables_needed": [
         "sales_orders"
       ],
-      "retrieved_tables": [],
-      "sql_generated": "",
-      "success": false,
-      "error_type": "generation",
-      "error_message": "Model generated invalid output (gibberish detected)",
-      "latency_ms": 14533,
-      "retrieval_miss": [
-        "sales_orders"
+      "retrieved_tables": [
+        "sales_opportunities",
+        "sales_opportunities",
+        "sales_opportunities",
+        "sales_orders",
+        "sales_orders",
+        "sales_orders",
+        "sales_regions",
+        "sales_quotes",
+        "sales_regions",
+        "sales_regions",
+        "project_milestones",
+        "sales_quotes",
+        "sales_quotes",
+        "purchase_orders",
+        "performance_reviews"
       ],
-      "extra_tables": []
+      "sql_generated": "SELECT DATE_TRUNC('month', s.created_at) AS sale_month, SUM(s.total) / COUNT(*) OVER (PARTITION BY DATE_TRUNC('month', s.created_at)) * 100 AS monthly_growth_rate FROM sales_orders s WHERE s.status = 'Completed' AND s.order_date >= CURRENT_DATE - INTERVAL '12 months' GROUP BY sale_month ORDER BY sale_month LIMIT 1000;",
+      "success": true,
+      "latency_ms": 11226,
+      "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
+      "extra_tables": [
+        "sales_opportunities",
+        "sales_opportunities",
+        "sales_opportunities",
+        "sales_regions",
+        "sales_quotes",
+        "sales_regions",
+        "sales_regions",
+        "project_milestones",
+        "sales_quotes",
+        "sales_quotes",
+        "purchase_orders",
+        "performance_reviews"
+      ]
     },
     {
       "id": 50,
@@ -1884,16 +2133,20 @@
         "sales_orders"
       ],
       "retrieved_tables": [],
-      "sql_generated": "SELECT c.segment, AVG(s.total) AS avg_order_value, COUNT(*) / 30 AS order_frequency FROM customers c JOIN sales_orders s ON c.customer_id = s.customer_id GROUP BY c.segment LIMIT 1000;",
+      "sql_generated": "SELECT c.segment, AVG(s.total) AS avg_order_value, COUNT(*) / 365 AS order_frequency FROM customers c JOIN sales_orders s ON c.customer_id = s.customer_id GROUP BY c.segment LIMIT 1000;",
       "success": false,
       "error_type": "execution",
       "error_message": "Database error after 3 attempts: column c.segment does not exist",
       "sqlstate": "42703",
-      "latency_ms": 6351,
+      "latency_ms": 6855,
       "retrieval_miss": [
         "customers",
         "sales_orders"
       ],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": []
     },
     {
@@ -1906,15 +2159,19 @@
         "opportunity_stages"
       ],
       "retrieved_tables": [],
-      "sql_generated": "SELECT opportunity_stages.name AS stage, EXTRACT(MONTH FROM actual_close_date) AS month, SUM((sales_opportunities.amount * opportunity_stages.probability / 100) + (purchase_orders.subtotal * sales_opportunities.probability / 100)) AS weighted_value FROM sales_opportunities INNER JOIN opportunity_stages ON sales_opportunities.stage_id = opportunity_stages.id LEFT JOIN purchase_orders ON sales_opportunities.po_id = purchase_orders.id LEFT JOIN vendor_invoice_lines ON purchase_orders.po_line_id = vendor_invoice_lines.po_line_id INNER JOIN sales_quotes ON sales_opportunities.quote_id = sales_quotes.id WHERE opportunity_stages.is_closed =;",
+      "sql_generated": "SELECT opportunity_stages.name AS stage, EXTRACT(MONTH FROM actual_close_date) AS month, SUM((sales_opportunities.amount * opportunity_stages.probability / 100) + (purchase_orders.subtotal * sales_opportunities.probability / 100)) AS weighted_value FROM sales_opportunities INNER JOIN opportunity_stages ON sales_opportunities.stage_id = opportunity_stages.id LEFT JOIN purchase_orders ON sales_opportunities.po_id = purchase_orders.id GROUP BY stage, month ORDER BY stage, month;",
       "success": false,
       "error_type": "validation",
       "error_message": "Failed to generate valid SQL after 3 attempts",
-      "latency_ms": 8957,
+      "latency_ms": 6953,
       "retrieval_miss": [
         "sales_opportunities",
         "opportunity_stages"
       ],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": []
     },
     {
@@ -1946,13 +2203,17 @@
         "product_categories",
         "product_categories"
       ],
-      "sql_generated": "SELECT pc.name AS product_category, SUM(ilv.quantity_available) / AVG(p.unit_cost) AS avg_inventory_turnover_ratio FROM inventory_levels ilv JOIN products p ON ilv.product_id = p.product_id JOIN product_categories pc ON p.category_id = pc.category_id GROUP BY pc.name LIMIT 1000;",
+      "sql_generated": "SELECT pc.category_id, SUM(il.quantity_on_hand) / AVG(il.last_count_date::DATE - il.last_count_date + 1) AS turnover_ratio FROM inventory_levels il JOIN product_categories pc ON il.product_id = pc.category_id GROUP BY pc.category_id LIMIT 1000;",
       "success": true,
-      "latency_ms": 7879,
+      "latency_ms": 6920,
       "retrieval_miss": [
         "order_lines",
         "sales_orders"
       ],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "asset_categories",
         "inventory_transactions",
@@ -1990,10 +2251,14 @@
         "fixed_assets",
         "fixed_assets"
       ],
-      "sql_generated": "SELECT p.product_id, p.name, i.quantity_on_hand, i.quantity_available, a.quantity_change FROM products AS p INNER JOIN inventory_levels AS i ON p.product_id = i.product_id INNER JOIN adjustment_lines AS a ON p.product_id = a.product_id WHERE a.quantity_change > (i.quantity_on_hand + 0.1 * i.quantity_available) LIMIT 1000;",
+      "sql_generated": "SELECT p.product_id, p.name, i.quantity_on_hand, i.quantity_available, a.quantity_change, i.last_count_date FROM inventory_levels i JOIN products p ON i.product_id = p.product_id JOIN adjustment_lines a ON p.product_id = a.product_id WHERE a.quantity_change > (i.quantity_on_hand + i.quantity_available) * 0.1 LIMIT 1000;",
       "success": true,
-      "latency_ms": 11836,
+      "latency_ms": 11216,
       "retrieval_miss": [],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "fixed_assets",
         "stock_transfers",
@@ -2013,37 +2278,24 @@
         "goods_receipts",
         "vendor_invoices"
       ],
-      "retrieved_tables": [
-        "vendor_invoices",
-        "vendor_invoices",
-        "vendor_invoices",
-        "performance_reviews",
-        "performance_reviews",
-        "performance_reviews",
-        "purchase_orders",
-        "vendors",
-        "purchase_orders",
-        "purchase_orders",
-        "vendor_invoice_lines",
-        "vendor_invoice_lines",
-        "product_suppliers",
-        "vendors",
-        "vendors"
-      ],
-      "sql_generated": "SELECT v.vendor_id, AVG(CASE WHEN iv.due_date >= iv.invoice_date THEN 100 ELSE 50 END + CASE WHEN iv.amount_paid = iv.total THEN 25 ELSE 0 END) AS vendor_performance_score FROM vendors v JOIN purchase_orders po ON v.vendor_id = po.vendor_id JOIN vendor_invoices iv ON po.po_id = iv.po_id GROUP BY v.vendor_id LIMIT 1000;",
-      "success": true,
-      "latency_ms": 10956,
+      "retrieved_tables": [],
+      "sql_generated": "SELECT v.vendor_id, AVG(CASE WHEN p.due_date >= i.order_date THEN 1 ELSE 0 END) AS on_time_delivery_score, AVG(CASE WHEN i.amount_paid = i.total THEN 1 ELSE 0 END) AS invoice_accuracy_score FROM vendors v JOIN vendor_invoices i ON v.vendor_id = i.vendor_id JOIN purchase_orders p ON i.po_id = p.po_id GROUP BY v.vendor_id LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: column p.due_date does not exist",
+      "sqlstate": "42703",
+      "latency_ms": 16715,
       "retrieval_miss": [
-        "goods_receipts"
+        "vendors",
+        "purchase_orders",
+        "goods_receipts",
+        "vendor_invoices"
       ],
-      "extra_tables": [
-        "performance_reviews",
-        "performance_reviews",
-        "performance_reviews",
-        "vendor_invoice_lines",
-        "vendor_invoice_lines",
-        "product_suppliers"
-      ]
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
+      "extra_tables": []
     },
     {
       "id": 55,
@@ -2058,12 +2310,12 @@
         "fiscal_periods"
       ],
       "retrieved_tables": [],
-      "sql_generated": "SELECT ac.category AS category, SUM(CASE WHEN bt.transaction_type = 'debit' THEN bt.amount ELSE 0 END) AS total_debits, SUM(CASE WHEN bt.transaction_type = 'credit' THEN bt.amount ELSE 0 END) AS total_credits FROM bank_accounts ba INNER JOIN asset_categories ac ON ba.gl_account_id = ac.asset_id LEFT JOIN bank_transactions bt ON ba.bank_account_id = bt.bank_account_id GROUP BY ac.category LIMIT 1000;",
+      "sql_generated": "SELECT acc_type.name AS \"Account Category\", SUM(ba.current_balance) AS Debit, 0 AS Credit FROM bank_accounts ba JOIN account_types acc_type ON ba.account_number = acc_type.type_id GROUP BY acc_type.name ORDER BY CASE WHEN acc_type.normal_balance = 'D' THEN 1 ELSE 2 END LIMIT 1000;",
       "success": false,
       "error_type": "execution",
-      "error_message": "Database error after 3 attempts: column ac.asset_id does not exist",
-      "sqlstate": "42703",
-      "latency_ms": 11416,
+      "error_message": "Database error after 3 attempts: operator does not exist: character varying = integer",
+      "sqlstate": "42883",
+      "latency_ms": 10736,
       "retrieval_miss": [
         "chart_of_accounts",
         "account_types",
@@ -2071,6 +2323,10 @@
         "journal_entries",
         "fiscal_periods"
       ],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": []
     },
     {
@@ -2087,11 +2343,15 @@
       "success": false,
       "error_type": "validation",
       "error_message": "Failed to generate valid SQL after 3 attempts",
-      "latency_ms": 8955,
+      "latency_ms": 11316,
       "retrieval_miss": [
         "bank_accounts",
         "bank_transactions"
       ],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": []
     },
     {
@@ -2110,12 +2370,16 @@
       "error_type": "execution",
       "error_message": "Database error after 3 attempts: column pe.actual_amount does not exist",
       "sqlstate": "42703",
-      "latency_ms": 9855,
+      "latency_ms": 11002,
       "retrieval_miss": [
         "projects",
         "project_budgets",
         "project_expenses"
       ],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": []
     },
     {
@@ -2128,37 +2392,23 @@
         "project_resources",
         "projects"
       ],
-      "retrieved_tables": [
-        "project_resources",
-        "project_resources",
-        "project_resources",
-        "task_assignments",
-        "project_expenses",
-        "task_assignments",
-        "task_assignments",
-        "projects",
-        "projects",
-        "projects",
-        "project_expenses",
-        "project_expenses",
-        "employee_salaries",
+      "retrieved_tables": [],
+      "sql_generated": "SELECT pr.project_id AS project_id, pe.employee_id AS employee_id, rr.role AS role, SUM(rr.estimated_hours) AS total_hours FROM project_resources AS rr INNER JOIN employees AS pe ON rr.employee_id = pe.employee_id INNER JOIN projects AS pr ON rr.project_id = pr.project_id WHERE pr.status = 'active' GROUP BY pr.project_id, pe.employee_id, rr.role LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: column rr.estimated_hours does not exist",
+      "sqlstate": "42703",
+      "latency_ms": 11827,
+      "retrieval_miss": [
         "employees",
-        "employee_salaries"
+        "project_resources",
+        "projects"
       ],
-      "sql_generated": "SELECT pr.project_id, pe.employee_id, SUM(pr.allocation_percent * 240) AS total_hours_allocated FROM project_resources AS pr JOIN employees AS pe ON pr.employee_id = pe.employee_id WHERE pe.is_active AND EXISTS (SELECT p.project_id FROM projects AS p WHERE p.status = 'Active' AND p.project_id = pr.project_id) GROUP BY pr.project_id, pe.employee_id LIMIT 1000;",
-      "success": true,
-      "latency_ms": 8672,
-      "retrieval_miss": [],
-      "extra_tables": [
-        "task_assignments",
-        "project_expenses",
-        "task_assignments",
-        "task_assignments",
-        "project_expenses",
-        "project_expenses",
-        "employee_salaries",
-        "employee_salaries"
-      ]
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
+      "extra_tables": []
     },
     {
       "id": 59,
@@ -2188,12 +2438,16 @@
         "employees",
         "sales_territories"
       ],
-      "sql_generated": "SELECT fa.asset_id AS asset_id, fa.name AS name, fa.location_id AS location_id, e.employee_id AS employee_id, e.first_name AS first_name, e.last_name AS last_name FROM fixed_assets fa JOIN employees e ON fa.assigned_to = e.employee_id LIMIT 1000;",
+      "sql_generated": "SELECT fa.*, e.employee_id, e.first_name, e.last_name, e.email, e.phone, la.building, la.floor, la.room FROM fixed_assets AS fa JOIN asset_locations AS la ON fa.location_id = la.location_id JOIN employees AS e ON fa.assigned_to = e.employee_id LIMIT 1000;",
       "success": true,
-      "latency_ms": 6751,
+      "latency_ms": 7119,
       "retrieval_miss": [
         "asset_categories"
       ],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": [
         "asset_transfers",
         "asset_maintenance",
@@ -2217,15 +2471,22 @@
         "benefit_types"
       ],
       "retrieved_tables": [],
-      "sql_generated": "SELECT d.name AS department_name, SUM(s.amount) + AVG(e.salary) AS total_cost FROM departments d LEFT JOIN employees e ON d.department_id = e.employee_id INNER JOIN employee_salaries s ON e.employee_id = s.employee_id INNER JOIN employee_benefits b ON e.employee_id = b.employee_id GROUP BY d.name LIMIT 1000;",
-      "success": true,
-      "latency_ms": 9865,
+      "sql_generated": "SELECT d.name AS department_name, SUM(es.salary) AS total_salaries, SUM(ebs.amount) AS total_benefits, COUNT(*) AS num_employees FROM departments d LEFT JOIN employees e ON d.department_id = e.department_id LEFT JOIN employee_salaries es ON e.employee_id = es.employee_id LEFT JOIN employee_benefits eb ON e.employee_id = eb.employee_id GROUP BY d.name LIMIT 1000;",
+      "success": false,
+      "error_type": "execution",
+      "error_message": "Database error after 3 attempts: column es.salary does not exist",
+      "sqlstate": "42703",
+      "latency_ms": 10918,
       "retrieval_miss": [
         "employees",
         "departments",
         "employee_benefits",
         "benefit_types"
       ],
+      "hardness_bucket": "medium",
+      "hardness_score": 0,
+      "hardness_k": 4,
+      "hardness_temp": 0.3,
       "extra_tables": []
     }
   ]
