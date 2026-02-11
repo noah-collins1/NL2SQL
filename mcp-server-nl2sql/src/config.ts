@@ -311,6 +311,12 @@ export interface RepairSQLRequest {
 
 	/** Include trace info */
 	trace?: boolean
+
+	/** Pre-formatted schema link section for prompt (Phase 1) */
+	schema_link_text?: string
+
+	/** Pre-formatted join plan section for prompt (Phase 2) */
+	join_plan_text?: string
 }
 
 /**

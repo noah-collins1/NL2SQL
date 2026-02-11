@@ -351,6 +351,14 @@ Use these FK relationships for JOINs:
 3. Use single quotes for string literals
 4. For aggregations, include all non-aggregated columns in GROUP BY
 5. Output ONE SELECT statement only
+6. Date comparisons: To check "more than N years/months ago", write:
+   `WHERE column < CURRENT_DATE - INTERVAL 'N years'`
+   Do NOT write: `(CURRENT_DATE - column) > INTERVAL '...'` (date minus date returns integer, not interval)
+7. Monthly grouping: Use `date_trunc('month', column)` as a function call, NOT `column::date_trunc(...)`
+8. "By X" queries: When question says "by customer", "by vendor", "by category" etc.,
+   ALWAYS include that grouping entity in both SELECT and GROUP BY
+9. Rates and percentages: When asked for "growth rate" or "percentage change",
+   compute the actual ratio: `(current - previous) / NULLIF(previous, 0) * 100`
 
 ## Question
 

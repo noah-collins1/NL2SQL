@@ -241,6 +241,35 @@ function transformBackticks(sql: string): { sql: string; applied: string[] } {
 	return { sql, applied }
 }
 
+/**
+ * Fix invalid cast-style date_trunc: `expr::date_trunc('unit', expr2)` → `date_trunc('unit', expr2)`
+ * The LLM sometimes generates `col::date_trunc('month', col)` which is not valid PostgreSQL.
+ */
+function transformDateTruncCast(sql: string): { sql: string; applied: string[] } {
+	const applied: string[] = []
+
+	// Match patterns like: expr::date_trunc('unit', expr2)
+	const regex = /(\w[\w.]*)\s*::\s*date_trunc\s*\(/gi
+	let match: RegExpExecArray | null
+
+	regex.lastIndex = 0
+	while ((match = regex.exec(sql)) !== null) {
+		const funcStart = match.index + match[0].length - 1 // position of '('
+		const paren = extractParenExpr(sql, funcStart)
+		if (!paren) continue
+
+		const fullMatch = sql.substring(match.index, paren.endIdx)
+		const replacement = `date_trunc(${paren.content})`
+
+		sql = sql.replace(fullMatch, replacement)
+		applied.push("DATE_TRUNC_CAST_FIX")
+
+		regex.lastIndex = 0
+	}
+
+	return { sql, applied }
+}
+
 // ============================================================================
 // Main Function
 // ============================================================================
@@ -271,6 +300,7 @@ export function pgNormalize(sql: string): PgNormalizeResult {
 		transformGroupConcat,
 		transformLimitOffset,
 		transformBackticks,
+		transformDateTruncCast,
 	]
 
 	for (const transform of transforms) {

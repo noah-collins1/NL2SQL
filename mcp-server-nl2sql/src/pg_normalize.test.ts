@@ -110,6 +110,26 @@ describe("pgNormalize", () => {
 		})
 	})
 
+	describe("::date_trunc() cast fix", () => {
+		it("should fix expr::date_trunc('month', expr) to date_trunc('month', expr)", () => {
+			const result = pgNormalize(
+				"SELECT os.expected_close_date::date_trunc('month', expected_close_date) FROM sales_opportunities os"
+			)
+			expect(result.sql).toBe(
+				"SELECT date_trunc('month', expected_close_date) FROM sales_opportunities os"
+			)
+			expect(result.applied).toContain("DATE_TRUNC_CAST_FIX")
+			expect(result.changed).toBe(true)
+		})
+
+		it("should not modify valid date_trunc function call", () => {
+			const sql = "SELECT date_trunc('month', order_date) FROM orders"
+			const result = pgNormalize(sql)
+			expect(result.sql).toBe(sql)
+			expect(result.changed).toBe(false)
+		})
+	})
+
 	describe("No-op for valid PG SQL", () => {
 		it("should not modify already-valid PostgreSQL SQL", () => {
 			const sql = "SELECT e.name, e.salary FROM employees e WHERE e.department_id = 1 ORDER BY e.salary DESC LIMIT 10"

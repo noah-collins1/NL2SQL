@@ -578,6 +578,8 @@ async def repair_sql(request: dict) -> PythonSidecarResponse:
     postgres_error = request.get("postgres_error")
     semantic_issues = request.get("semantic_issues", [])
     schema_context = request.get("schema_context")
+    schema_link_text = request.get("schema_link_text")
+    join_plan_text = request.get("join_plan_text")
 
     logger.info(f"[{query_id}] Repair SQL request (attempt {attempt}/{max_attempts}): {question}")
 
@@ -604,7 +606,9 @@ async def repair_sql(request: dict) -> PythonSidecarResponse:
                 schema_context=schema_context,
                 validator_issues=validator_issues,
                 postgres_error=postgres_error,
-                semantic_issues=semantic_issues
+                semantic_issues=semantic_issues,
+                schema_link_text=schema_link_text,
+                join_plan_text=join_plan_text,
             )
         else:
             # === LEGACY REPAIR (MCPtest) ===

@@ -408,6 +408,9 @@ export async function executeNLQuery(
 					// Include schema context for RAG-based databases
 					schema_context: schemaContext || undefined,
 					// Minimal whitelist is passed via postgres_error.minimal_whitelist for 42703 repairs
+					// Schema grounding (Phase 1+2) — same as initial generation
+					schema_link_text: schemaLinkText,
+					join_plan_text: joinPlanText,
 				}
 
 				logger.debug("Sending repair request", {
