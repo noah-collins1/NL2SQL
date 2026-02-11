@@ -110,6 +110,63 @@ describe("pgNormalize", () => {
 		})
 	})
 
+	describe("division safety (NULLIF wrapping)", () => {
+		it("should wrap COUNT denominator in NULLIF", () => {
+			const result = pgNormalize(
+				"SELECT (COUNT(DISTINCT a.id) / COUNT(DISTINCT b.id)) * 100 FROM t"
+			)
+			expect(result.sql).toBe(
+				"SELECT (COUNT(DISTINCT a.id) / NULLIF(COUNT(DISTINCT b.id), 0)) * 100 FROM t"
+			)
+			expect(result.applied).toContain("DIVISION_SAFETY_NULLIF")
+		})
+
+		it("should not double-wrap already-safe NULLIF", () => {
+			const sql = "SELECT a / NULLIF(COUNT(b), 0) FROM t"
+			const result = pgNormalize(sql)
+			expect(result.sql).toBe(sql)
+			expect(result.changed).toBe(false)
+		})
+
+		it("should wrap SUM denominator in NULLIF", () => {
+			const result = pgNormalize(
+				"SELECT total / SUM(quantity) FROM t"
+			)
+			expect(result.sql).toBe(
+				"SELECT total / NULLIF(SUM(quantity), 0) FROM t"
+			)
+		})
+	})
+
+	describe("date-interval comparison fix", () => {
+		it("should fix (CURRENT_DATE - col) > INTERVAL to col < CURRENT_DATE - INTERVAL", () => {
+			const result = pgNormalize(
+				"SELECT * FROM employees e WHERE (CURRENT_DATE - e.hire_date) > INTERVAL '5 years'"
+			)
+			expect(result.sql).toBe(
+				"SELECT * FROM employees e WHERE e.hire_date < CURRENT_DATE - INTERVAL '5 years'"
+			)
+			expect(result.applied).toContain("DATE_INTERVAL_COMPARISON_FIX")
+			expect(result.changed).toBe(true)
+		})
+
+		it("should fix >= operator too", () => {
+			const result = pgNormalize(
+				"SELECT * FROM emp WHERE (CURRENT_DATE - start_date) >= INTERVAL '3 months'"
+			)
+			expect(result.sql).toBe(
+				"SELECT * FROM emp WHERE start_date <= CURRENT_DATE - INTERVAL '3 months'"
+			)
+		})
+
+		it("should not modify valid date arithmetic", () => {
+			const sql = "SELECT * FROM emp WHERE hire_date < CURRENT_DATE - INTERVAL '5 years'"
+			const result = pgNormalize(sql)
+			expect(result.sql).toBe(sql)
+			expect(result.changed).toBe(false)
+		})
+	})
+
 	describe("::date_trunc() cast fix", () => {
 		it("should fix expr::date_trunc('month', expr) to date_trunc('month', expr)", () => {
 			const result = pgNormalize(

@@ -242,6 +242,84 @@ function transformBackticks(sql: string): { sql: string; applied: string[] } {
 }
 
 /**
+ * Wrap bare integer division denominators with NULLIF to prevent division by zero.
+ * Matches: `/ COUNT(...)` or `/ SUM(...)` and wraps in NULLIF(..., 0)
+ * Only wraps aggregate function denominators (the most common source of div-by-zero).
+ * Skips if already wrapped in NULLIF.
+ */
+function transformDivisionSafety(sql: string): { sql: string; applied: string[] } {
+	const applied: string[] = []
+
+	// Match: / COUNT(...) or / SUM(...) not already inside NULLIF
+	// Negative lookbehind for NULLIF( to avoid double-wrapping
+	const aggregates = ["COUNT", "SUM", "AVG"]
+	for (const agg of aggregates) {
+		const regex = new RegExp(
+			`\\/\\s*(?!NULLIF)(${agg}\\s*\\()`,
+			"gi"
+		)
+		let match: RegExpExecArray | null
+		regex.lastIndex = 0
+
+		while ((match = regex.exec(sql)) !== null) {
+			// Check if already inside NULLIF by looking back
+			const before = sql.substring(Math.max(0, match.index - 7), match.index)
+			if (/NULLIF\s*\(\s*$/i.test(before)) continue
+
+			const funcStart = match.index + match[0].length - 1 // position of '('
+			const paren = extractParenExpr(sql, funcStart)
+			if (!paren) continue
+
+			const fullAggExpr = `${agg}(${paren.content})`
+			const slashAndExpr = sql.substring(match.index, paren.endIdx)
+			const replacement = `/ NULLIF(${fullAggExpr}, 0)`
+
+			sql = sql.replace(slashAndExpr, replacement)
+			applied.push("DIVISION_SAFETY_NULLIF")
+
+			regex.lastIndex = 0
+			break // One replacement at a time, restart scan
+		}
+	}
+
+	return { sql, applied }
+}
+
+/**
+ * Fix date-minus-date compared to INTERVAL:
+ *   (CURRENT_DATE - col) > INTERVAL 'N unit'  →  col < CURRENT_DATE - INTERVAL 'N unit'
+ *   (CURRENT_DATE - col) >= INTERVAL 'N unit' →  col <= CURRENT_DATE - INTERVAL 'N unit'
+ *
+ * In PostgreSQL, `date - date` returns integer (days), not an interval,
+ * so comparing with INTERVAL causes "operator does not exist: integer > interval".
+ */
+function transformDateIntervalComparison(sql: string): { sql: string; applied: string[] } {
+	const applied: string[] = []
+
+	// Match: (CURRENT_DATE - expr) > INTERVAL '...' or >= INTERVAL '...'
+	// Captures: (1) the date expression, (2) the operator, (3) the interval literal
+	const regex = /\(\s*CURRENT_DATE\s*-\s*([\w.]+)\s*\)\s*(>=?|<=?)\s*(INTERVAL\s+'[^']+')/gi
+
+	let match: RegExpExecArray | null
+	regex.lastIndex = 0
+
+	while ((match = regex.exec(sql)) !== null) {
+		const [fullMatch, dateCol, op, interval] = match
+
+		// Flip the comparison: (CURRENT_DATE - col) > INTERVAL → col < CURRENT_DATE - INTERVAL
+		const flippedOp = op === ">" ? "<" : op === ">=" ? "<=" : op === "<" ? ">" : ">="
+		const replacement = `${dateCol} ${flippedOp} CURRENT_DATE - ${interval}`
+
+		sql = sql.replace(fullMatch, replacement)
+		applied.push("DATE_INTERVAL_COMPARISON_FIX")
+
+		regex.lastIndex = 0
+	}
+
+	return { sql, applied }
+}
+
+/**
  * Fix invalid cast-style date_trunc: `expr::date_trunc('unit', expr2)` → `date_trunc('unit', expr2)`
  * The LLM sometimes generates `col::date_trunc('month', col)` which is not valid PostgreSQL.
  */
@@ -301,6 +379,8 @@ export function pgNormalize(sql: string): PgNormalizeResult {
 		transformLimitOffset,
 		transformBackticks,
 		transformDateTruncCast,
+		transformDateIntervalComparison,
+		transformDivisionSafety,
 	]
 
 	for (const transform of transforms) {

@@ -339,10 +339,14 @@ Use these FK relationships for JOINs:
 
 ## Column Selection Rules (CRITICAL)
 
-1. **Only use columns that exist in the table** - Check the schema above
+1. **Only use columns that exist in the table** - Check the schema above CAREFULLY before writing SQL
 2. **Match columns to their tables** - If you need `project_id`, use it from a table that HAS that column
 3. **FK columns link tables** - Use [FK→...] columns to join, don't assume columns exist elsewhere
 4. **No cross-table column guessing** - If `budgets` doesn't list `project_id`, don't use `budgets.project_id`
+5. **Do NOT guess column names** - Use ONLY the exact column names shown in the schema.
+   Common mistakes: `name` vs `first_name`/`last_name`, `price` vs `list_price`/`unit_cost`,
+   `posted` vs `status = 'Posted'`, `amount` vs `planned_amount`/`total_amount`
+6. **For boolean-like filters** (posted, active, approved), check if the table uses a `status` column instead
 
 ## PostgreSQL Rules
 
@@ -359,6 +363,13 @@ Use these FK relationships for JOINs:
    ALWAYS include that grouping entity in both SELECT and GROUP BY
 9. Rates and percentages: When asked for "growth rate" or "percentage change",
    compute the actual ratio: `(current - previous) / NULLIF(previous, 0) * 100`
+10. Division safety: ALWAYS wrap denominators in NULLIF(expr, 0) to prevent division by zero.
+    Use `a * 100.0 / NULLIF(b, 0)` for percentage calculations (100.0 forces float division)
+11. Month-over-month growth: Use LAG window function with a CTE:
+    ```
+    WITH monthly AS (SELECT date_trunc('month', order_date) AS month, SUM(total) AS sales FROM orders GROUP BY 1)
+    SELECT month, sales, (sales - LAG(sales) OVER (ORDER BY month)) * 100.0 / NULLIF(LAG(sales) OVER (ORDER BY month), 0) AS growth_pct FROM monthly
+    ```
 
 ## Question
 
