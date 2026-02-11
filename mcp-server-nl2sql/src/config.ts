@@ -70,6 +70,18 @@ export const USE_SCHEMA_RAG_V2 = process.env.USE_SCHEMA_RAG_V2 === "true"
 export const EXAM_MODE = process.env.EXAM_MODE === "true"
 
 /**
+ * Pipeline upgrade feature flags (Phase 1/2/3)
+ *
+ * Schema glosses, schema linker, join planner, PG normalization, and candidate reranker
+ * are all enabled by default (except reranker which is opt-in).
+ */
+export { SCHEMA_GLOSSES_ENABLED } from "./schema_glosses.js"
+export { SCHEMA_LINKER_ENABLED } from "./schema_linker.js"
+export { JOIN_PLANNER_ENABLED, JOIN_PLANNER_TOP_K } from "./join_planner.js"
+export { PG_NORMALIZE_ENABLED } from "./pg_normalize.js"
+export { CANDIDATE_RERANKER_ENABLED } from "./candidate_reranker.js"
+
+/**
  * Join hint format toggle
  *
  * Set JOIN_HINT_FORMAT to control how join hints are rendered:
@@ -179,6 +191,12 @@ export interface NLQueryRequest {
 	/** Multi-candidate generation */
 	multi_candidate_k?: number
 	multi_candidate_delimiter?: string
+
+	/** Pre-formatted schema link section for prompt (Phase 1) */
+	schema_link_text?: string
+
+	/** Pre-formatted join plan section for prompt (Phase 2) */
+	join_plan_text?: string
 }
 
 /**

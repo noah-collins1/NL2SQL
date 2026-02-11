@@ -88,6 +88,15 @@ export interface MultiCandidateConfig {
 
 		/** Bonus for matching JOIN heuristic */
 		join_bonus: number
+
+		/** Bonus per matched column from schema link bundle */
+		schema_adherence_bonus: number
+
+		/** Bonus if joins match planned skeleton */
+		join_match_bonus: number
+
+		/** Penalty for remaining non-PG patterns after normalization */
+		pg_safety_penalty: number
 	}
 
 	/** Question patterns for difficulty classification */
@@ -120,6 +129,9 @@ export const MULTI_CANDIDATE_CONFIG: MultiCandidateConfig = {
 		order_limit_bonus: 10,
 		distinct_bonus: 5,
 		join_bonus: 5,
+		schema_adherence_bonus: 15,
+		join_match_bonus: 20,
+		pg_safety_penalty: 10,
 	},
 
 	difficulty_patterns: {

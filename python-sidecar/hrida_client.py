@@ -110,6 +110,9 @@ class HridaClient:
             # Extract generated text
             sql = data.get("response", "").strip()
 
+            # Strip markdown code fences / extract SQL from prose
+            sql = self._strip_markdown_fences(sql)
+
             logger.debug(f"Hrida generated: {sql[:100]}...")
 
             # Check for gibberish (patterns from Test 3)
@@ -189,6 +192,30 @@ class HridaClient:
             return True
 
         return False
+
+    @staticmethod
+    def _strip_markdown_fences(text: str) -> str:
+        """
+        Extract SQL from model output that may contain prose and
+        markdown code fences.
+
+        Handles:
+        - ```sql ... ``` blocks (extracts first one found anywhere in text)
+        - Raw SQL starting with SELECT (returned as-is)
+        """
+        stripped = text.strip()
+
+        # Extract SQL from ```sql ... ``` or ``` ... ``` block (first match)
+        fence_match = re.search(r'```(?:sql)?\s*\n([\s\S]*?)```', stripped)
+        if fence_match:
+            return fence_match.group(1).strip()
+
+        # If no fences but text contains SELECT, extract from SELECT onward
+        select_match = re.search(r'(SELECT\b[\s\S]*)', stripped, re.IGNORECASE)
+        if select_match:
+            return select_match.group(1).strip()
+
+        return stripped
 
     def _estimate_confidence(self, sql: str) -> float:
         """
@@ -304,6 +331,9 @@ class HridaClient:
                 data = await response.json()
 
                 sql = data.get("response", "").strip()
+
+                # Strip markdown code fences / extract SQL from prose
+                sql = self._strip_markdown_fences(sql)
 
                 # Validate output
                 if self._is_gibberish(sql):

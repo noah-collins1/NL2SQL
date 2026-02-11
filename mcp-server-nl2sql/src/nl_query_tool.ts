@@ -41,6 +41,10 @@ import {
 	USE_SCHEMA_RAG_V2,
 	EXAM_MODE,
 	ExecutionErrorClass,
+	SCHEMA_GLOSSES_ENABLED,
+	SCHEMA_LINKER_ENABLED,
+	JOIN_PLANNER_ENABLED,
+	PG_NORMALIZE_ENABLED,
 } from "./config.js"
 import {
 	SchemaRetriever,
@@ -65,6 +69,15 @@ import {
 	ColumnValidationResult,
 	MinimalWhitelistResult,
 } from "./column_candidates.js"
+import {
+	SURGICAL_WHITELIST_CONFIG,
+	processSurgicalWhitelist,
+	evaluateStrictGating,
+	evaluateActiveGating,
+	WhitelistTelemetry,
+	WhitelistShadowObservation,
+	ActiveGatingResult,
+} from "./surgical_whitelist.js"
 import { SchemaContextPacket, RetrievalMetrics, renderSchemaBlock } from "./schema_types.js"
 import { attemptAutocorrect, AutocorrectResult } from "./sql_autocorrect.js"
 import {
@@ -76,6 +89,10 @@ import {
 	MultiCandidateResult,
 	CandidateExamLog,
 } from "./multi_candidate.js"
+import { generateGlosses, type SchemaGlosses } from "./schema_glosses.js"
+import { linkSchema, formatSchemaLinkForPrompt, type SchemaLinkBundle } from "./schema_linker.js"
+import { planJoins, formatJoinPlanForPrompt, type JoinPlan } from "./join_planner.js"
+import { pgNormalize, type PgNormalizeResult } from "./pg_normalize.js"
 import fs from "fs"
 import path from "path"
 
@@ -215,6 +232,65 @@ export async function executeNLQuery(
 			// Use hardcoded tables for non-RAG databases
 			allowedTables = (dbConfig as typeof MCPTEST_CONFIG).allowedTables || []
 		}
+
+		// === SCHEMA GROUNDING PIPELINE (Phase 1 + Phase 2) ===
+		let schemaLinkBundle: SchemaLinkBundle | null = null
+		let joinPlan: JoinPlan | null = null
+		let schemaLinkText: string | undefined
+		let joinPlanText: string | undefined
+
+		if (schemaContext) {
+			// Phase 1A: Generate column glosses
+			let glosses: SchemaGlosses | undefined
+			if (SCHEMA_GLOSSES_ENABLED) {
+				glosses = generateGlosses(schemaContext)
+				logger.debug("Schema glosses generated", {
+					query_id: queryId,
+					column_count: glosses.size,
+				})
+			}
+
+			// Phase 1B: Schema linking
+			if (SCHEMA_LINKER_ENABLED) {
+				schemaLinkBundle = linkSchema(question, schemaContext, glosses)
+				schemaLinkText = glosses
+					? formatSchemaLinkForPrompt(schemaLinkBundle, glosses)
+					: undefined
+
+				logger.info("Schema linking complete", {
+					query_id: queryId,
+					tables_linked: schemaLinkBundle.linkedTables.length,
+					columns_linked: Object.values(schemaLinkBundle.linkedColumns).flat().length,
+					unsupported_concepts: schemaLinkBundle.unsupportedConcepts,
+				})
+
+				// Record for exam
+				if (EXAM_MODE) {
+					recordExamSchemaLink(schemaLinkBundle)
+				}
+			}
+
+			// Phase 2: Join planning
+			if (JOIN_PLANNER_ENABLED) {
+				joinPlan = planJoins(schemaContext, schemaLinkBundle)
+				if (joinPlan.skeletons.length > 0) {
+					joinPlanText = formatJoinPlanForPrompt(joinPlan)
+				}
+
+				logger.info("Join planning complete", {
+					query_id: queryId,
+					skeletons: joinPlan.skeletons.length,
+					graph_nodes: joinPlan.graphStats.nodes,
+					graph_edges: joinPlan.graphStats.edges,
+				})
+
+				// Record for exam
+				if (EXAM_MODE) {
+					recordExamJoinPlan(joinPlan)
+				}
+			}
+		}
+
 		// === BOUNDED REPAIR LOOP ===
 		while (attempt < maxAttempts) {
 			attempt++
@@ -250,6 +326,9 @@ export async function executeNLQuery(
 					// Multi-candidate parameters
 					multi_candidate_k: useMultiCandidate ? kValue : undefined,
 					multi_candidate_delimiter: useMultiCandidate ? MULTI_CANDIDATE_CONFIG.sql_delimiter : undefined,
+					// Schema grounding (Phase 1+2)
+					schema_link_text: schemaLinkText,
+					join_plan_text: joinPlanText,
 				}
 
 				pythonResponse = await pythonClient.generateSQL(pythonRequest)
@@ -361,6 +440,24 @@ export async function executeNLQuery(
 
 			// Record SQL for exam logging
 			recordExamSQL(currentSQL, tablesUsed, attempt)
+
+			// --- Step 1.5: PG Dialect Normalization ---
+			if (PG_NORMALIZE_ENABLED && currentSQL) {
+				const normalizeResult = pgNormalize(currentSQL)
+				if (normalizeResult.changed) {
+					logger.info("PG normalization applied", {
+						query_id: queryId,
+						attempt,
+						transforms: normalizeResult.applied,
+					})
+					currentSQL = normalizeResult.sql
+
+					// Record for exam
+					if (EXAM_MODE) {
+						recordExamPgNormalize(normalizeResult)
+					}
+				}
+			}
 
 			// If Python returned an error, propagate it
 			if (pythonResponse.error) {
@@ -578,6 +675,7 @@ export async function executeNLQuery(
 			let client: PoolClient | null = null
 			let autocorrectExplainPassed = false
 			let autocorrectSQL: string | null = null
+			let autocorrectAttempted = false
 
 			try {
 				client = await pool.connect()
@@ -663,8 +761,88 @@ export async function executeNLQuery(
 				// Record EXPLAIN failure for exam
 				recordExamExplainResult(false, pgError.sqlstate, pgError.message)
 
-				// --- AUTOCORRECT: Try deterministic fix before LLM repair ---
-				if (schemaContext && (pgError.sqlstate === "42703" || pgError.sqlstate === "42P01")) {
+				// --- SURGICAL WHITELIST: Deterministic fix for 42703 errors ---
+				// ACTIVE MODE ONLY — requires enabled + active + active gating
+				if (schemaContext && pgError.sqlstate === "42703"
+					&& SURGICAL_WHITELIST_CONFIG.enabled
+					&& SURGICAL_WHITELIST_CONFIG.mode === "active") {
+					const surgicalResult = processSurgicalWhitelist(
+						finalSQL,
+						pgError.message,
+						schemaContext,
+						SURGICAL_WHITELIST_CONFIG,
+					)
+
+					// Record telemetry for exam
+					recordExamSurgicalWhitelist(surgicalResult.telemetry)
+
+					const activeResult = evaluateActiveGating(
+						surgicalResult,
+						autocorrectAttempted,
+						autocorrectExplainPassed,
+						finalSQL,
+						pgError.message,
+						SURGICAL_WHITELIST_CONFIG,
+					)
+
+					if (activeResult.passed && activeResult.correctedSQL) {
+						const correctedSQL = activeResult.correctedSQL
+
+						logger.info("Surgical whitelist: active gating passed, rewrite applied", {
+							query_id: queryId,
+							attempt,
+							top_candidate: activeResult.topCandidate,
+							best_score: activeResult.bestScore,
+							dominance: activeResult.dominance,
+						})
+
+						// Re-run EXPLAIN with corrected SQL
+						try {
+							const retryClient = await pool.connect()
+							try {
+								await retryClient.query(`SET statement_timeout = ${REPAIR_CONFIG.explainTimeout}`)
+								await retryClient.query(`EXPLAIN (FORMAT JSON) ${correctedSQL}`)
+								logger.info("Surgical whitelist: EXPLAIN passed after rewrite", { query_id: queryId })
+								recordExamExplainResult(true)
+								autocorrectExplainPassed = true
+								autocorrectSQL = correctedSQL
+								recordExamSQL(correctedSQL, tablesUsed, attempt)
+							} finally {
+								retryClient.release()
+							}
+						} catch (retryError) {
+							logger.warn("Surgical whitelist: EXPLAIN still failed after rewrite", {
+								query_id: queryId,
+								error: String(retryError),
+							})
+							currentSQL = correctedSQL
+						}
+					} else if (surgicalResult.repairPromptDelta) {
+						// Active gating failed, fall back to compact whitelist repair prompt
+						logger.debug("Surgical whitelist: active gating failed, using compact repair prompt", {
+							query_id: queryId,
+							active_failures: activeResult.failures,
+							whitelist_tables: surgicalResult.whitelistResult.primaryTables,
+							prompt_size: surgicalResult.telemetry.whitelist_prompt_size,
+						})
+
+						// Update pgError with surgical whitelist for repair
+						pgError = {
+							...pgError,
+							minimal_whitelist: {
+								alias: surgicalResult.whitelistResult.debug.alias_resolved,
+								resolved_table: surgicalResult.whitelistResult.primaryTables[0] || null,
+								failing_column: surgicalResult.whitelistResult.debug.failing_reference?.split(".")[1] || null,
+								whitelist: surgicalResult.whitelistResult.tables,
+								neighbor_tables: surgicalResult.whitelistResult.neighborTables,
+								formatted_text: surgicalResult.repairPromptDelta,
+							},
+						}
+					}
+				}
+				// --- FALLBACK AUTOCORRECT: For 42P01 and non-surgical 42703 ---
+				else if (schemaContext && (pgError.sqlstate === "42703" || pgError.sqlstate === "42P01")) {
+					autocorrectAttempted = true
 					const autocorrectResult = attemptAutocorrect(
 						finalSQL,
 						pgError.sqlstate,
@@ -672,7 +850,6 @@ export async function executeNLQuery(
 						schemaContext,
 					)
 
-					// Log autocorrect attempt for exam
 					recordExamAutocorrect(autocorrectResult)
 
 					if (autocorrectResult.success && autocorrectResult.sql !== finalSQL) {
@@ -685,7 +862,6 @@ export async function executeNLQuery(
 							candidate: autocorrectResult.selected_candidate?.qualified_name,
 						})
 
-						// Re-run EXPLAIN with corrected SQL
 						try {
 							const retryClient = await pool.connect()
 							try {
@@ -693,21 +869,17 @@ export async function executeNLQuery(
 								await retryClient.query(`EXPLAIN (FORMAT JSON) ${correctedSQL}`)
 								logger.info("Autocorrect EXPLAIN passed", { query_id: queryId })
 								recordExamExplainResult(true)
-								// Set flag to skip to execution with corrected SQL
 								autocorrectExplainPassed = true
 								autocorrectSQL = correctedSQL
-								// Update exam SQL with corrected version
 								recordExamSQL(correctedSQL, tablesUsed, attempt)
 							} finally {
 								retryClient.release()
 							}
 						} catch (retryError) {
-							// Autocorrect didn't fully fix the issue
 							logger.warn("Autocorrect EXPLAIN still failed", {
 								query_id: queryId,
 								error: String(retryError),
 							})
-							// Update currentSQL for subsequent LLM repair attempts
 							currentSQL = correctedSQL
 						}
 					} else if (autocorrectResult.attempted) {
@@ -716,6 +888,73 @@ export async function executeNLQuery(
 							reason: autocorrectResult.failure_reason,
 							candidates: autocorrectResult.candidates?.length || 0,
 						})
+					}
+				}
+
+				// --- SHADOW OBSERVATION: Surgical whitelist precision measurement ---
+				// NEVER modifies SQL, control flow, or repair behavior.
+				// Only computes and logs what the whitelist WOULD have done.
+				const shouldObserve = SURGICAL_WHITELIST_CONFIG.enabled
+					&& (SURGICAL_WHITELIST_CONFIG.mode === "observe" || SURGICAL_WHITELIST_CONFIG.mode === "active")
+					&& (!SURGICAL_WHITELIST_CONFIG.observeInExamOnly || EXAM_MODE)
+
+				if (shouldObserve && schemaContext && pgError.sqlstate === "42703") {
+					try {
+						const shadowResult = processSurgicalWhitelist(finalSQL, pgError.message, schemaContext)
+						const gating = evaluateStrictGating(
+							shadowResult,
+							autocorrectAttempted,
+							autocorrectExplainPassed,
+							SURGICAL_WHITELIST_CONFIG,
+						)
+						const activeGating = evaluateActiveGating(
+							shadowResult,
+							autocorrectAttempted,
+							autocorrectExplainPassed,
+							finalSQL,
+							pgError.message,
+							SURGICAL_WHITELIST_CONFIG,
+						)
+						const rewrite = shadowResult.telemetry.deterministic_rewrites[0]
+						shadowObservations.push({
+							attempt,
+							failing_reference: shadowResult.whitelistResult.debug.failing_reference,
+							alias_resolved: shadowResult.whitelistResult.debug.alias_resolved,
+							alias_ambiguous: shadowResult.telemetry.alias_resolution.ambiguity,
+							would_rewrite: shadowResult.success,
+							rewrite_to_column: rewrite?.to_column,
+							rewrite_confidence: rewrite?.confidence,
+							rewrite_rejection_reason: rewrite?.rejection_reason,
+							candidate_count: shadowResult.telemetry.deterministic_rewrites.length,
+							strict_gating_passed: gating.passed,
+							strict_gating_failures: gating.failures,
+							autocorrect_attempted: autocorrectAttempted,
+							autocorrect_succeeded: autocorrectExplainPassed,
+							// Composite scoring detail
+							lexical_score: gating.bestLexicalScore,
+							containment_bonus: gating.bestContainmentBonus,
+							has_containment: gating.hasContainment,
+							dominance_delta: gating.dominance,
+							is_keyword: gating.isKeyword,
+							top_candidates: gating.topCandidates,
+							// Active gating (action tier)
+							active_gating_passed: activeGating.passed,
+							active_gating_failures: activeGating.failures,
+							rewrite_would_fire_in_active_mode: activeGating.passed,
+							// Top-2 score info
+							top1_score: activeGating.bestScore,
+							top2_score: activeGating.top2Score,
+							score_delta: activeGating.scoreDelta,
+							score_ratio: activeGating.scoreRatio,
+							// Risk blacklist info
+							risk_blacklist_hit: activeGating.riskBlacklistHit,
+							risk_blacklist_action: activeGating.riskBlacklistAction,
+							// Candidate counts
+							raw_candidate_count: activeGating.rawCandidateCount,
+							eligible_candidate_count: activeGating.eligibleCandidateCount,
+						})
+					} catch (e) {
+						logger.debug("Shadow whitelist observation failed", { error: String(e) })
 					}
 				}
 
@@ -918,6 +1157,7 @@ export async function executeNLQuery(
 				// Record success for exam
 				recordExamExecutionResult(true, queryResult.rows.length, Date.now() - startTime)
 				recordExamRetrySuccess(attempt)
+				finalizeShadowObservations("success")
 
 				// === SUCCESS - Build and return response ===
 				const autocorrectNote = autocorrectExplainPassed ? " [Autocorrect applied]" : ""
@@ -1345,6 +1585,7 @@ function buildErrorResponse(params: ErrorResponseParams, logger: any): NLQueryRe
 		}
 
 		recordExamExecutionResult(false, undefined, Date.now() - startTime)
+		finalizeShadowObservations("failure")
 		recordExamFailure(failureType, failureDetails, errorClass)
 		finalizeExamEntry(logger)
 	}
@@ -1482,6 +1723,55 @@ interface FullExamLogEntry {
 		unresolved_aliases: string[]
 	}
 
+	// Surgical whitelist telemetry
+	surgical_whitelist?: {
+		whitelist_triggered: boolean
+		whitelist_tables_count: number
+		whitelist_columns_total: number
+		alias_resolution: {
+			success: boolean
+			alias: string | null
+			resolved_table: string | null
+			ambiguity: boolean
+		}
+		deterministic_rewrites: Array<{
+			from_column: string
+			to_column: string
+			table: string
+			confidence: number
+			applied: boolean
+			rejection_reason?: string
+		}>
+		repair_used_whitelist: boolean
+		whitelist_prompt_size?: number
+	}
+
+	// Shadow whitelist observations (one per 42703 attempt)
+	shadow_whitelist_observations?: WhitelistShadowObservation[]
+
+	// Schema linking (Phase 1)
+	schema_link?: {
+		tables_linked: number
+		columns_linked: number
+		unsupported_concepts: string[]
+		top_linked: Array<{ table: string; column: string; concept: string; score: number }>
+	}
+
+	// Join planning (Phase 2)
+	join_plan?: {
+		used: boolean
+		candidate_count: number
+		selected_tables: string[]
+		skeleton_sql: string | null
+	}
+
+	// PG normalization
+	pg_normalize?: {
+		applied: boolean
+		transforms: string[]
+		changed: boolean
+	}
+
 	// Timing
 	embedding_latency_ms: number
 	total_retrieval_latency_ms: number
@@ -1491,11 +1781,15 @@ interface FullExamLogEntry {
 // Module-level state for exam logging (populated during query execution)
 let currentExamEntry: Partial<FullExamLogEntry> | null = null
 
+// Shadow observation state for surgical whitelist precision measurement
+let shadowObservations: WhitelistShadowObservation[] = []
+
 /**
  * Initialize exam entry at start of query
  */
 function initExamEntry(queryId: string, question: string): void {
 	if (!EXAM_MODE) return
+	shadowObservations = []
 	currentExamEntry = {
 		timestamp: new Date().toISOString(),
 		query_id: queryId,
@@ -1576,6 +1870,100 @@ function recordExamAutocorrect(result: AutocorrectResult): void {
 	if (result.failure_reason) {
 		currentExamEntry.autocorrect_failure_reason = result.failure_reason
 	}
+}
+
+/**
+ * Record surgical whitelist telemetry to exam entry
+ */
+function recordExamSurgicalWhitelist(telemetry: WhitelistTelemetry): void {
+	if (!EXAM_MODE || !currentExamEntry) return
+
+	currentExamEntry.surgical_whitelist = {
+		whitelist_triggered: telemetry.whitelist_triggered,
+		whitelist_tables_count: telemetry.whitelist_tables_count,
+		whitelist_columns_total: telemetry.whitelist_columns_total,
+		alias_resolution: telemetry.alias_resolution,
+		deterministic_rewrites: telemetry.deterministic_rewrites,
+		repair_used_whitelist: telemetry.repair_used_whitelist,
+		whitelist_prompt_size: telemetry.whitelist_prompt_size,
+	}
+}
+
+/**
+ * Record schema link bundle to exam entry
+ */
+function recordExamSchemaLink(bundle: SchemaLinkBundle): void {
+	if (!EXAM_MODE || !currentExamEntry) return
+
+	const topLinked: Array<{ table: string; column: string; concept: string; score: number }> = []
+	for (const [table, cols] of Object.entries(bundle.linkedColumns)) {
+		for (const col of cols) {
+			topLinked.push({ table, column: col.column, concept: col.concept, score: col.relevance })
+		}
+	}
+	topLinked.sort((a, b) => b.score - a.score)
+
+	currentExamEntry.schema_link = {
+		tables_linked: bundle.linkedTables.length,
+		columns_linked: Object.values(bundle.linkedColumns).flat().length,
+		unsupported_concepts: bundle.unsupportedConcepts,
+		top_linked: topLinked.slice(0, 10),
+	}
+}
+
+/**
+ * Record join plan to exam entry
+ */
+function recordExamJoinPlan(plan: JoinPlan): void {
+	if (!EXAM_MODE || !currentExamEntry) return
+
+	const skeleton = plan.skeletons[0] || null
+	currentExamEntry.join_plan = {
+		used: plan.skeletons.length > 0,
+		candidate_count: plan.skeletons.length,
+		selected_tables: skeleton?.tables || [],
+		skeleton_sql: skeleton?.sqlFragment || null,
+	}
+}
+
+/**
+ * Record PG normalization result to exam entry
+ */
+function recordExamPgNormalize(result: PgNormalizeResult): void {
+	if (!EXAM_MODE || !currentExamEntry) return
+
+	currentExamEntry.pg_normalize = {
+		applied: result.changed,
+		transforms: result.applied,
+		changed: result.changed,
+	}
+}
+
+/**
+ * Record shadow whitelist observations to exam entry
+ */
+function recordExamShadowObservations(obs: WhitelistShadowObservation[]): void {
+	if (!EXAM_MODE || !currentExamEntry) return
+	currentExamEntry.shadow_whitelist_observations = obs
+}
+
+/**
+ * Finalize shadow observations with pipeline outcome and precision labels.
+ * Called at success/failure paths before exam entry is written.
+ */
+function finalizeShadowObservations(pipelineOutcome: "success" | "failure"): void {
+	for (const obs of shadowObservations) {
+		obs.pipeline_outcome = pipelineOutcome
+		// Use active gate (stricter tier) for precision labels
+		const wouldAct = obs.active_gating_passed ?? (obs.would_rewrite && obs.strict_gating_passed)
+		obs.would_have_helped = pipelineOutcome === "failure" && wouldAct
+		obs.would_have_been_redundant = pipelineOutcome === "success" && wouldAct
+		obs.would_have_acted_on_success = pipelineOutcome === "success" && wouldAct
+	}
+	if (shadowObservations.length > 0) {
+		recordExamShadowObservations(shadowObservations)
+	}
+	shadowObservations = []
 }
 
 /**
