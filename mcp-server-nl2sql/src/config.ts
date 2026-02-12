@@ -86,7 +86,8 @@ export {
 	CROSS_MODULE_JOIN_ENABLED,
 } from "./join_planner.js"
 export { PG_NORMALIZE_ENABLED } from "./pg_normalize.js"
-export { CANDIDATE_RERANKER_ENABLED } from "./candidate_reranker.js"
+export { CANDIDATE_RERANKER_ENABLED, VALUE_VERIFICATION_ENABLED } from "./candidate_reranker.js"
+export { PRE_SQL_ENABLED } from "./pre_sql.js"
 export { BM25_SEARCH_ENABLED } from "./bm25_search.js"
 export { MODULE_ROUTER_ENABLED } from "./module_router.js"
 export { COLUMN_PRUNING_ENABLED } from "./column_pruner.js"

@@ -98,6 +98,13 @@ import { planJoins, formatJoinPlanForPrompt, type JoinPlan } from "./join_planne
 import { pgNormalize, type PgNormalizeResult } from "./pg_normalize.js"
 import { routeToModules, type ModuleRouteResult } from "./module_router.js"
 import { COLUMN_PRUNING_ENABLED, pruneColumns } from "./column_pruner.js"
+import {
+	CANDIDATE_RERANKER_ENABLED,
+	getReranker,
+	type RerankerResult,
+	type RerankerDetail,
+} from "./candidate_reranker.js"
+import { PRE_SQL_ENABLED, runPreSQL, type PreSQLResult } from "./pre_sql.js"
 import fs from "fs"
 import path from "path"
 
@@ -326,6 +333,50 @@ export async function executeNLQuery(
 				})
 			}
 
+			// Phase 3.1: Pre-SQL sketch generation (before linker)
+			if (PRE_SQL_ENABLED) {
+				const preSqlStart = Date.now()
+				const useMultiCandidate = MULTI_CANDIDATE_CONFIG.enabled
+				const preSqlDifficulty = useMultiCandidate ? classifyDifficulty(question, schemaContext) : "medium"
+				try {
+					const preSqlResult = await runPreSQL(
+						question,
+						schemaContext,
+						glosses || null,
+						pythonClient,
+						pool,
+						preSqlDifficulty,
+					)
+
+					if (preSqlResult && preSqlResult.additionalTablesRetrieved.length > 0) {
+						logger.info("Pre-SQL: additional tables retrieved", {
+							query_id: queryId,
+							sketch_tables: preSqlResult.referencedTables,
+							missing: preSqlResult.missingTables,
+							retrieved: preSqlResult.additionalTablesRetrieved,
+							latency_ms: preSqlResult.latencyMs,
+						})
+						// schemaContext is mutated in-place by runPreSQL
+						allowedTables = getAllowedTables(schemaContext)
+					}
+
+					if (EXAM_MODE && currentExamEntry) {
+						currentExamEntry.pre_sql = preSqlResult ? {
+							sketch_sql: preSqlResult.sketchSQL,
+							referenced_tables: preSqlResult.referencedTables,
+							missing_tables: preSqlResult.missingTables,
+							additional_tables: preSqlResult.additionalTablesRetrieved,
+							latency_ms: preSqlResult.latencyMs,
+						} : undefined
+						if (currentExamEntry.stage_latencies) {
+							currentExamEntry.stage_latencies.pre_sql_ms = Date.now() - preSqlStart
+						}
+					}
+				} catch (preSqlErr) {
+					logger.warn("Pre-SQL failed, continuing without", { error: String(preSqlErr) })
+				}
+			}
+
 			// Phase 1B: Schema linking
 			if (SCHEMA_LINKER_ENABLED) {
 				const linkerStart = Date.now()
@@ -517,6 +568,49 @@ export async function executeNLQuery(
 					// Record multi-candidate evaluation for exam mode
 					if (EXAM_MODE) {
 						recordExamMultiCandidate(multiResult)
+					}
+
+					// Phase 3: Rerank candidates with schema adherence, join match, result shape
+					if (CANDIDATE_RERANKER_ENABLED && multiResult.allCandidates.length > 1) {
+						const rerankerStart = Date.now()
+						const reranker = getReranker()
+						const rerankerResult = await reranker.rerank(multiResult.allCandidates, {
+							question,
+							schemaLinkBundle,
+							joinPlan,
+							schemaContext,
+							pool,
+						})
+						const rerankerLatency = Date.now() - rerankerStart
+
+						// Update candidates with reranked order
+						multiResult.allCandidates = rerankerResult.candidates
+						const bestCandidate = rerankerResult.candidates.find(c => !c.rejected) || null
+						if (bestCandidate) {
+							multiResult.selectedCandidate = bestCandidate
+						}
+
+						// Log reranker results
+						logger.info("Reranker applied", {
+							query_id: queryId,
+							latency_ms: rerankerLatency,
+							candidates_reranked: rerankerResult.candidates.length,
+							top_bonuses: rerankerResult.rerankDetails.slice(0, 3).map(d => ({
+								idx: d.index,
+								bonus: d.totalBonus.toFixed(1),
+								adherence: d.schemaAdherence.combined.toFixed(2),
+								joinMatch: d.joinMatch.score.toFixed(2),
+								shape: d.resultShape.score.toFixed(2),
+							})),
+						})
+
+						// Record for exam
+						if (EXAM_MODE && currentExamEntry) {
+							currentExamEntry.reranker = rerankerResult.rerankDetails
+							if (currentExamEntry.stage_latencies) {
+								currentExamEntry.stage_latencies.reranker_ms = rerankerLatency
+							}
+						}
 					}
 
 					// Use the selected candidate
@@ -1967,6 +2061,18 @@ interface FullExamLogEntry {
 	fusion_method?: string
 	columns_pruned?: number
 
+	// Pre-SQL (Phase 3.1)
+	pre_sql?: {
+		sketch_sql: string
+		referenced_tables: string[]
+		missing_tables: string[]
+		additional_tables: string[]
+		latency_ms: number
+	}
+
+	// Reranker (Phase 3)
+	reranker?: RerankerDetail[]
+
 	// Token counts (from Ollama via sidecar)
 	prompt_tokens?: number
 	completion_tokens?: number
@@ -1978,6 +2084,8 @@ interface FullExamLogEntry {
 		linker_ms?: number
 		pruning_ms?: number
 		planner_ms?: number
+		pre_sql_ms?: number
+		reranker_ms?: number
 		first_generation_ms?: number
 		validation_ms?: number
 		execution_ms?: number
