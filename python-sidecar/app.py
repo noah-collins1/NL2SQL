@@ -121,6 +121,8 @@ class TraceInfo(BaseModel):
     hrida_prompt_length: int
     hrida_duration_ms: int
     total_duration_ms: int
+    prompt_tokens: Optional[int] = None
+    completion_tokens: Optional[int] = None
 
 
 class PythonSidecarResponse(BaseModel):
@@ -137,6 +139,8 @@ class PythonSidecarResponse(BaseModel):
     sql_candidates: Optional[List[str]] = Field(None, description="Multiple SQL candidates (if multi_candidate_k > 1)")
     sql_candidates_raw: Optional[str] = Field(None, description="Raw multi-candidate output for downstream parsing")
     tables_used_in_sql: Optional[List[str]] = Field(None, description="Tables used in the generated SQL")
+    prompt_tokens: Optional[int] = Field(None, description="Prompt token count from Ollama")
+    completion_tokens: Optional[int] = Field(None, description="Completion token count from Ollama")
 
 
 # Initialize Hrida client with model-appropriate system prompt
@@ -375,6 +379,8 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
         try:
             sql_candidates = None
             notes = None
+            gen_prompt_tokens = 0
+            gen_completion_tokens = 0
 
             if is_multi_candidate:
                 if SEQUENTIAL_CANDIDATES:
@@ -382,7 +388,7 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
                     # Generate K candidates one at a time (avoids VRAM contention with large models)
                     logger.info(f"[{query_id}] Sequential multi-candidate generation with k={multi_k}")
 
-                    candidates = hrida_client.generate_candidates_sequential(
+                    candidates, gen_prompt_tokens, gen_completion_tokens = hrida_client.generate_candidates_sequential(
                         prompt=prompt,
                         k=multi_k,
                         temperature=0.3,  # Non-zero for candidate diversity
@@ -394,7 +400,7 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
                     # Generate K candidates in parallel with temperature for diversity
                     logger.info(f"[{query_id}] Parallel multi-candidate generation with k={multi_k}")
 
-                    candidates = await hrida_client.generate_candidates_parallel(
+                    candidates, gen_prompt_tokens, gen_completion_tokens = await hrida_client.generate_candidates_parallel(
                         prompt=prompt,
                         k=multi_k,
                         temperature=0.3,  # Non-zero for candidate diversity
@@ -413,7 +419,7 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
                 else:
                     # All candidates failed, fall back to single generation
                     logger.warning(f"[{query_id}] All parallel candidates failed, falling back to single generation")
-                    sql, confidence = hrida_client.generate_sql(
+                    sql, confidence, gen_prompt_tokens, gen_completion_tokens = hrida_client.generate_sql(
                         prompt=prompt,
                         temperature=0.0,
                         max_tokens=200,
@@ -423,7 +429,7 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
 
             else:
                 # === SINGLE CANDIDATE GENERATION ===
-                sql, confidence = hrida_client.generate_sql(
+                sql, confidence, gen_prompt_tokens, gen_completion_tokens = hrida_client.generate_sql(
                     prompt=prompt,
                     temperature=0.0,
                     max_tokens=200,
@@ -455,7 +461,7 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
                 )
 
                 try:
-                    repaired_sql, repaired_confidence = hrida_client.generate_sql(
+                    repaired_sql, repaired_confidence, _, _ = hrida_client.generate_sql(
                         prompt=repair_prompt,
                         temperature=0.0,
                         max_tokens=200,
@@ -501,7 +507,9 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
                     intent_classified=intent,
                     hrida_prompt_length=trace_data["hrida_prompt_length"],
                     hrida_duration_ms=hrida_duration_ms,
-                    total_duration_ms=total_duration_ms
+                    total_duration_ms=total_duration_ms,
+                    prompt_tokens=gen_prompt_tokens if gen_prompt_tokens > 0 else None,
+                    completion_tokens=gen_completion_tokens if gen_completion_tokens > 0 else None,
                 )
 
             return PythonSidecarResponse(
@@ -515,7 +523,9 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
                 trace=trace_info,
                 sql_candidates=sql_candidates,
                 sql_candidates_raw=None,  # No longer used with parallel approach
-                tables_used_in_sql=selected_tables
+                tables_used_in_sql=selected_tables,
+                prompt_tokens=gen_prompt_tokens if gen_prompt_tokens > 0 else None,
+                completion_tokens=gen_completion_tokens if gen_completion_tokens > 0 else None,
             )
 
         except HridaError as e:
@@ -663,7 +673,7 @@ async def repair_sql(request: dict) -> PythonSidecarResponse:
         try:
             # Use attempt-based seed for reproducible repairs
             repair_seed = 100 + attempt
-            sql, confidence = hrida_client.generate_sql(
+            sql, confidence, repair_prompt_tokens, repair_completion_tokens = hrida_client.generate_sql(
                 prompt=prompt,
                 temperature=0.0,  # Deterministic
                 max_tokens=200,
@@ -687,7 +697,9 @@ async def repair_sql(request: dict) -> PythonSidecarResponse:
                     intent_classified=intent,
                     hrida_prompt_length=trace_data["repair_prompt_length"],
                     hrida_duration_ms=hrida_duration_ms,
-                    total_duration_ms=total_duration_ms
+                    total_duration_ms=total_duration_ms,
+                    prompt_tokens=repair_prompt_tokens if repair_prompt_tokens > 0 else None,
+                    completion_tokens=repair_completion_tokens if repair_completion_tokens > 0 else None,
                 )
 
             # Determine what changed
@@ -709,7 +721,9 @@ async def repair_sql(request: dict) -> PythonSidecarResponse:
                 intent=intent,
                 notes=notes,
                 error=None,
-                trace=trace_info
+                trace=trace_info,
+                prompt_tokens=repair_prompt_tokens if repair_prompt_tokens > 0 else None,
+                completion_tokens=repair_completion_tokens if repair_completion_tokens > 0 else None,
             )
 
         except HridaError as e:

@@ -80,6 +80,9 @@ export { SCHEMA_LINKER_ENABLED } from "./schema_linker.js"
 export { JOIN_PLANNER_ENABLED, JOIN_PLANNER_TOP_K } from "./join_planner.js"
 export { PG_NORMALIZE_ENABLED } from "./pg_normalize.js"
 export { CANDIDATE_RERANKER_ENABLED } from "./candidate_reranker.js"
+export { BM25_SEARCH_ENABLED } from "./bm25_search.js"
+export { MODULE_ROUTER_ENABLED } from "./module_router.js"
+export { COLUMN_PRUNING_ENABLED } from "./column_pruner.js"
 
 /**
  * Join hint format toggle
@@ -167,7 +170,7 @@ export interface NLQueryRequest {
 			gloss: string
 			m_schema: string
 			similarity: number
-			source: "retrieval" | "fk_expansion"
+			source: "retrieval" | "fk_expansion" | "bm25" | "hybrid"
 			is_hub?: boolean
 		}>
 		fk_edges: Array<{
@@ -255,6 +258,10 @@ export interface PythonSidecarResponse {
 
 	/** Raw multi-candidate output for downstream parsing */
 	sql_candidates_raw?: string
+
+	/** Token counts from Ollama (for prompt cost tracking) */
+	prompt_tokens?: number
+	completion_tokens?: number
 }
 
 /**
@@ -297,7 +304,7 @@ export interface RepairSQLRequest {
 			gloss: string
 			m_schema: string
 			similarity: number
-			source: "retrieval" | "fk_expansion"
+			source: "retrieval" | "fk_expansion" | "bm25" | "hybrid"
 			is_hub?: boolean
 		}>
 		fk_edges: Array<{

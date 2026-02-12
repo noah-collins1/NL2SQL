@@ -34,6 +34,8 @@ interface ExamResult {
 	latency_ms: number
 	retrieval_miss: string[]
 	extra_tables: string[]
+	retrieval_recall: number
+	retrieval_precision: number
 }
 
 async function runExam() {
@@ -115,6 +117,11 @@ async function runExam() {
 			const missing = needed.filter((t: string) => !retrieved.some((r: string) => r.toLowerCase() === t.toLowerCase()))
 			const extra = retrieved.filter((t: string) => !needed.some((e: string) => e.toLowerCase() === t.toLowerCase()))
 
+			// Compute retrieval recall & precision
+			const intersection = needed.filter((t: string) => retrieved.some((r: string) => r.toLowerCase() === t.toLowerCase()))
+			const recall = needed.length > 0 ? intersection.length / needed.length : 1.0
+			const precision = retrieved.length > 0 ? intersection.length / retrieved.length : 1.0
+
 			const result: ExamResult = {
 				id: q.id,
 				difficulty: q.difficulty,
@@ -130,6 +137,8 @@ async function runExam() {
 				latency_ms: latency,
 				retrieval_miss: missing,
 				extra_tables: extra,
+				retrieval_recall: recall,
+				retrieval_precision: precision,
 			}
 
 			results.push(result)
@@ -181,6 +190,8 @@ async function runExam() {
 				latency_ms: latency,
 				retrieval_miss: q.tables_needed || [],
 				extra_tables: [],
+				retrieval_recall: 0,
+				retrieval_precision: 1.0,
 			})
 			failureCounts.execution_error++
 			byDifficulty[q.difficulty].fail++
@@ -220,6 +231,27 @@ async function runExam() {
 	console.log(`  value_miss:      ${failureCounts.value_miss} (${((failureCounts.value_miss / total) * 100).toFixed(1)}%)`)
 	console.log(`  execution_error: ${failureCounts.execution_error} (${((failureCounts.execution_error / total) * 100).toFixed(1)}%)`)
 
+	// Retrieval quality metrics
+	const meanRecall = results.reduce((sum, r) => sum + r.retrieval_recall, 0) / total
+	const meanPrecision = results.reduce((sum, r) => sum + r.retrieval_precision, 0) / total
+	const perfectRecallCount = results.filter(r => r.retrieval_recall === 1.0).length
+	const questionsWithMisses = results.filter(r => r.retrieval_recall < 1.0).map(r => ({
+		id: r.id,
+		question: r.question.substring(0, 50),
+		recall: r.retrieval_recall,
+		missing: r.retrieval_miss,
+	}))
+
+	console.log("\n--- Retrieval Quality ---")
+	console.log(`  Mean Recall:    ${(meanRecall * 100).toFixed(1)}% (${perfectRecallCount}/${total} questions with perfect recall)`)
+	console.log(`  Mean Precision: ${(meanPrecision * 100).toFixed(1)}%`)
+	if (questionsWithMisses.length > 0) {
+		console.log(`  Retrieval Misses: ${questionsWithMisses.length} questions missing >=1 table`)
+		for (const miss of questionsWithMisses) {
+			console.log(`    Q${miss.id}: recall=${(miss.recall * 100).toFixed(0)}% missing=[${miss.missing.join(", ")}]`)
+		}
+	}
+
 	// Write detailed results
 	const resultsFile = `./exam_logs/exam_results_full_${new Date().toISOString().split("T")[0]}.json`
 	try {
@@ -233,6 +265,12 @@ async function runExam() {
 				by_difficulty: byDifficulty,
 				by_module: byModule,
 				failure_counts: failureCounts,
+				retrieval: {
+					mean_recall: parseFloat((meanRecall * 100).toFixed(1)),
+					mean_precision: parseFloat((meanPrecision * 100).toFixed(1)),
+					perfect_recall_count: perfectRecallCount,
+					questions_with_misses: questionsWithMisses,
+				},
 			},
 			results
 		}, null, 2))

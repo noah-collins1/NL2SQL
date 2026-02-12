@@ -185,3 +185,15 @@ all_needed = expand_with_related_tables(relevant_tables, get_related_tables)
 # Build prompt with filtered schema
 filtered_schema = {t: ERP_SCHEMA[t] for t in all_needed}
 ```
+
+
+## 2000-Table Variant
+
+If you need a much larger schema for NL2SQL filtering experiments, use the 2000-table setup:
+
+```
+chmod +x setup_database_2000.sh
+./setup_database_2000.sh
+```
+
+Login details are documented in `LOGIN_2000.md`.

@@ -45,6 +45,9 @@ import {
 	SCHEMA_LINKER_ENABLED,
 	JOIN_PLANNER_ENABLED,
 	PG_NORMALIZE_ENABLED,
+	MODULE_ROUTER_ENABLED,
+	BM25_SEARCH_ENABLED,
+	COLUMN_PRUNING_ENABLED,
 } from "./config.js"
 import {
 	SchemaRetriever,
@@ -78,7 +81,7 @@ import {
 	WhitelistShadowObservation,
 	ActiveGatingResult,
 } from "./surgical_whitelist.js"
-import { SchemaContextPacket, RetrievalMetrics, renderSchemaBlock } from "./schema_types.js"
+import { SchemaContextPacket, RetrievalMetrics, renderSchemaBlock, renderMSchema, TableMeta, ColumnMeta } from "./schema_types.js"
 import { attemptAutocorrect, AutocorrectResult } from "./sql_autocorrect.js"
 import {
 	MULTI_CANDIDATE_CONFIG,
@@ -93,6 +96,8 @@ import { generateGlosses, type SchemaGlosses } from "./schema_glosses.js"
 import { linkSchema, formatSchemaLinkForPrompt, type SchemaLinkBundle } from "./schema_linker.js"
 import { planJoins, formatJoinPlanForPrompt, type JoinPlan } from "./join_planner.js"
 import { pgNormalize, type PgNormalizeResult } from "./pg_normalize.js"
+import { routeToModules, type ModuleRouteResult } from "./module_router.js"
+import { COLUMN_PRUNING_ENABLED, pruneColumns } from "./column_pruner.js"
 import fs from "fs"
 import path from "path"
 
@@ -162,6 +167,11 @@ export async function executeNLQuery(
 	let totalPostgresLatency = 0
 	let totalRetrievalLatency = 0
 
+	// Per-stage latency profiling (exam mode) — written to currentExamEntry incrementally
+	if (EXAM_MODE && currentExamEntry) {
+		currentExamEntry.stage_latencies = {}
+	}
+
 	// Track state across attempts
 	let currentSQL = ""
 	let currentConfidence = 0
@@ -209,16 +219,80 @@ export async function executeNLQuery(
 					logExamRetrievalMetrics(queryId, question, retrievalMetrics, logger)
 				}
 			} else {
-				// V1: Original retrieval
+				// V1: Original retrieval (with Phase 1 hybrid enhancements)
 				const retriever = getSchemaRetriever(pool, logger)
+
+				// Phase 1: Module routing (before retrieval)
+				let moduleFilter: string[] | undefined
+				let moduleRouteResult: ModuleRouteResult | undefined
+				if (MODULE_ROUTER_ENABLED) {
+					try {
+						const routeClient = await pool.connect()
+						try {
+							const embedding = await getPythonClient().embedText(question)
+							moduleRouteResult = await routeToModules(
+								routeClient,
+								question,
+								embedding,
+								3,
+								logger,
+							)
+							// Only apply filter if router returned specific modules
+							if (moduleRouteResult.modules.length > 0) {
+								moduleFilter = moduleRouteResult.modules
+							}
+							logger.info("Module routing complete", {
+								query_id: queryId,
+								modules: moduleRouteResult.modules,
+								method: moduleRouteResult.method,
+								confidences: moduleRouteResult.confidences.map(c => c.toFixed(3)),
+							})
+						} finally {
+							routeClient.release()
+						}
+					} catch (routeErr) {
+						logger.warn("Module routing failed, proceeding without filter", { error: String(routeErr) })
+					}
+				}
+
+				// Note: schemaLinkBundle not yet available at retrieval time for pruning.
+				// It will be passed on a second call if needed, but for now we prune inside retriever
+				// using whatever link bundle is available (none on first call).
 				schemaContext = await retriever.retrieveSchemaContext(
 					question,
 					databaseId,
+					{ moduleFilter },
 				)
 				allowedTables = getAllowedTables(schemaContext)
+
+				// V1: Record retrieval tables for exam logging
+				if (EXAM_MODE && currentExamEntry && schemaContext) {
+					currentExamEntry.retriever_version = "V1"
+					currentExamEntry.tables_retrieved = schemaContext.tables.map(t => t.table_name)
+					currentExamEntry.total_retrieval_latency_ms = Date.now() - retrievalStart
+
+					// Record Phase 1 diagnostics
+					const enriched = schemaContext as any
+					if (moduleRouteResult) {
+						currentExamEntry.module_route = {
+							modules: moduleRouteResult.modules,
+							confidences: moduleRouteResult.confidences,
+							method: moduleRouteResult.method,
+						}
+					}
+					if (enriched._bm25Tables) {
+						currentExamEntry.bm25_tables = enriched._bm25Tables
+					}
+					if (enriched._fusionMethod) {
+						currentExamEntry.fusion_method = enriched._fusionMethod
+					}
+				}
 			}
 
 			totalRetrievalLatency = Date.now() - retrievalStart
+			if (EXAM_MODE && currentExamEntry?.stage_latencies) {
+				currentExamEntry.stage_latencies.retrieval_ms = totalRetrievalLatency
+			}
 
 			logger.info("Schema retrieval complete", {
 				query_id: queryId,
@@ -243,7 +317,9 @@ export async function executeNLQuery(
 			// Phase 1A: Generate column glosses
 			let glosses: SchemaGlosses | undefined
 			if (SCHEMA_GLOSSES_ENABLED) {
+				const glossStart = Date.now()
 				glosses = generateGlosses(schemaContext)
+				if (EXAM_MODE && currentExamEntry?.stage_latencies) currentExamEntry.stage_latencies.glosses_ms = Date.now() - glossStart
 				logger.debug("Schema glosses generated", {
 					query_id: queryId,
 					column_count: glosses.size,
@@ -252,10 +328,12 @@ export async function executeNLQuery(
 
 			// Phase 1B: Schema linking
 			if (SCHEMA_LINKER_ENABLED) {
+				const linkerStart = Date.now()
 				schemaLinkBundle = linkSchema(question, schemaContext, glosses)
 				schemaLinkText = glosses
 					? formatSchemaLinkForPrompt(schemaLinkBundle, glosses)
 					: undefined
+				if (EXAM_MODE && currentExamEntry?.stage_latencies) currentExamEntry.stage_latencies.linker_ms = Date.now() - linkerStart
 
 				logger.info("Schema linking complete", {
 					query_id: queryId,
@@ -270,12 +348,82 @@ export async function executeNLQuery(
 				}
 			}
 
+			// Phase 1C: Column pruning (after linker so we can keep linked columns)
+			if (COLUMN_PRUNING_ENABLED && schemaContext) {
+				const pruneStart = Date.now()
+				let columnsPruned = 0
+				try {
+					const pruneClient = await pool.connect()
+					try {
+						const tableNames = schemaContext.tables.map(t => t.table_name)
+						const colResult = await pruneClient.query(`
+							SELECT table_name, column_name, data_type, is_pk, is_fk,
+								fk_target_table, fk_target_column, inferred_gloss, ordinal_pos
+							FROM rag.schema_columns
+							WHERE table_name = ANY($1)
+							ORDER BY table_name, ordinal_pos
+						`, [tableNames])
+
+						// Build TableMeta map from DB columns
+						const metaMap = new Map<string, TableMeta>()
+						for (const t of schemaContext.tables) {
+							const cols: ColumnMeta[] = colResult.rows
+								.filter((r: any) => r.table_name === t.table_name)
+								.map((r: any) => ({
+									column_name: r.column_name,
+									data_type: r.data_type,
+									is_pk: r.is_pk,
+									is_fk: r.is_fk,
+									fk_target_table: r.fk_target_table,
+									fk_target_column: r.fk_target_column,
+									inferred_gloss: r.inferred_gloss,
+									ordinal_pos: r.ordinal_pos,
+								}))
+							metaMap.set(t.table_name, {
+								table_schema: t.table_schema,
+								table_name: t.table_name,
+								module: t.module,
+								table_gloss: t.gloss,
+								fk_degree: 0,
+								is_hub: t.is_hub || false,
+								columns: cols,
+							})
+						}
+
+						const pruneResult = pruneColumns(metaMap, schemaLinkBundle)
+						columnsPruned = pruneResult.totalPruned
+
+						if (columnsPruned > 0) {
+							// Re-render M-Schema with pruned columns
+							for (let i = 0; i < schemaContext.tables.length; i++) {
+								const prunedMeta = pruneResult.pruned.get(schemaContext.tables[i].table_name)
+								if (prunedMeta) {
+									schemaContext.tables[i].m_schema = renderMSchema(prunedMeta)
+								}
+							}
+							logger.info("Column pruning applied", {
+								query_id: queryId,
+								columns_pruned: columnsPruned,
+							})
+						}
+					} finally {
+						pruneClient.release()
+					}
+				} catch (pruneErr) {
+					logger.warn("Column pruning failed, proceeding without", { error: String(pruneErr) })
+				}
+				if (EXAM_MODE && currentExamEntry?.stage_latencies) currentExamEntry.stage_latencies.pruning_ms = Date.now() - pruneStart
+				if (EXAM_MODE && currentExamEntry) currentExamEntry.columns_pruned = columnsPruned
+			}
+
 			// Phase 2: Join planning
 			if (JOIN_PLANNER_ENABLED) {
+				const plannerStart = Date.now()
 				joinPlan = planJoins(schemaContext, schemaLinkBundle)
 				if (joinPlan.skeletons.length > 0) {
 					joinPlanText = formatJoinPlanForPrompt(joinPlan)
 				}
+				if (EXAM_MODE && currentExamEntry?.stage_latencies) currentExamEntry.stage_latencies.planner_ms = Date.now() - plannerStart
 
 				logger.info("Join planning complete", {
 					query_id: queryId,
@@ -424,7 +572,17 @@ export async function executeNLQuery(
 				pythonResponse = await pythonClient.repairSQL(repairRequest)
 			}
 
-			totalPythonLatency += Date.now() - pythonStart
+			const pythonLatencyThisAttempt = Date.now() - pythonStart
+			totalPythonLatency += pythonLatencyThisAttempt
+
+			// Capture first generation timing and token counts for exam
+			if (attempt === 1) {
+				if (EXAM_MODE && currentExamEntry?.stage_latencies) currentExamEntry.stage_latencies.first_generation_ms = pythonLatencyThisAttempt
+				if (EXAM_MODE && currentExamEntry && pythonResponse.prompt_tokens) {
+					currentExamEntry.prompt_tokens = pythonResponse.prompt_tokens
+					currentExamEntry.completion_tokens = pythonResponse.completion_tokens
+				}
+			}
 
 			// Update state from Python response
 			currentSQL = pythonResponse.sql_generated
@@ -485,7 +643,11 @@ export async function executeNLQuery(
 				requireLimit: dbConfig.requireLimit,
 			})
 
-			totalValidationLatency += Date.now() - validationStart
+			const validationThisAttempt = Date.now() - validationStart
+			totalValidationLatency += validationThisAttempt
+			if (attempt === 1 && EXAM_MODE && currentExamEntry?.stage_latencies) {
+				currentExamEntry.stage_latencies.validation_ms = validationThisAttempt
+			}
 
 			// Check for fail-fast errors (security violations)
 			if (!validationResult.valid && validationResult.issues) {
@@ -1157,6 +1319,9 @@ export async function executeNLQuery(
 					execution_time_ms: executeLatency,
 				})
 
+				// Capture execution latency for stage profiling
+				if (EXAM_MODE && currentExamEntry?.stage_latencies) currentExamEntry.stage_latencies.execution_ms = executeLatency
+
 				// Record success for exam
 				recordExamExecutionResult(true, queryResult.rows.length, Date.now() - startTime)
 				recordExamRetrySuccess(attempt)
@@ -1206,6 +1371,12 @@ export async function executeNLQuery(
 					python_latency_ms: totalPythonLatency,
 					confidence_score: currentConfidence,
 				}, logger)
+
+				// Record final stage latencies for exam
+				if (EXAM_MODE && currentExamEntry?.stage_latencies) {
+					currentExamEntry.stage_latencies.retrieval_ms = totalRetrievalLatency
+					currentExamEntry.stage_latencies.total_ms = Date.now() - startTime
+				}
 
 				// Finalize exam entry
 				finalizeExamEntry(logger)
@@ -1590,6 +1761,10 @@ function buildErrorResponse(params: ErrorResponseParams, logger: any): NLQueryRe
 		recordExamExecutionResult(false, undefined, Date.now() - startTime)
 		finalizeShadowObservations("failure")
 		recordExamFailure(failureType, failureDetails, errorClass)
+		// Record total timing in stage_latencies (other stages already recorded incrementally)
+		if (currentExamEntry?.stage_latencies) {
+			currentExamEntry.stage_latencies.total_ms = Date.now() - params.startTime
+		}
 		finalizeExamEntry(logger)
 	}
 
@@ -1773,6 +1948,29 @@ interface FullExamLogEntry {
 		applied: boolean
 		transforms: string[]
 		changed: boolean
+	}
+
+	// Phase 1: Retrieval upgrades
+	module_route?: { modules: string[]; confidences: number[]; method: string }
+	bm25_tables?: string[]
+	fusion_method?: string
+	columns_pruned?: number
+
+	// Token counts (from Ollama via sidecar)
+	prompt_tokens?: number
+	completion_tokens?: number
+
+	// Per-stage latency profiling
+	stage_latencies?: {
+		retrieval_ms?: number
+		glosses_ms?: number
+		linker_ms?: number
+		pruning_ms?: number
+		planner_ms?: number
+		first_generation_ms?: number
+		validation_ms?: number
+		execution_ms?: number
+		total_ms?: number
 	}
 
 	// Timing

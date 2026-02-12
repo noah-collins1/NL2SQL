@@ -137,7 +137,7 @@ export interface RetrievedTable {
 	module: string
 	table_gloss: string
 	similarity: number
-	source: "retrieval" | "fk_expansion"
+	source: "retrieval" | "fk_expansion" | "bm25" | "hybrid"
 	fk_degree?: number
 	is_hub?: boolean
 }
@@ -245,7 +245,7 @@ export interface SchemaContextPacket {
 		gloss: string
 		m_schema: string
 		similarity: number
-		source: "retrieval" | "fk_expansion"
+		source: "retrieval" | "fk_expansion" | "bm25" | "hybrid"
 		is_hub?: boolean
 	}>
 

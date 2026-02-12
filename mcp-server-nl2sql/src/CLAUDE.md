@@ -1,13 +1,13 @@
 # NL2SQL MCP Server - TypeScript Layer
 
-**Last Updated:** 2026-02-08
+**Last Updated:** 2026-02-11
 
 ## Overview
 
 TypeScript MCP server that converts natural language to SQL. Handles schema retrieval, parallel multi-candidate SQL generation, validation, repair loops, and execution.
 
 **Database:** Enterprise ERP (60+ tables, 8 modules)
-**Current Success Rate:** 73.3% (Easy: 95%, Medium: 68%, Hard: 53%) — single run 2026-02-08
+**Current Success Rate:** 88.3% (Easy: 100%, Medium: 88%, Hard: 73.3%) — single run 2026-02-11
 
 ## Architecture
 
@@ -47,8 +47,11 @@ User Question
 
 | File | Purpose |
 |------|---------|
-| `schema_retriever.ts` | **V1 retriever (ACTIVE)** - pgvector similarity search |
+| `schema_retriever.ts` | **V1 retriever (ACTIVE)** - pgvector + BM25 hybrid search with RRF fusion |
 | `schema_retriever_v2.ts` | V2 dual retrieval (NOT IN USE - caused errors) |
+| `bm25_search.ts` | BM25 tsvector search + RRF fusion |
+| `module_router.ts` | Question → module classification (keyword + embedding) |
+| `column_pruner.ts` | Column pruning per table (PK/FK + linked + top-5) |
 | `schema_embedder.ts` | Embedding generation via Python sidecar |
 | `schema_introspector.ts` | Database introspection |
 | `schema_types.ts` | Schema type definitions, M-Schema format |
@@ -268,6 +271,11 @@ MULTI_CANDIDATE_K_EASY=2        # K for easy questions (default: 2)
 MULTI_CANDIDATE_K_HARD=6        # K for hard questions (default: 6)
 MULTI_CANDIDATE_TIME_BUDGET_MS=10000  # Total time budget (default: 10000)
 MULTI_CANDIDATE_EXPLAIN_TIMEOUT_MS=2000  # Per-candidate EXPLAIN timeout (default: 2000)
+
+# Phase 1: Retrieval Upgrades
+BM25_SEARCH_ENABLED=true        # BM25 tsvector search + RRF fusion (default: true)
+MODULE_ROUTER_ENABLED=true      # Module routing before retrieval (default: true)
+COLUMN_PRUNING_ENABLED=false    # Column pruning per table (default: false — causes regression)
 ```
 
 ### Repair Config
@@ -321,13 +329,15 @@ npx tsx scripts/populate_embeddings.ts
 
 ## Performance
 
-**Latest single run (2026-02-08):** 73.3% (44/60)
+**Latest single run (2026-02-11):** 88.3% (53/60)
 
 | Difficulty | Pass | Fail | Rate |
 |------------|------|------|------|
-| Easy (20) | 19 | 1 | 95% |
-| Medium (25) | 17 | 8 | 68% |
-| Hard (15) | 8 | 7 | 53% |
+| Easy (20) | 20 | 0 | 100% |
+| Medium (25) | 22 | 3 | 88% |
+| Hard (15) | 11 | 4 | 73.3% |
+
+**Config:** qwen2.5-coder:7b, glosses ON, PG normalize ON, schema linker ON, join planner ON, temp=0.3, sequential candidates
 
 **Historical reference (multi-run, 3 runs, 2026-02-07):**
 
@@ -336,68 +346,44 @@ npx tsx scripts/populate_embeddings.ts
 | Mean | 78.3% ± 1.4% |
 | Range | 76.7% - 80.0% |
 
-Note: The 2026-02-08 run is a single run, not a multi-run average. Variance between runs is ~±2-4%.
+Note: The 2026-02-11 run is a single run, not a multi-run average. Variance between runs is ~±2-4%.
 
-## Current Error Analysis (16 failures, 2026-02-08)
+## Current Error Analysis (7 failures, 2026-02-11)
 
 | Category | Count | % |
 |----------|-------|---|
-| column_miss | 5 | 8.3% |
-| llm_reasoning | 10 | 16.7% |
-| execution_error | 1 | 1.7% |
+| validation_exhausted | 3 | 5.0% |
+| generation_failure | 2 | 3.3% |
+| execution_error | 2 | 3.3% |
 
-### 1. Column Name Errors (5 failures, 8.3%)
+### Remaining Failures
 
-LLM invents columns not in schema:
+| Q# | Difficulty | Module | Question | Failure Mode | Root Cause |
+|----|-----------|--------|----------|-------------|------------|
+| 26 | Medium | Sales | Total sales amount by customer for 2024 | Validation (3 attempts) | Initial generation fails lint; final SQL is correct but too late |
+| 30 | Medium | Sales | Sales orders by sales representative | Validation (3 attempts) | Same as Q26; initial generation has lint errors |
+| 32 | Medium | Inventory | Total inventory value by warehouse | Validation (3 attempts) | Same pattern; `p.price` hallucinated initially (should be `list_price`) |
+| 49 | Hard | Sales | Month-over-month sales growth rate | Generation failure | Complex CTE+LAG query exceeds model capability |
+| 54 | Hard | Procurement | Vendor performance score | Generation failure | Model produces no valid SELECT statement |
+| 57 | Hard | Projects | Project profitability budget vs actual | Execution error: missing FROM | Joins `project_budgets` to `budgets` incorrectly, uses wrong table for `planned_amount` |
+| 60 | Hard | Cross-Module | Comprehensive employee cost report | Execution error: type cast | Casts text field `coverage_level` ("Family") to numeric |
 
-| Question | Wrong Column | SQLSTATE |
-|----------|--------------|----------|
-| Q21: Employees >5yr & >$100k | `year` (DATEDIFF keyword) | 42703 |
-| Q25: Expiring certifications | `ec.status` | 42703 |
-| Q32: Inventory value by warehouse | `il.quantity` | 42703 |
-| Q50: Order value by customer | `c.segment` | 42703 |
-| Q55: Trial balance | `ba.asset_id` | 42703 |
+### Failure Patterns
 
-### 2. LLM Reasoning Failures (10 failures, 16.7%)
+**Validation exhaustion (Q26, Q30, Q32):** The model generates SQL with lint errors on the first attempt, then the repair loop fixes the errors but exhausts all 3 attempts before producing a passing query. These are "almost there" failures where the correct SQL is reachable but the repair budget runs out.
 
-Validation failures, wrong logic, or gibberish:
-- Q2: Employees hired in 2024 (validation failure)
-- Q26: Sales by year (alias mismatch `c.customer_id` without defining `c`)
-- Q34: Total spend by vendor (`v.vendor_name` — column is `v.name`)
-- Q38: Posted journal entries (validation failure)
-- Q44: Assets due for maintenance (MySQL `DATE_ADD` syntax)
-- Q46: Employee turnover rate (validation failure)
-- Q51: Sales pipeline weighted value (validation failure)
-- Q56: Cash flow from transactions (validation failure)
-- Q57: Project profitability (duplicate alias `pb`)
-- Q60: Employee cost report (gibberish/model collapse)
+**Generation failures (Q49, Q54):** Complex analytical queries (CTEs with window functions, multi-step aggregations) exceed the 7B model's capability. These require a larger model or decomposed query strategies.
 
-### 3. Execution Errors (1 failure, 1.7%)
-
-- Q37: Debit/credit by account (subquery returned multiple rows, 21000)
-
-### Surgical Whitelist Observation Results (2026-02-08)
-
-Shadow observations from observe mode (no behavior change):
-
-| Metric | Value |
-|--------|-------|
-| Queries with 42703 observations | 9 |
-| Total observations | 16 |
-| Strict gating passed | 4/16 (25%) |
-| Active gating passed | 0/16 (0%) |
-| Max top1_score | 0.77 (below 0.80 floor) |
-| Dominant failure | `no_candidates` (62.5%) |
-
-**Conclusion:** Column-miss failures in this exam are primarily semantic misunderstandings (LLM uses wrong table entirely, invents non-existent concepts like `segment`, or confuses SQL keywords with columns). These are not close-typo cases where the surgical whitelist can help. Active mode would not have changed results for this run.
+**Execution errors (Q57, Q60):** The model produces syntactically valid SQL that fails at runtime — either joining wrong tables (Q57) or applying invalid type casts (Q60). These are semantic understanding gaps in the schema.
 
 ## Potential Fixes
 
 | Fix | Target Errors | Effort | Expected Impact |
 |-----|---------------|--------|-----------------|
-| Add column whitelist to prompt | column_miss (5) | Medium | +8% |
-| Add PostgreSQL examples (EXTRACT) | syntax (2) | Low | +3% |
-| Improve Sales schema descriptions | Sales module (45%) | Medium | +5% |
-| Add window function examples | complex analytics (4) | Medium | +5% |
+| Increase repair loop budget (4-5 attempts) | validation_exhausted (Q26, Q30, Q32) | Low | +5% |
+| Improve first-attempt lint quality | validation_exhausted (Q26, Q30, Q32) | Medium | +5% |
+| Add CTE/window function few-shot examples | generation_failure (Q49, Q54) | Medium | +3% |
+| Larger model for hard queries (14B+) | generation_failure + execution_error | High | +5% |
+| Schema description improvements for Projects/Cross-Module | execution_error (Q57, Q60) | Medium | +3% |
 
 See `/STATUS.md` for full metrics and recent changes.

@@ -1,14 +1,16 @@
 /**
  * Schema RAG Retriever
  *
- * Phase C: Retrieval integration for enterprise ERP database.
+ * Phase C + Phase 1: Retrieval integration for enterprise ERP database.
  *
  * Flow:
  * 1. Embed user question via Python sidecar
- * 2. Query pgvector for top-K similar tables
- * 3. Expand FK relationships (bounded for hub tables)
- * 4. Fetch column metadata for selected tables
- * 5. Build SchemaContextPacket with M-Schema format
+ * 2. Query pgvector for top-K similar tables (cosine)
+ * 3. Query BM25 full-text search (tsvector)
+ * 4. Fuse results with Reciprocal Rank Fusion (RRF)
+ * 5. Expand FK relationships (bounded for hub tables)
+ * 6. Fetch column metadata for selected tables
+ * 7. Build SchemaContextPacket with M-Schema format
  */
 
 import { Pool, PoolClient } from "pg"
@@ -23,6 +25,7 @@ import {
 	DEFAULT_RETRIEVAL_CONFIG,
 	renderMSchema,
 } from "./schema_types.js"
+import { BM25_SEARCH_ENABLED, bm25Search, rrfFuse, BM25Result } from "./bm25_search.js"
 
 /**
  * Schema Retriever for RAG-based table selection
@@ -57,14 +60,20 @@ export class SchemaRetriever {
 	async retrieveSchemaContext(
 		question: string,
 		databaseId: string,
-	): Promise<SchemaContextPacket> {
+		options?: {
+			moduleFilter?: string[]
+		},
+	): Promise<SchemaContextPacket & { _bm25Tables?: string[]; _fusionMethod?: string }> {
 		const queryId = uuidv4()
 		const startTime = Date.now()
+		const moduleFilter = options?.moduleFilter
 
 		this.logger.info("Starting schema retrieval", {
 			query_id: queryId,
 			question,
 			database_id: databaseId,
+			module_filter: moduleFilter,
+			bm25_enabled: BM25_SEARCH_ENABLED,
 		})
 
 		let client: PoolClient | null = null
@@ -81,27 +90,73 @@ export class SchemaRetriever {
 				latency_ms: embedLatency,
 			})
 
-			// Step 2: Query pgvector for similar tables
+			// Step 2: Query pgvector for similar tables (cosine)
 			client = await this.pool.connect()
 
 			const retrievalStart = Date.now()
-			const retrievedTables = await this.retrieveSimilarTables(
+			const cosineResults = await this.retrieveSimilarTables(
 				client,
 				embedding,
 				this.config.topK,
 				this.config.threshold,
+				moduleFilter,
 			)
 
-			this.logger.debug("Initial retrieval complete", {
+			this.logger.debug("Cosine retrieval complete", {
 				query_id: queryId,
-				tables_retrieved: retrievedTables.length,
-				top_tables: retrievedTables.slice(0, 5).map((t) => ({
+				tables_retrieved: cosineResults.length,
+				top_tables: cosineResults.slice(0, 5).map((t) => ({
 					name: t.table_name,
 					similarity: t.similarity.toFixed(3),
 				})),
 			})
 
-			// Step 3: FK Expansion
+			// Step 3: BM25 full-text search (if enabled)
+			let bm25Results: BM25Result[] = []
+			let fusionMethod = "cosine_only"
+
+			if (BM25_SEARCH_ENABLED) {
+				bm25Results = await bm25Search(
+					client,
+					question,
+					this.config.topK,
+					moduleFilter,
+					this.logger,
+				)
+
+				this.logger.debug("BM25 retrieval complete", {
+					query_id: queryId,
+					tables_retrieved: bm25Results.length,
+					top_tables: bm25Results.slice(0, 5).map(t => ({
+						name: t.table_name,
+						rank: t.rank.toFixed(4),
+					})),
+				})
+			}
+
+			// Step 4: Fuse results with RRF (or use cosine-only)
+			let retrievedTables: RetrievedTable[]
+
+			if (BM25_SEARCH_ENABLED && bm25Results.length > 0) {
+				retrievedTables = rrfFuse(cosineResults, bm25Results, {
+					k: 60,
+					maxTables: this.config.topK,
+				})
+				fusionMethod = "rrf"
+
+				this.logger.debug("RRF fusion complete", {
+					query_id: queryId,
+					cosine_count: cosineResults.length,
+					bm25_count: bm25Results.length,
+					fused_count: retrievedTables.length,
+					hybrid_count: retrievedTables.filter(t => t.source === "hybrid").length,
+					bm25_only_count: retrievedTables.filter(t => t.source === "bm25").length,
+				})
+			} else {
+				retrievedTables = cosineResults
+			}
+
+			// Step 5: FK Expansion
 			const expandedTables = await this.expandFKRelationships(
 				client,
 				retrievedTables,
@@ -115,14 +170,14 @@ export class SchemaRetriever {
 				tables_after: expandedTables.length,
 			})
 
-			// Step 4: Fetch full metadata for selected tables
+			// Step 6: Fetch full metadata for selected tables
 			const tableNames = expandedTables.map((t) => t.table_name)
 			const tableMetas = await this.fetchTableMetadata(client, tableNames)
 
-			// Step 5: Get FK edges between selected tables
+			// Step 7: Get FK edges between selected tables
 			const fkEdges = await this.getFKEdges(client, tableNames)
 
-			// Step 6: Build SchemaContextPacket
+			// Step 8: Build SchemaContextPacket
 			const packet = this.buildSchemaContextPacket(
 				queryId,
 				databaseId,
@@ -139,10 +194,16 @@ export class SchemaRetriever {
 				query_id: queryId,
 				tables_selected: packet.tables.length,
 				modules: packet.modules,
+				fusion_method: fusionMethod,
 				latency_ms: totalLatency,
 			})
 
-			return packet
+			// Attach diagnostics metadata for exam logging
+			const enrichedPacket = packet as SchemaContextPacket & { _bm25Tables?: string[]; _fusionMethod?: string }
+			enrichedPacket._bm25Tables = bm25Results.map(t => t.table_name)
+			enrichedPacket._fusionMethod = fusionMethod
+
+			return enrichedPacket
 		} finally {
 			if (client) {
 				client.release()
@@ -158,55 +219,59 @@ export class SchemaRetriever {
 		embedding: number[],
 		topK: number,
 		threshold: number,
+		moduleFilter?: string[],
 	): Promise<RetrievedTable[]> {
 		// Format embedding as PostgreSQL vector literal
 		const vectorLiteral = `[${embedding.join(",")}]`
 
-		// Debug: Check if rag schema exists
-		try {
-			const schemaCheck = await client.query(`
-				SELECT schema_name FROM information_schema.schemata WHERE schema_name = 'rag'
-			`)
-			this.logger.debug("Schema check result", {
-				rag_exists: schemaCheck.rows.length > 0,
-				schemas: schemaCheck.rows,
-			})
+		const hasModuleFilter = moduleFilter && moduleFilter.length > 0
 
-			const tableCheck = await client.query(`
-				SELECT table_name FROM information_schema.tables
-				WHERE table_schema = 'rag' AND table_name = 'schema_embeddings'
-			`)
-			this.logger.debug("Table check result", {
-				table_exists: tableCheck.rows.length > 0,
-			})
-		} catch (debugError) {
-			this.logger.error("Debug check failed", { error: String(debugError) })
-		}
+		const query = hasModuleFilter
+			? `
+				SELECT
+					se.table_name,
+					se.table_schema,
+					st.module,
+					st.table_gloss,
+					st.fk_degree,
+					st.is_hub,
+					1 - (se.embedding <=> $1::vector) AS similarity
+				FROM rag.schema_embeddings se
+				JOIN rag.schema_tables st
+					ON se.table_name = st.table_name
+					AND se.table_schema = st.table_schema
+				WHERE se.entity_type = 'table'
+					AND 1 - (se.embedding <=> $1::vector) >= $2
+					AND st.module = ANY($4)
+				ORDER BY se.embedding <=> $1::vector
+				LIMIT $3
+			`
+			: `
+				SELECT
+					se.table_name,
+					se.table_schema,
+					st.module,
+					st.table_gloss,
+					st.fk_degree,
+					st.is_hub,
+					1 - (se.embedding <=> $1::vector) AS similarity
+				FROM rag.schema_embeddings se
+				JOIN rag.schema_tables st
+					ON se.table_name = st.table_name
+					AND se.table_schema = st.table_schema
+				WHERE se.entity_type = 'table'
+					AND 1 - (se.embedding <=> $1::vector) >= $2
+				ORDER BY se.embedding <=> $1::vector
+				LIMIT $3
+			`
 
-		const query = `
-			SELECT
-				se.table_name,
-				se.table_schema,
-				st.module,
-				st.table_gloss,
-				st.fk_degree,
-				st.is_hub,
-				1 - (se.embedding <=> $1::vector) AS similarity
-			FROM rag.schema_embeddings se
-			JOIN rag.schema_tables st
-				ON se.table_name = st.table_name
-				AND se.table_schema = st.table_schema
-			WHERE se.entity_type = 'table'
-				AND 1 - (se.embedding <=> $1::vector) >= $2
-			ORDER BY se.embedding <=> $1::vector
-			LIMIT $3
-		`
+		const params: any[] = hasModuleFilter
+			? [vectorLiteral, threshold, topK, moduleFilter]
+			: [vectorLiteral, threshold, topK]
 
-		this.logger.debug("Executing retrieval query", { query_preview: query.substring(0, 100) })
+		const result = await client.query(query, params)
 
-		const result = await client.query(query, [vectorLiteral, threshold, topK])
-
-		return result.rows.map((row) => ({
+		return result.rows.map((row: any) => ({
 			table_name: row.table_name,
 			table_schema: row.table_schema,
 			module: row.module,

@@ -54,7 +54,7 @@ class HridaClient:
         max_tokens: int = 200,
         multi_candidate: bool = False,
         seed: Optional[int] = None
-    ) -> Tuple[str, float]:
+    ) -> Tuple[str, float, int, int]:
         """
         Generate SQL from prompt using Hrida
 
@@ -66,7 +66,7 @@ class HridaClient:
             seed: Optional seed for reproducible generation
 
         Returns:
-            Tuple of (sql, confidence_score)
+            Tuple of (sql, confidence_score, prompt_tokens, completion_tokens)
 
         Raises:
             HridaError: If generation fails or produces gibberish
@@ -110,6 +110,10 @@ class HridaClient:
             # Extract generated text
             sql = data.get("response", "").strip()
 
+            # Extract token counts from Ollama response
+            prompt_eval_count = data.get("prompt_eval_count", 0)
+            eval_count = data.get("eval_count", 0)
+
             # Strip markdown code fences / extract SQL from prose
             sql = self._strip_markdown_fences(sql)
 
@@ -138,9 +142,9 @@ class HridaClient:
             # Estimate confidence based on output quality
             confidence = self._estimate_confidence(sql)
 
-            logger.info(f"SQL generated successfully, confidence: {confidence:.2f}")
+            logger.info(f"SQL generated successfully, confidence: {confidence:.2f}, prompt_tokens: {prompt_eval_count}, completion_tokens: {eval_count}")
 
-            return sql, confidence
+            return sql, confidence, prompt_eval_count, eval_count
 
         except requests.Timeout:
             logger.error(f"Ollama request timed out after {self.timeout}s")
@@ -277,7 +281,7 @@ class HridaClient:
         max_tokens: int = 200,
         session: Optional[aiohttp.ClientSession] = None,
         seed: Optional[int] = None
-    ) -> Tuple[str, float]:
+    ) -> Tuple[str, float, int, int]:
         """
         Async version of generate_sql for parallel candidate generation.
 
@@ -289,7 +293,7 @@ class HridaClient:
             seed: Optional seed for reproducible generation
 
         Returns:
-            Tuple of (sql, confidence_score)
+            Tuple of (sql, confidence_score, prompt_tokens, completion_tokens)
 
         Raises:
             HridaError: If generation fails
@@ -332,6 +336,10 @@ class HridaClient:
 
                 sql = data.get("response", "").strip()
 
+                # Extract token counts from Ollama response
+                prompt_eval_count = data.get("prompt_eval_count", 0)
+                eval_count = data.get("eval_count", 0)
+
                 # Strip markdown code fences / extract SQL from prose
                 sql = self._strip_markdown_fences(sql)
 
@@ -346,7 +354,7 @@ class HridaClient:
                     sql += ";"
 
                 confidence = self._estimate_confidence(sql)
-                return sql, confidence
+                return sql, confidence, prompt_eval_count, eval_count
 
         except asyncio.TimeoutError:
             raise HridaError(f"Async request timed out after {self.timeout}s")
@@ -363,7 +371,7 @@ class HridaClient:
         temperature: float = 0.0,
         max_tokens: int = 200,
         base_seed: int = 42
-    ) -> List[Tuple[str, float]]:
+    ) -> Tuple[List[Tuple[str, float]], int, int]:
         """
         Generate K SQL candidates in parallel with different seeds for reproducible diversity.
 
@@ -375,7 +383,8 @@ class HridaClient:
             base_seed: Base seed value (each candidate uses base_seed + index)
 
         Returns:
-            List of (sql, confidence) tuples, deduplicated
+            Tuple of (candidates_list, prompt_tokens, total_completion_tokens)
+            where candidates_list is List of (sql, confidence) tuples, deduplicated
         """
         logger.info(f"Generating {k} candidates in parallel, temp={temperature}, base_seed={base_seed}")
 
@@ -396,13 +405,20 @@ class HridaClient:
         # Filter successful results and deduplicate
         candidates = []
         seen_normalized = set()
+        agg_prompt_tokens = 0
+        agg_completion_tokens = 0
 
         for result in results:
             if isinstance(result, Exception):
                 logger.warning(f"Candidate generation failed: {result}")
                 continue
 
-            sql, confidence = result
+            sql, confidence, prompt_tokens, completion_tokens = result
+            agg_completion_tokens += completion_tokens
+            # Use prompt_tokens from first successful result (same prompt for all)
+            if agg_prompt_tokens == 0:
+                agg_prompt_tokens = prompt_tokens
+
             # Normalize for deduplication: lowercase, collapse whitespace
             normalized = re.sub(r'\s+', ' ', sql.lower().strip())
 
@@ -413,8 +429,8 @@ class HridaClient:
             else:
                 logger.debug(f"Duplicate candidate skipped")
 
-        logger.info(f"Generated {len(candidates)} unique candidates from {k} attempts")
-        return candidates
+        logger.info(f"Generated {len(candidates)} unique candidates from {k} attempts, prompt_tokens={agg_prompt_tokens}")
+        return candidates, agg_prompt_tokens, agg_completion_tokens
 
     def generate_candidates_sequential(
         self,
@@ -423,7 +439,7 @@ class HridaClient:
         temperature: float = 0.3,
         max_tokens: int = 200,
         base_seed: int = 42
-    ) -> List[Tuple[str, float]]:
+    ) -> Tuple[List[Tuple[str, float]], int, int]:
         """
         Generate K SQL candidates sequentially (one at a time).
 
@@ -438,21 +454,29 @@ class HridaClient:
             base_seed: Base seed value (each candidate uses base_seed + index)
 
         Returns:
-            List of (sql, confidence) tuples, deduplicated
+            Tuple of (candidates_list, prompt_tokens, total_completion_tokens)
+            where candidates_list is List of (sql, confidence) tuples, deduplicated
         """
         logger.info(f"Generating {k} candidates sequentially, temp={temperature}, base_seed={base_seed}")
 
         candidates = []
         seen_normalized = set()
+        agg_prompt_tokens = 0
+        agg_completion_tokens = 0
 
         for i in range(k):
             try:
-                sql, confidence = self.generate_sql(
+                sql, confidence, prompt_tokens, completion_tokens = self.generate_sql(
                     prompt=prompt,
                     temperature=temperature,
                     max_tokens=max_tokens,
                     seed=base_seed + i
                 )
+                agg_completion_tokens += completion_tokens
+                # Use prompt_tokens from first successful result (same prompt for all)
+                if agg_prompt_tokens == 0:
+                    agg_prompt_tokens = prompt_tokens
+
                 normalized = re.sub(r'\s+', ' ', sql.lower().strip())
                 if normalized not in seen_normalized:
                     seen_normalized.add(normalized)
@@ -463,8 +487,8 @@ class HridaClient:
             except HridaError as e:
                 logger.warning(f"Sequential candidate {i} failed: {e}")
 
-        logger.info(f"Generated {len(candidates)} unique candidates from {k} sequential attempts")
-        return candidates
+        logger.info(f"Generated {len(candidates)} unique candidates from {k} sequential attempts, prompt_tokens={agg_prompt_tokens}")
+        return candidates, agg_prompt_tokens, agg_completion_tokens
 
 
 # Singleton instance for convenience
