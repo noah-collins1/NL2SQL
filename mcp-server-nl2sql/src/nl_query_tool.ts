@@ -184,6 +184,7 @@ export async function executeNLQuery(
 	let schemaContext: SchemaContextPacket | null = null
 	let allowedTables: string[] = []
 	let retrievalMetrics: RetrievalMetrics | null = null
+	let moduleRouteResult: ModuleRouteResult | undefined
 
 	// Repair loop state
 	let attempt = 0
@@ -224,7 +225,6 @@ export async function executeNLQuery(
 
 				// Phase 1: Module routing (before retrieval)
 				let moduleFilter: string[] | undefined
-				let moduleRouteResult: ModuleRouteResult | undefined
 				if (MODULE_ROUTER_ENABLED) {
 					try {
 						const routeClient = await pool.connect()
@@ -419,7 +419,9 @@ export async function executeNLQuery(
 			// Phase 2: Join planning
 			if (JOIN_PLANNER_ENABLED) {
 				const plannerStart = Date.now()
-				joinPlan = planJoins(schemaContext, schemaLinkBundle)
+				joinPlan = planJoins(schemaContext, schemaLinkBundle, undefined, {
+					moduleRouteResult,
+				})
 				if (joinPlan.skeletons.length > 0) {
 					joinPlanText = formatJoinPlanForPrompt(joinPlan)
 				}
@@ -1941,6 +1943,15 @@ interface FullExamLogEntry {
 		candidate_count: number
 		selected_tables: string[]
 		skeleton_sql: string | null
+		cross_module_detected?: boolean
+		bridge_tables?: string[]
+		modules_used?: string[]
+		score_details?: {
+			hopCount: number
+			semanticAlignment: number
+			columnCoverage: number
+			combined: number
+		}
 	}
 
 	// PG normalization
@@ -2124,6 +2135,10 @@ function recordExamJoinPlan(plan: JoinPlan): void {
 		candidate_count: plan.skeletons.length,
 		selected_tables: skeleton?.tables || [],
 		skeleton_sql: skeleton?.sqlFragment || null,
+		cross_module_detected: plan.crossModuleDetected,
+		bridge_tables: plan.bridgeTables,
+		modules_used: plan.modulesUsed,
+		score_details: skeleton?.scoreDetails,
 	}
 }
 

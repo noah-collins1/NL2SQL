@@ -77,7 +77,14 @@ export const EXAM_MODE = process.env.EXAM_MODE === "true"
  */
 export { SCHEMA_GLOSSES_ENABLED } from "./schema_glosses.js"
 export { SCHEMA_LINKER_ENABLED } from "./schema_linker.js"
-export { JOIN_PLANNER_ENABLED, JOIN_PLANNER_TOP_K } from "./join_planner.js"
+export {
+	JOIN_PLANNER_ENABLED,
+	JOIN_PLANNER_TOP_K,
+	FK_SUBGRAPH_CACHE_ENABLED,
+	DYNAMIC_HUB_CAP_ENABLED,
+	JOIN_PATH_SCORING_ENABLED,
+	CROSS_MODULE_JOIN_ENABLED,
+} from "./join_planner.js"
 export { PG_NORMALIZE_ENABLED } from "./pg_normalize.js"
 export { CANDIDATE_RERANKER_ENABLED } from "./candidate_reranker.js"
 export { BM25_SEARCH_ENABLED } from "./bm25_search.js"

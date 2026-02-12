@@ -329,7 +329,7 @@ npx tsx scripts/populate_embeddings.ts
 
 ## Performance
 
-**Latest single run (2026-02-11):** 88.3% (53/60)
+**Latest single run (2026-02-12):** 88.3% (53/60)
 
 | Difficulty | Pass | Fail | Rate |
 |------------|------|------|------|
@@ -337,7 +337,7 @@ npx tsx scripts/populate_embeddings.ts
 | Medium (25) | 22 | 3 | 88% |
 | Hard (15) | 11 | 4 | 73.3% |
 
-**Config:** qwen2.5-coder:7b, glosses ON, PG normalize ON, schema linker ON, join planner ON, temp=0.3, sequential candidates
+**Config:** qwen2.5-coder:7b, glosses ON, PG normalize ON, schema linker ON, join planner ON (Phase 2: subgraph cache, hub caps, cross-module, path scoring), BM25 ON, module router ON, temp=0.3, sequential candidates
 
 **Historical reference (multi-run, 3 runs, 2026-02-07):**
 
@@ -346,44 +346,52 @@ npx tsx scripts/populate_embeddings.ts
 | Mean | 78.3% ± 1.4% |
 | Range | 76.7% - 80.0% |
 
-Note: The 2026-02-11 run is a single run, not a multi-run average. Variance between runs is ~±2-4%.
+Note: The 2026-02-12 run is a single run, not a multi-run average. Variance between runs is ~±2-4%.
 
-## Current Error Analysis (7 failures, 2026-02-11)
+## Current Error Analysis (7 failures, 2026-02-12)
 
 | Category | Count | % |
 |----------|-------|---|
-| validation_exhausted | 3 | 5.0% |
-| generation_failure | 2 | 3.3% |
+| llm_reasoning | 4 | 6.7% |
+| join_path_miss | 1 | 1.7% |
 | execution_error | 2 | 3.3% |
 
 ### Remaining Failures
 
 | Q# | Difficulty | Module | Question | Failure Mode | Root Cause |
 |----|-----------|--------|----------|-------------|------------|
-| 26 | Medium | Sales | Total sales amount by customer for 2024 | Validation (3 attempts) | Initial generation fails lint; final SQL is correct but too late |
-| 30 | Medium | Sales | Sales orders by sales representative | Validation (3 attempts) | Same as Q26; initial generation has lint errors |
-| 32 | Medium | Inventory | Total inventory value by warehouse | Validation (3 attempts) | Same pattern; `p.price` hallucinated initially (should be `list_price`) |
-| 49 | Hard | Sales | Month-over-month sales growth rate | Generation failure | Complex CTE+LAG query exceeds model capability |
-| 54 | Hard | Procurement | Vendor performance score | Generation failure | Model produces no valid SELECT statement |
-| 57 | Hard | Projects | Project profitability budget vs actual | Execution error: missing FROM | Joins `project_budgets` to `budgets` incorrectly, uses wrong table for `planned_amount` |
-| 60 | Hard | Cross-Module | Comprehensive employee cost report | Execution error: type cast | Casts text field `coverage_level` ("Family") to numeric |
+| 26 | Medium | Sales | Total sales amount by customer for 2024 | llm_reasoning (validation exhausted) | All candidates fail EXPLAIN; repair loop exhausts 3 attempts |
+| 30 | Medium | Sales | Sales orders by sales representative | llm_reasoning (validation exhausted) | Same as Q26; initial generation has lint errors, repair budget runs out |
+| 32 | Medium | Inventory | Total inventory value by warehouse | llm_reasoning (validation exhausted) | Same pattern; `p.price` hallucinated initially (should be `list_price`) |
+| 46 | Hard | HR | Employee turnover rate by department | execution_error | No valid multi-candidate produced; sidecar returns error |
+| 49 | Hard | Sales | Month-over-month sales growth rate | llm_reasoning (validation exhausted) | Complex CTE+LAG query exceeds model capability; all candidates fail |
+| 57 | Hard | Projects | Project profitability budget vs actual | join_path_miss | **Retrieval miss** (recall=0%): retriever does not return `projects`, `project_budgets`, or `project_expenses`. Join planner produces correct skeleton in unit tests but cannot operate on tables the retriever never provides. Root cause is retrieval, not join planning. |
+| 60 | Hard | Cross-Module | Comprehensive employee cost report | execution_error | **Retrieval miss** (recall=0%): retriever does not return `employees`, `departments`, `employee_benefits`, `benefit_types`. Model produces SQL that fails with type cast error on partial schema. |
 
 ### Failure Patterns
 
-**Validation exhaustion (Q26, Q30, Q32):** The model generates SQL with lint errors on the first attempt, then the repair loop fixes the errors but exhausts all 3 attempts before producing a passing query. These are "almost there" failures where the correct SQL is reachable but the repair budget runs out.
+**LLM reasoning / validation exhaustion (Q26, Q30, Q32, Q49):** The model generates SQL with lint errors or incorrect column references on the first attempt, then the repair loop fixes some errors but exhausts all 3 attempts. These are "almost there" failures where the correct SQL is reachable but the repair budget runs out. Q49 additionally involves complex CTE+window function patterns that exceed 7B model capability.
 
-**Generation failures (Q49, Q54):** Complex analytical queries (CTEs with window functions, multi-step aggregations) exceed the 7B model's capability. These require a larger model or decomposed query strategies.
+**Execution errors (Q46, Q60):** The model either produces no valid candidates at all (Q46) or produces SQL that fails at runtime with type cast errors (Q60). Q60 is compounded by retrieval missing all required tables.
 
-**Execution errors (Q57, Q60):** The model produces syntactically valid SQL that fails at runtime — either joining wrong tables (Q57) or applying invalid type casts (Q60). These are semantic understanding gaps in the schema.
+**Retrieval miss → downstream failure (Q57, Q60):** Both Q57 and Q60 show recall=0% — the retriever returns none of the required tables. The join planner and scoring infrastructure are correct (verified in unit tests) but cannot help when the upstream retrieval layer fails to provide the right tables. These are **retrieval-layer problems** that will be addressed when scaling to 2000 tables with improved retrieval strategies.
+
+### Deferred to Post-Scaling
+
+The following failures are **not addressable by pipeline improvements** at 70 tables. They require retrieval upgrades that are part of the 2000-table scaling work:
+
+- **Q57:** Retrieval needs to surface `projects`, `project_budgets`, `project_expenses` for "project profitability" queries. At 2000 tables, BM25 + improved module routing should help.
+- **Q60:** Cross-module retrieval needs to surface tables from HR + Finance modules simultaneously. The Phase 2 cross-module join detection is ready but depends on retrieval providing the tables first.
 
 ## Potential Fixes
 
 | Fix | Target Errors | Effort | Expected Impact |
 |-----|---------------|--------|-----------------|
-| Increase repair loop budget (4-5 attempts) | validation_exhausted (Q26, Q30, Q32) | Low | +5% |
-| Improve first-attempt lint quality | validation_exhausted (Q26, Q30, Q32) | Medium | +5% |
-| Add CTE/window function few-shot examples | generation_failure (Q49, Q54) | Medium | +3% |
-| Larger model for hard queries (14B+) | generation_failure + execution_error | High | +5% |
+| Increase repair loop budget (4-5 attempts) | llm_reasoning (Q26, Q30, Q32) | Low | +5% |
+| Improve first-attempt lint quality | llm_reasoning (Q26, Q30, Q32) | Medium | +5% |
+| Add CTE/window function few-shot examples | llm_reasoning (Q49) | Medium | +1.7% |
+| Larger model for hard queries (14B+) | llm_reasoning + execution_error | High | +5% |
+| Retrieval improvements (2000-table scaling) | join_path_miss (Q57) + execution_error (Q60) | Part of scaling plan | +3.3% |
 | Schema description improvements for Projects/Cross-Module | execution_error (Q57, Q60) | Medium | +3% |
 
 See `/STATUS.md` for full metrics and recent changes.
