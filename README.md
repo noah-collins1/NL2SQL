@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="nl2sql.png" alt="NL2SQL Logo" width="200">
+</p>
+
 # NL2SQL
 
 An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that converts natural language questions into PostgreSQL queries using local LLMs via Ollama. Connect it to any MCP-compatible client — [LibreChat](https://www.librechat.ai/), [Claude Desktop](https://claude.ai/download), or your own internal applications — and let users query databases in plain English.
