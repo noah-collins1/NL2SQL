@@ -118,13 +118,13 @@ Create a JSON file with test questions:
 ]
 ```
 
-Place it in `enterprise-erp/003_test_questions.json` (or modify the exam runner to point to your file).
+Place it in `demo/enterprise-erp/003_test_questions.json` (or modify the exam runner to point to your file).
 
 ## Step 6: Run the Exam
 
 ```bash
 ./scripts/start-sidecar.sh --bg
-./scripts/run-exam.sh
+./demo/run-exam.sh
 ```
 
 ## Tips

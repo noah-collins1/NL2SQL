@@ -55,7 +55,7 @@ Error: relation "rag.table_embeddings" does not exist
 
 **Fix:** Run the RAG setup:
 ```bash
-./scripts/setup-db.sh
+./demo/setup-db.sh
 ```
 
 ### search_path issues (2000-table DB)

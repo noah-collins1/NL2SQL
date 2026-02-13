@@ -15,7 +15,7 @@ Total table count:
 This scale stresses schema retrieval, join-path selection, column grounding, and value grounding in NL2SQL pipelines.
 
 ## Baseline Modules and Join Hubs (85 tables)
-Modules (from `enterprise-erp/schema_design.md`):
+Modules (from `demo/enterprise-erp/schema_design.md`):
 - HR: employees, departments, positions, benefits, leave, training
 - Finance: chart_of_accounts, journal_entries/lines, budgets, bank accounts
 - Sales: customers, sales_orders, order_lines, sales_opportunities
@@ -81,7 +81,7 @@ Why:
 - Keeps table names consistent for BIRD-style question generation.
 
 Each division schema is generated from a template and includes:
-- The base 85-table ERP schema (from `enterprise-erp/001_create_schema.sql`)
+- The base 85-table ERP schema (from `demo/enterprise-erp/001_create_schema.sql`)
 - The 15 deepening tables above
 
 ## Shared Dimensions and Reporting
@@ -98,34 +98,34 @@ These simulate a corporate analytics layer and provide global lookup for cross-d
 - Some legacy naming drift: `payroll_run_hdr`, `cust_srv_case` and `cust_id`
 
 ## Data Generation Strategy
-- Base data (85 tables) is generated per division with unique seeds via `data_gen/generate_base_division_sql.py`.
+- Base data (85 tables) is generated per division with unique seeds via `demo/data_gen/generate_base_division_sql.py`.
 - Deepening tables are generated with deterministic seeds and division size multipliers.
 - Date ranges span 2021–2025 for temporal realism.
 - Output CSVs are loaded via `psql \copy` for speed.
-- `data_gen/output/value_index.json` provides sample values for value grounding in exam generation.
+- `demo/data_gen/output/value_index.json` provides sample values for value grounding in exam generation.
 
 ## BIRD-Style Exam Generation
-- Templates live in `exam/templates.yaml`.
-- `exam/generate_exam.py` samples templates with real value hints and emits `exam/exam_200.csv`.
+- Templates live in `demo/exam/templates.yaml`.
+- `demo/exam/generate_exam.py` samples templates with real value hints and emits `demo/exam/exam_200.csv`.
 - Difficulty tiers:
   - Simple: 1–2 tables
   - Moderate: 3–5 tables or group-by
   - Challenging: >5 tables or multi-hop cross-module or window/CTE logic
 
 ## Key Files
-- `schema_gen/base_schema.sql`
-- `schema_gen/division_schema_template.sql.jinja`
-- `schema_gen/generate_schema.py`
-- `schema_gen/apply_schema.sh`
-- `data_gen/seed.py`
-- `data_gen/generate_data.py`
-- `data_gen/load_data.sh`
-- `exam/templates.yaml`
-- `exam/generate_exam.py`
-- `exam/exam_200.csv`
-- `exam/grading.md`
-- `validation/validate_db.sql`
-- `validation/validate.py`
+- `demo/schema_gen/base_schema.sql`
+- `demo/schema_gen/division_schema_template.sql.jinja`
+- `demo/schema_gen/generate_schema.py`
+- `demo/schema_gen/apply_schema.sh`
+- `demo/data_gen/seed.py`
+- `demo/data_gen/generate_data.py`
+- `demo/data_gen/load_data.sh`
+- `demo/exam/templates.yaml`
+- `demo/exam/generate_exam.py`
+- `demo/exam/exam_200.csv`
+- `demo/exam/grading.md`
+- `demo/validation/validate_db.sql`
+- `demo/validation/validate.py`
 
 ## How This Mirrors Real Enterprise ERP Complexity
 - Multiple divisions with shared corporate dimensions.
@@ -134,7 +134,7 @@ These simulate a corporate analytics layer and provide global lookup for cross-d
 - Analytics layer tables and event streams to mimic reporting/telemetry loads.
 
 ## Connection Details
-Default read-only user (set in `schema_gen/apply_schema.sh`):
+Default read-only user (set in `demo/schema_gen/apply_schema.sh`):
 - user: `erp_readonly`
 - password: `treyco`
 - db: `enterprise_erp_2000`

@@ -1,0 +1,511 @@
+{
+  "test_suite": "Enterprise ERP NL2SQL Test Suite",
+  "version": "1.1",
+  "total_questions": 60,
+  "description": "Comprehensive test questions for 85-table Enterprise ERP schema - designed to test schema filtering capabilities",
+  "difficulty_distribution": {
+    "easy": 20,
+    "medium": 25,
+    "hard": 15
+  },
+  "questions": [
+    {
+      "id": 1,
+      "difficulty": "easy",
+      "module": "HR",
+      "question": "List all employees in the Sales department",
+      "tables_needed": ["employees", "departments"],
+      "expected_columns": ["employee_id", "first_name", "last_name", "department_id"]
+    },
+    {
+      "id": 2,
+      "difficulty": "easy",
+      "module": "HR",
+      "question": "How many employees were hired in 2024?",
+      "tables_needed": ["employees"],
+      "expected_columns": ["count"]
+    },
+    {
+      "id": 3,
+      "difficulty": "easy",
+      "module": "HR",
+      "question": "What is the average salary by department?",
+      "tables_needed": ["employees", "departments"],
+      "expected_columns": ["department_name", "avg_salary"]
+    },
+    {
+      "id": 4,
+      "difficulty": "easy",
+      "module": "Sales",
+      "question": "List all customers with credit limit over $100,000",
+      "tables_needed": ["customers"],
+      "expected_columns": ["customer_id", "name", "credit_limit"]
+    },
+    {
+      "id": 5,
+      "difficulty": "easy",
+      "module": "Sales",
+      "question": "How many sales orders are in pending status?",
+      "tables_needed": ["sales_orders"],
+      "expected_columns": ["count"]
+    },
+    {
+      "id": 6,
+      "difficulty": "easy",
+      "module": "Inventory",
+      "question": "List all products in the Electronics category",
+      "tables_needed": ["products", "product_categories"],
+      "expected_columns": ["product_id", "sku", "name"]
+    },
+    {
+      "id": 7,
+      "difficulty": "easy",
+      "module": "Inventory",
+      "question": "What are the names of all warehouses?",
+      "tables_needed": ["warehouses"],
+      "expected_columns": ["warehouse_id", "name"]
+    },
+    {
+      "id": 8,
+      "difficulty": "easy",
+      "module": "Procurement",
+      "question": "List all active vendors",
+      "tables_needed": ["vendors"],
+      "expected_columns": ["vendor_id", "name", "is_active"]
+    },
+    {
+      "id": 9,
+      "difficulty": "easy",
+      "module": "Finance",
+      "question": "What are the different account types in the chart of accounts?",
+      "tables_needed": ["account_types"],
+      "expected_columns": ["type_id", "name", "category"]
+    },
+    {
+      "id": 10,
+      "difficulty": "easy",
+      "module": "Finance",
+      "question": "List all bank accounts and their current balances",
+      "tables_needed": ["bank_accounts"],
+      "expected_columns": ["bank_account_id", "account_name", "current_balance"]
+    },
+    {
+      "id": 11,
+      "difficulty": "easy",
+      "module": "Projects",
+      "question": "How many projects are currently active?",
+      "tables_needed": ["projects"],
+      "expected_columns": ["count"]
+    },
+    {
+      "id": 12,
+      "difficulty": "easy",
+      "module": "Assets",
+      "question": "List all fixed assets with their purchase cost",
+      "tables_needed": ["fixed_assets"],
+      "expected_columns": ["asset_id", "name", "purchase_cost"]
+    },
+    {
+      "id": 13,
+      "difficulty": "easy",
+      "module": "HR",
+      "question": "What are all the available leave types?",
+      "tables_needed": ["leave_types"],
+      "expected_columns": ["leave_type_id", "name", "days_allowed"]
+    },
+    {
+      "id": 14,
+      "difficulty": "easy",
+      "module": "HR",
+      "question": "List all training courses that are mandatory",
+      "tables_needed": ["training_courses"],
+      "expected_columns": ["course_id", "name", "is_mandatory"]
+    },
+    {
+      "id": 15,
+      "difficulty": "easy",
+      "module": "Sales",
+      "question": "What are the different opportunity stages?",
+      "tables_needed": ["opportunity_stages"],
+      "expected_columns": ["stage_id", "name", "probability"]
+    },
+    {
+      "id": 16,
+      "difficulty": "easy",
+      "module": "Common",
+      "question": "List all countries in the system",
+      "tables_needed": ["countries"],
+      "expected_columns": ["country_id", "name", "iso_code"]
+    },
+    {
+      "id": 17,
+      "difficulty": "easy",
+      "module": "HR",
+      "question": "How many departments are there?",
+      "tables_needed": ["departments"],
+      "expected_columns": ["count"]
+    },
+    {
+      "id": 18,
+      "difficulty": "easy",
+      "module": "Inventory",
+      "question": "List all units of measure",
+      "tables_needed": ["units_of_measure"],
+      "expected_columns": ["uom_id", "name", "abbreviation"]
+    },
+    {
+      "id": 19,
+      "difficulty": "easy",
+      "module": "Finance",
+      "question": "What fiscal years exist in the system?",
+      "tables_needed": ["fiscal_years"],
+      "expected_columns": ["fiscal_year_id", "year", "is_closed"]
+    },
+    {
+      "id": 20,
+      "difficulty": "easy",
+      "module": "Assets",
+      "question": "What are the different asset categories?",
+      "tables_needed": ["asset_categories"],
+      "expected_columns": ["category_id", "name", "depreciation_method"]
+    },
+    {
+      "id": 21,
+      "difficulty": "medium",
+      "module": "HR",
+      "question": "Find employees who have been with the company for more than 5 years and earn above $100,000",
+      "tables_needed": ["employees"],
+      "expected_columns": ["employee_id", "first_name", "last_name", "hire_date", "salary"]
+    },
+    {
+      "id": 22,
+      "difficulty": "medium",
+      "module": "HR",
+      "question": "List employees and their managers' names",
+      "tables_needed": ["employees"],
+      "expected_columns": ["employee_name", "manager_name"]
+    },
+    {
+      "id": 23,
+      "difficulty": "medium",
+      "module": "HR",
+      "question": "Which employees have pending leave requests?",
+      "tables_needed": ["employees", "leave_requests"],
+      "expected_columns": ["employee_id", "first_name", "last_name", "leave_type", "start_date"]
+    },
+    {
+      "id": 24,
+      "difficulty": "medium",
+      "module": "HR",
+      "question": "Show the number of employees per position title",
+      "tables_needed": ["employees", "positions"],
+      "expected_columns": ["position_title", "employee_count"]
+    },
+    {
+      "id": 25,
+      "difficulty": "medium",
+      "module": "HR",
+      "question": "Find employees with expiring certifications in the next 6 months",
+      "tables_needed": ["employees", "employee_certifications", "certifications"],
+      "expected_columns": ["employee_name", "certification_name", "expiry_date"]
+    },
+    {
+      "id": 26,
+      "difficulty": "medium",
+      "module": "Sales",
+      "question": "What is the total sales amount by customer for 2024?",
+      "tables_needed": ["customers", "sales_orders"],
+      "expected_columns": ["customer_name", "total_sales"]
+    },
+    {
+      "id": 27,
+      "difficulty": "medium",
+      "module": "Sales",
+      "question": "List the top 10 customers by total order value",
+      "tables_needed": ["customers", "sales_orders"],
+      "expected_columns": ["customer_id", "customer_name", "total_order_value"]
+    },
+    {
+      "id": 28,
+      "difficulty": "medium",
+      "module": "Sales",
+      "question": "Show sales opportunities in the Negotiation stage worth over $50,000",
+      "tables_needed": ["sales_opportunities", "opportunity_stages", "customers"],
+      "expected_columns": ["opportunity_name", "customer_name", "amount", "stage"]
+    },
+    {
+      "id": 29,
+      "difficulty": "medium",
+      "module": "Sales",
+      "question": "What is the conversion rate from quotes to orders?",
+      "tables_needed": ["sales_quotes", "sales_orders"],
+      "expected_columns": ["total_quotes", "converted_to_orders", "conversion_rate"]
+    },
+    {
+      "id": 30,
+      "difficulty": "medium",
+      "module": "Sales",
+      "question": "List sales orders by sales representative with their totals",
+      "tables_needed": ["sales_orders", "employees"],
+      "expected_columns": ["sales_rep_name", "total_sales"]
+    },
+    {
+      "id": 31,
+      "difficulty": "medium",
+      "module": "Inventory",
+      "question": "Which products have inventory below their reorder point?",
+      "tables_needed": ["products", "inventory_levels", "reorder_rules"],
+      "expected_columns": ["product_name", "current_quantity", "min_quantity"]
+    },
+    {
+      "id": 32,
+      "difficulty": "medium",
+      "module": "Inventory",
+      "question": "Show total inventory value by warehouse",
+      "tables_needed": ["inventory_levels", "products", "warehouses"],
+      "expected_columns": ["warehouse_name", "total_inventory_value"]
+    },
+    {
+      "id": 33,
+      "difficulty": "medium",
+      "module": "Inventory",
+      "question": "List products that had stock transfers in the last 30 days",
+      "tables_needed": ["products", "stock_transfers", "transfer_lines"],
+      "expected_columns": ["product_name", "transfer_count"]
+    },
+    {
+      "id": 34,
+      "difficulty": "medium",
+      "module": "Procurement",
+      "question": "What is the total spend by vendor this year?",
+      "tables_needed": ["vendors", "purchase_orders"],
+      "expected_columns": ["vendor_name", "total_spend"]
+    },
+    {
+      "id": 35,
+      "difficulty": "medium",
+      "module": "Procurement",
+      "question": "List purchase orders that are overdue (expected date passed but not received)",
+      "tables_needed": ["purchase_orders", "vendors"],
+      "expected_columns": ["po_number", "vendor_name", "expected_date", "status"]
+    },
+    {
+      "id": 36,
+      "difficulty": "medium",
+      "module": "Procurement",
+      "question": "Show the approval rate for purchase requisitions",
+      "tables_needed": ["purchase_requisitions"],
+      "expected_columns": ["total_requisitions", "approved", "approval_rate"]
+    },
+    {
+      "id": 37,
+      "difficulty": "medium",
+      "module": "Finance",
+      "question": "What is the total debit and credit for each account in the current period?",
+      "tables_needed": ["chart_of_accounts", "journal_lines", "journal_entries", "fiscal_periods"],
+      "expected_columns": ["account_name", "total_debit", "total_credit"]
+    },
+    {
+      "id": 38,
+      "difficulty": "medium",
+      "module": "Finance",
+      "question": "List all posted journal entries for the current month",
+      "tables_needed": ["journal_entries", "fiscal_periods"],
+      "expected_columns": ["entry_number", "entry_date", "description", "status"]
+    },
+    {
+      "id": 39,
+      "difficulty": "medium",
+      "module": "Finance",
+      "question": "Show budget vs actual spending by department",
+      "tables_needed": ["budgets", "departments", "budget_lines"],
+      "expected_columns": ["department_name", "budget_amount", "actual_amount"]
+    },
+    {
+      "id": 40,
+      "difficulty": "medium",
+      "module": "Projects",
+      "question": "What is the total expense amount per project?",
+      "tables_needed": ["projects", "project_expenses"],
+      "expected_columns": ["project_name", "total_expenses"]
+    },
+    {
+      "id": 41,
+      "difficulty": "medium",
+      "module": "Projects",
+      "question": "List projects that are over budget",
+      "tables_needed": ["projects", "project_budgets"],
+      "expected_columns": ["project_name", "planned_budget", "actual_spend"]
+    },
+    {
+      "id": 42,
+      "difficulty": "medium",
+      "module": "Projects",
+      "question": "Show project resources and their allocation percentages",
+      "tables_needed": ["projects", "project_resources", "employees"],
+      "expected_columns": ["project_name", "employee_name", "allocation_percent"]
+    },
+    {
+      "id": 43,
+      "difficulty": "medium",
+      "module": "Assets",
+      "question": "List fixed assets by category with their total purchase cost",
+      "tables_needed": ["fixed_assets", "asset_categories"],
+      "expected_columns": ["category_name", "asset_count", "total_cost"]
+    },
+    {
+      "id": 44,
+      "difficulty": "medium",
+      "module": "Assets",
+      "question": "List assets due for maintenance in the next 30 days",
+      "tables_needed": ["fixed_assets", "asset_maintenance"],
+      "expected_columns": ["asset_name", "maintenance_type", "scheduled_date"]
+    },
+    {
+      "id": 45,
+      "difficulty": "medium",
+      "module": "Common",
+      "question": "How many documents are attached to each entity type?",
+      "tables_needed": ["document_attachments"],
+      "expected_columns": ["entity_type", "document_count"]
+    },
+    {
+      "id": 46,
+      "difficulty": "hard",
+      "module": "HR",
+      "question": "Calculate employee turnover rate by department for 2024",
+      "tables_needed": ["employees", "departments"],
+      "expected_columns": ["department_name", "turnover_rate"]
+    },
+    {
+      "id": 47,
+      "difficulty": "hard",
+      "module": "HR",
+      "question": "Find the salary percentile ranking for each employee within their department",
+      "tables_needed": ["employees", "departments"],
+      "expected_columns": ["employee_name", "department", "salary", "percentile_rank"]
+    },
+    {
+      "id": 48,
+      "difficulty": "hard",
+      "module": "HR",
+      "question": "Identify employees who have not completed mandatory training",
+      "tables_needed": ["employees", "employee_training", "training_courses"],
+      "expected_columns": ["employee_name", "missing_courses"]
+    },
+    {
+      "id": 49,
+      "difficulty": "hard",
+      "module": "Sales",
+      "question": "Calculate month-over-month sales growth rate for the past 12 months",
+      "tables_needed": ["sales_orders"],
+      "expected_columns": ["month", "sales", "growth_rate"]
+    },
+    {
+      "id": 50,
+      "difficulty": "hard",
+      "module": "Sales",
+      "question": "Find the average order value and order frequency for each customer segment based on credit limit",
+      "tables_needed": ["customers", "sales_orders"],
+      "expected_columns": ["customer_segment", "avg_order_value", "order_frequency"]
+    },
+    {
+      "id": 51,
+      "difficulty": "hard",
+      "module": "Sales",
+      "question": "What is the sales pipeline weighted value by stage and expected close month?",
+      "tables_needed": ["sales_opportunities", "opportunity_stages"],
+      "expected_columns": ["close_month", "stage", "weighted_value"]
+    },
+    {
+      "id": 52,
+      "difficulty": "hard",
+      "module": "Inventory",
+      "question": "Calculate inventory turnover ratio by product category",
+      "tables_needed": ["products", "product_categories", "inventory_levels", "order_lines", "sales_orders"],
+      "expected_columns": ["category_name", "turnover_ratio"]
+    },
+    {
+      "id": 53,
+      "difficulty": "hard",
+      "module": "Inventory",
+      "question": "Identify products with significant inventory discrepancies (adjustment > 10% of stock)",
+      "tables_needed": ["products", "inventory_adjustments", "adjustment_lines", "inventory_levels"],
+      "expected_columns": ["product_name", "adjustment_quantity", "current_stock", "discrepancy_percent"]
+    },
+    {
+      "id": 54,
+      "difficulty": "hard",
+      "module": "Procurement",
+      "question": "Calculate vendor performance score based on on-time delivery and invoice accuracy",
+      "tables_needed": ["vendors", "purchase_orders", "goods_receipts", "vendor_invoices"],
+      "expected_columns": ["vendor_name", "on_time_rate", "invoice_accuracy", "performance_score"]
+    },
+    {
+      "id": 55,
+      "difficulty": "hard",
+      "module": "Finance",
+      "question": "Generate a trial balance for the current period showing debits and credits by account category",
+      "tables_needed": ["chart_of_accounts", "account_types", "journal_lines", "journal_entries", "fiscal_periods"],
+      "expected_columns": ["account_category", "account_name", "debit_balance", "credit_balance"]
+    },
+    {
+      "id": 56,
+      "difficulty": "hard",
+      "module": "Finance",
+      "question": "Calculate cash flow from bank transactions grouped by transaction type and month",
+      "tables_needed": ["bank_accounts", "bank_transactions"],
+      "expected_columns": ["month", "transaction_type", "net_cash_flow"]
+    },
+    {
+      "id": 57,
+      "difficulty": "hard",
+      "module": "Projects",
+      "question": "Calculate project profitability comparing budget vs actual expenses",
+      "tables_needed": ["projects", "project_budgets", "project_expenses"],
+      "expected_columns": ["project_name", "total_budget", "total_expenses", "profit_margin"]
+    },
+    {
+      "id": 58,
+      "difficulty": "hard",
+      "module": "Projects",
+      "question": "Find resource allocation by employee across all active projects",
+      "tables_needed": ["employees", "project_resources", "projects"],
+      "expected_columns": ["employee_name", "project_count", "total_allocation_percent"]
+    },
+    {
+      "id": 59,
+      "difficulty": "hard",
+      "module": "Assets",
+      "question": "List all fixed assets with their assigned employees and current locations",
+      "tables_needed": ["fixed_assets", "asset_categories", "employees", "asset_locations"],
+      "expected_columns": ["asset_name", "category_name", "employee_name", "location_name"]
+    },
+    {
+      "id": 60,
+      "difficulty": "hard",
+      "module": "Cross-Module",
+      "question": "Create a comprehensive employee cost report including salary and benefits by department",
+      "tables_needed": ["employees", "departments", "employee_benefits", "benefit_types"],
+      "expected_columns": ["department_name", "employee_count", "total_salaries", "total_benefits_cost"]
+    }
+  ],
+  "module_coverage": {
+    "HR": 14,
+    "Sales": 12,
+    "Inventory": 8,
+    "Procurement": 6,
+    "Finance": 8,
+    "Projects": 7,
+    "Assets": 5,
+    "Common": 2,
+    "Cross-Module": 1
+  },
+  "notes": [
+    "Questions are designed to test schema filtering - many require tables from different modules",
+    "Hard questions test complex joins, window functions, and analytical queries",
+    "Some questions intentionally require tables that might not be obviously related",
+    "Expected columns are indicative - actual SQL may vary",
+    "Version 1.1: Fixed questions referencing empty tables (project_tasks, timesheet_entries, depreciation_entries)"
+  ]
+}

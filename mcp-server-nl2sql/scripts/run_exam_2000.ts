@@ -103,7 +103,7 @@ interface ExamResult {
 async function runExam() {
 	// Parse args
 	const args = process.argv.slice(2)
-	let examPath = "../exam/exam_full_300.csv"
+	let examPath = "../demo/exam/exam_full_300.csv"
 	let maxQuestions = 0
 
 	for (const arg of args) {

@@ -15,7 +15,7 @@ import path from "path"
 const { Pool } = pg
 
 // Load test questions from JSON file
-const testQuestionsPath = path.join(process.cwd(), "../enterprise-erp/003_test_questions.json")
+const testQuestionsPath = path.join(process.cwd(), "../demo/enterprise-erp/003_test_questions.json")
 const testData = JSON.parse(fs.readFileSync(testQuestionsPath, "utf-8"))
 const EXAM_QUESTIONS = testData.questions
 

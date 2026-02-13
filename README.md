@@ -106,13 +106,13 @@ MCP Client (LibreChat, Claude Desktop, custom app)
 git clone <repo-url> && cd nl2sql-project
 
 # 2. Run the demo (~5 min — installs deps, sets up DB, runs 10 questions)
-./scripts/demo.sh
+./demo/demo.sh
 
 # 3. Or step by step:
 ./scripts/setup-deps.sh          # Check prereqs, install npm/pip, pull model
-./scripts/setup-db.sh            # Create DB, load data, populate embeddings
+./demo/setup-db.sh               # Create DB, load data, populate embeddings
 ./scripts/start-sidecar.sh --bg  # Start Python sidecar
-./scripts/run-exam.sh            # Run full 60-question exam
+./demo/run-exam.sh               # Run full 60-question exam
 ```
 
 ### Prerequisites
@@ -134,11 +134,19 @@ nl2sql-project/
 |   +-- src/                   # Source files
 |   +-- scripts/               # Exam runners, embedding tools
 +-- python-sidecar/            # Python FastAPI service (LLM interface)
-+-- enterprise-erp/            # Database schemas, data, RAG setup
-+-- exam/                      # Exam CSVs (300 questions for 2000-table)
-+-- scripts/                   # Top-level setup & run scripts (Bash/Linux)
++-- scripts/                   # Generic scripts (any database)
+|   +-- setup-deps.sh          # Install prerequisites
+|   +-- start-sidecar.sh       # Start/stop Python sidecar
++-- demo/                      # Demo databases + exams
+|   +-- enterprise-erp/        # 86-table ERP schema, data, RAG setup
+|   +-- schema_gen/            # 2000-table schema generation (Jinja)
+|   +-- data_gen/              # 2000-table data generation
+|   +-- exam/                  # Exam CSVs, templates, grading
+|   +-- validation/            # DB validation scripts
+|   +-- demo.sh                # One-command demo
+|   +-- setup-db.sh            # DB setup orchestrator
+|   +-- run-exam.sh            # Exam runner
 +-- docs/                      # Documentation
-+-- deprecated/                # Archived code (V2 retriever, etc.)
 +-- STATUS.md                  # Current performance numbers
 ```
 
@@ -212,14 +220,14 @@ This is complementary to benchmarks like **[BIRD](https://bird-bench.github.io/)
 
 ```bash
 # 86-table (60 questions)
-./scripts/run-exam.sh
+./demo/run-exam.sh
 
 # 2,377-table (300 questions, or subset)
-./scripts/run-exam.sh --db=2000
-./scripts/run-exam.sh --db=2000 --max=10
+./demo/run-exam.sh --db=2000
+./demo/run-exam.sh --db=2000 --max=10
 
 # Multiple runs for statistical mean
-./scripts/run-exam.sh --runs=3
+./demo/run-exam.sh --runs=3
 ```
 
 ## License

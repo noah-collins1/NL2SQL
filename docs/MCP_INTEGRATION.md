@@ -32,7 +32,7 @@ The Model Context Protocol is an open standard that lets AI assistants connect t
 1. Ensure the NL2SQL prerequisites are installed and the sidecar is running:
    ```bash
    ./scripts/setup-deps.sh
-   ./scripts/setup-db.sh
+   ./demo/setup-db.sh
    ./scripts/start-sidecar.sh --bg
    ```
 

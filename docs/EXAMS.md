@@ -6,8 +6,8 @@ The exam system measures end-to-end accuracy: question in, correct SQL result ou
 
 | Exam | DB | Questions | Difficulty Mix | Location |
 |------|----|-----------|----------------|----------|
-| 86-table regression | enterprise_erp (86 tables) | 60 | 20 easy, 25 medium, 15 hard | `enterprise-erp/003_test_questions.json` |
-| 300-question full | enterprise_erp_2000 (2,377 tables) | 300 | 40 simple, 120 moderate, 140 challenging | `exam/exam_full_300.csv` |
+| 86-table regression | enterprise_erp (86 tables) | 60 | 20 easy, 25 medium, 15 hard | `demo/enterprise-erp/003_test_questions.json` |
+| 300-question full | enterprise_erp_2000 (2,377 tables) | 300 | 40 simple, 120 moderate, 140 challenging | `demo/exam/exam_full_300.csv` |
 
 ## Running Exams
 
@@ -15,16 +15,16 @@ The exam system measures end-to-end accuracy: question in, correct SQL result ou
 
 ```bash
 # 86-table, full 60 questions
-./scripts/run-exam.sh
+./demo/run-exam.sh
 
 # 86-table, 3 runs for statistical mean
-./scripts/run-exam.sh --runs=3
+./demo/run-exam.sh --runs=3
 
 # 2,377-table, full 300 questions
-./scripts/run-exam.sh --db=2000
+./demo/run-exam.sh --db=2000
 
 # 2,377-table, first 10 questions (quick smoke test)
-./scripts/run-exam.sh --db=2000 --max=10
+./demo/run-exam.sh --db=2000 --max=10
 ```
 
 ### Prerequisites
