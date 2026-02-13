@@ -42,13 +42,7 @@ Ollama (Hrida)
 
 ## Development Status
 
-**Current Phase:** MVP (Phase 1)
-- ✅ Fork created
-- ⏳ nl_query tool (pending)
-- ⏳ SQL validator (pending)
-- ⏳ Python client (pending)
-
-See `../roadmap.md` for full implementation plan.
+See the root [README](../README.md) for architecture and current performance.
 
 ## Installation
 
@@ -94,5 +88,4 @@ src/
 ## Related
 
 - Python Sidecar: `../python-sidecar/`
-- Roadmap: `../roadmap.md`
 - Original Repo: https://github.com/smithery-ai/mcp-servers

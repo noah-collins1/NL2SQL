@@ -1,13 +1,13 @@
 # Python Sidecar - NL2SQL AI Layer
 
-**Last Updated:** 2026-02-02
+**Last Updated:** 2026-02-13
 
 ## Overview
 
-This Python sidecar handles AI-powered SQL generation for the NL2SQL MCP server. It communicates with Ollama/HridaAI to generate SQL from natural language questions.
+This Python sidecar handles AI-powered SQL generation for the NL2SQL MCP server. It communicates with Ollama to generate SQL from natural language questions.
 
-**Database:** Enterprise ERP (60+ tables, 8 modules)
-**Current Success Rate:** 75.0%
+**Database:** Enterprise ERP (86 tables / 2,377 tables)
+**Current Success Rate:** 88.3% (86-table) / 76.0% (2,377-table) with qwen2.5-coder:7b
 
 ## Components
 
@@ -164,20 +164,23 @@ Use only these exact column names: {primary_columns}
 
 ## Configuration
 
-Key settings in `config.py`:
+Settings are loaded from `config/config.yaml` via `config_loader.py`. Key values:
 
 ```python
+OLLAMA_MODEL = "qwen2.5-coder:7b"      # From config or OLLAMA_MODEL env var
 OLLAMA_BASE_URL = "http://localhost:11434"
-OLLAMA_MODEL = "HridaAI/hrida-t2sql:latest"
-OLLAMA_TIMEOUT = 90  # Increased for parallel generation
-
-# Multi-candidate generation uses temperature=0.3 for diversity
-# Deduplication happens automatically in generate_candidates_parallel()
+OLLAMA_TIMEOUT = 90                      # Covers multi-candidate generation
 ```
+
+See `../docs/CONFIG.md` for the full reference.
 
 ## Running the Sidecar
 
 ```bash
+# Recommended: use the setup script
+../scripts/start-sidecar.sh --bg
+
+# Or manually:
 cd python-sidecar
 source venv/bin/activate
 python app.py
@@ -192,56 +195,9 @@ uvicorn
 requests
 aiohttp     # For async parallel generation
 pydantic
+pyyaml      # Config loader
 ```
 
 ## Current Performance
 
-With Enterprise ERP database (60 questions):
-- **Success Rate:** 75.0%
-- **Easy:** 95.0%
-- **Medium:** 72.0%
-- **Hard:** 53.3%
-
-## Error Analysis (15 failures, 25%)
-
-### 1. Column Name Errors (5 failures, 8.3%)
-
-LLM invents columns not in schema:
-
-| Question | Wrong Column | Likely Correct |
-|----------|--------------|----------------|
-| Q34: Total spend by vendor | `v.vendor_name` | `v.name` |
-| Q37: Debit/credit by account | `b.amount` | Different column |
-| Q50: Order value by customer | `c.segment` | Doesn't exist |
-
-**Root cause:** Schema description doesn't clearly communicate column names.
-
-### 2. PostgreSQL Syntax Errors (2 failures)
-
-| Question | Error | Fix |
-|----------|-------|-----|
-| Q26: Sales by year | `YEAR(date)` function | `EXTRACT(YEAR FROM date)` |
-| Q29: Quote conversion | Ambiguous `quote_id` | Needs table qualifier |
-
-**Root cause:** LLM trained on MySQL-style SQL.
-
-### 3. Complex Query Failures (4 failures)
-
-- Multi-step analytics beyond LLM capability
-- Window functions (LAG/LEAD)
-- Trial balance, cash flow calculations
-
-### 4. Generation Failures (2 failures)
-
-- Model produces gibberish for complex queries
-- Fails to generate SELECT statement
-
-## Potential Fixes
-
-| Fix | Target Errors | Effort |
-|-----|---------------|--------|
-| Add column whitelist to prompt | column_miss (5) | Medium |
-| Add PostgreSQL examples (EXTRACT) | syntax (2) | Low |
-| Add window function examples | complex analytics (4) | Medium |
-
-See `/STATUS.md` for full metrics.
+See `../STATUS.md` for current metrics and `../docs/PIPELINE.md` for the full pipeline walkthrough.

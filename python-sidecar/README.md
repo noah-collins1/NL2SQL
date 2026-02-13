@@ -118,4 +118,4 @@ python-sidecar/
 ## Related
 
 - TypeScript MCP Server: `../mcp-server-nl2sql/`
-- Roadmap: `../roadmap.md`
+- Docs: `../docs/`
