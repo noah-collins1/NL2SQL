@@ -1,0 +1,6 @@
+# Mark generated/data files so GitHub Linguist doesn't count them in language stats
+enterprise-erp/002_sample_data.sql linguist-generated
+enterprise-erp/004_expand_to_2000.sql linguist-generated
+schema_gen/generated_divisions.sql linguist-generated
+*.html linguist-vendored
+*.csv linguist-generated
