@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="nl2sql.png" alt="NL2SQL Logo" width="400">
+  <img src="nl2sql.png" alt="NL2SQL Logo" width="600">
 </p>
 
 
