@@ -414,10 +414,13 @@ function extractTableNames(tokens: Token[]): string[] {
 
 	// Pattern: FROM <table> or JOIN <table>
 	// Handles: table, schema.table, "table", "schema"."table"
+	// Negative lookbehind excludes EXTRACT(... FROM ...), TRIM(... FROM ...), SUBSTRING(... FROM ...)
+	const extractParts = "YEAR|MONTH|DAY|HOUR|MINUTE|SECOND|EPOCH|QUARTER|WEEK|DOW|DOY|CENTURY|DECADE|ISOYEAR|TIMEZONE|TIMEZONE_HOUR|TIMEZONE_MINUTE"
+	const fromLookbehind = `(?<!(?:${extractParts})\\s)(?<!TRIM\\s)(?<!SUBSTRING\\s)(?<!OVERLAY\\s)`
 	const patterns = [
-		/\bFROM\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?)/gi,
+		new RegExp(`\\b${fromLookbehind}FROM\\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\\.[a-zA-Z_][a-zA-Z0-9_]*)?)`, "gi"),
 		/\bJOIN\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?)/gi,
-		/\bFROM\s+"([^"]+)"/gi,
+		new RegExp(`\\b${fromLookbehind}FROM\\s+"([^"]+)"`, "gi"),
 		/\bJOIN\s+"([^"]+)"/gi,
 	]
 

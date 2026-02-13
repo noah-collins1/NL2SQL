@@ -1,0 +1,2038 @@
+qid,difficulty,question,evidence,gold_sql,expected_tables,expected_columns,tags,template_id
+Q0001,moderate,Total AP invoice amount by vendor for 2024.,Join finance_ap_invoices to vendors.,"  SELECT v.name, SUM(ai.amount) AS total_amount
+  FROM div_06.finance_ap_invoices ai
+  JOIN div_06.vendors v ON v.vendor_id = ai.vendor_id
+  WHERE EXTRACT(YEAR FROM ai.invoice_date) = 2024
+  GROUP BY v.name
+  ORDER BY total_amount DESC;","finance_ap_invoices,vendors","finance_ap_invoices.amount,finance_ap_invoices.invoice_date,vendors.name","finance,ap",ap_by_vendor
+Q0002,challenging,Total contract value by customer for services division div_09.,"Table is zz_svc_sow with abbreviated columns: tot_amt for total amount, cust_nbr for customer ID. Join to customers.","  SELECT c.name, SUM(sow.tot_amt) AS total_value, COUNT(*) AS sow_count
+  FROM div_09.zz_svc_sow sow
+  JOIN div_09.customers c ON c.customer_id = sow.cust_nbr
+  GROUP BY c.name
+  ORDER BY total_value DESC
+  LIMIT 10;","zz_svc_sow,customers","zz_svc_sow.tot_amt,zz_svc_sow.cust_nbr,customers.name","services,dirty_naming",dirty_svc_sow_value
+Q0003,simple,List open AR invoices over 5000 in 2023.,AR invoices are in finance_ar_invoices.,"  SELECT ar_invoice_id, invoice_number, amount, status
+  FROM div_06.finance_ar_invoices
+  WHERE status = 'open'
+    AND amount > 5000
+    AND EXTRACT(YEAR FROM invoice_date) = 2023;",finance_ar_invoices,"finance_ar_invoices.amount,finance_ar_invoices.status,finance_ar_invoices.invoice_date","finance,ar",ar_open_invoices
+Q0004,challenging,Inventory turns by product category for 2021.,Approximate turns using inventory_transactions quantity.,"  SELECT pc.name, SUM(it.quantity) AS total_moved
+  FROM div_08.inventory_transactions it
+  JOIN div_08.products p ON p.product_id = it.product_id
+  JOIN div_08.product_categories pc ON pc.category_id = p.category_id
+  WHERE EXTRACT(YEAR FROM it.transaction_date) = 2021
+  GROUP BY pc.name
+  ORDER BY total_moved DESC;","inventory_transactions,products,product_categories","inventory_transactions.quantity,inventory_transactions.transaction_date,product_categories.name",inventory,inventory_turns
+Q0005,moderate,Loyalty member count by tier for retail division div_15.,"Use rtl_loyalty_members; tier_code values: BZ (Bronze), SV (Silver), GD (Gold), PT (Platinum).","  SELECT tier_code, COUNT(*) AS member_count,
+         AVG(points_balance) AS avg_points
+  FROM div_15.rtl_loyalty_members
+  WHERE status_code = 'AC'
+  GROUP BY tier_code
+  ORDER BY member_count DESC;",rtl_loyalty_members,"rtl_loyalty_members.tier_code,rtl_loyalty_members.status_code","retail,lookup",rtl_loyalty_tier_distribution
+Q0006,simple,Vendors with payment terms of 15 days or more.,"Use vendors.payment_terms (integer, number of days).","  SELECT vendor_id, name, payment_terms
+  FROM div_10.vendors
+  WHERE payment_terms >= 15;",vendors,vendors.payment_terms,procurement,supplier_terms
+Q0007,moderate,Sales order count by sales region for 2023.,Join sales_orders -> customers -> addresses -> cities -> states_provinces -> countries?,"  SELECT s.name AS state, COUNT(*) AS order_count
+  FROM div_13.sales_orders so
+  JOIN div_13.customers c ON c.customer_id = so.customer_id
+  LEFT JOIN div_13.addresses a ON a.address_id = c.billing_address_id
+  LEFT JOIN div_13.cities ci ON ci.city_id = a.city_id
+  LEFT JOIN div_13.states_provinces s ON s.state_id = ci.state_id
+  WHERE EXTRACT(YEAR FROM so.order_date) = 2023
+  GROUP BY s.name
+  ORDER BY order_count DESC;","sales_orders,customers,addresses,cities,states_provinces","sales_orders.order_date,customers.customer_id","sales,geography",sales_by_region
+Q0008,simple,Bank transaction totals by type for 2023.,Use bank_transactions.transaction_type.,"  SELECT transaction_type, SUM(amount) AS total_amount
+  FROM div_16.bank_transactions
+  WHERE EXTRACT(YEAR FROM transaction_date) = 2023
+  GROUP BY transaction_type;",bank_transactions,"bank_transactions.transaction_type,bank_transactions.amount,bank_transactions.transaction_date",finance,bank_tx_by_type
+Q0009,simple,Number of journal entries by month in 2023.,Use journal_entries.entry_date.,"  SELECT DATE_TRUNC('month', entry_date) AS month, COUNT(*) AS entry_count
+  FROM div_08.journal_entries
+  WHERE EXTRACT(YEAR FROM entry_date) = 2023
+  GROUP BY month
+  ORDER BY month;",journal_entries,journal_entries.entry_date,finance,journal_entry_volume
+Q0010,moderate,Count of statements of work by status for services division div_10.,Join svc_statements_of_work.status_code to lookup_codes domain='PROJECT_STATUS' for decoded names.,"  SELECT lc.meaning AS status, COUNT(*) AS sow_count
+  FROM div_10.svc_statements_of_work sow
+  JOIN div_10.lookup_codes lc ON lc.code = sow.status_code AND lc.domain = 'PROJECT_STATUS'
+  GROUP BY lc.meaning
+  ORDER BY sow_count DESC;","svc_statements_of_work,lookup_codes","svc_statements_of_work.status_code,lookup_codes.meaning","services,lookup",svc_sow_by_status
+Q0011,challenging,Procure-to-pay cycle: PO to receipt to invoice for each vendor in 2023.,Join purchase_orders -> goods_receipts -> vendor_invoices -> vendors.,"  SELECT v.name AS vendor,
+         po.po_id,
+         po.order_date,
+         gr.receipt_id,
+         gr.receipt_date,
+         vi.invoice_id,
+         vi.invoice_date,
+         vi.total AS invoice_total
+  FROM div_12.purchase_orders po
+  JOIN div_12.goods_receipts gr ON gr.po_id = po.po_id
+  JOIN div_12.vendor_invoices vi ON vi.po_id = po.po_id
+  JOIN div_12.vendors v ON v.vendor_id = po.vendor_id
+  WHERE EXTRACT(YEAR FROM po.order_date) = 2023
+  ORDER BY po.order_date
+  LIMIT 50;","purchase_orders,goods_receipts,vendor_invoices,vendors","purchase_orders.order_date,goods_receipts.receipt_date,vendor_invoices.invoice_date","procurement,multi_join",procure_to_pay_cycle
+Q0012,moderate,Employees with more than 10 time clock entries in a week during 2023.,Use hr_time_clock_entries.work_date; count per week.,"  SELECT e.employee_id, e.first_name, e.last_name, DATE_TRUNC('week', t.work_date) AS week_start, COUNT(*) AS entries
+  FROM div_18.hr_time_clock_entries t
+  JOIN div_18.employees e ON e.employee_id = t.employee_id
+  WHERE EXTRACT(YEAR FROM t.work_date) = 2023
+  GROUP BY e.employee_id, e.first_name, e.last_name, week_start
+  HAVING COUNT(*) > 10;","hr_time_clock_entries,employees","hr_time_clock_entries.work_date,employees.employee_id","hr,time",time_clock_overtime
+Q0013,challenging,"Employee tenure distribution (0-1yr, 1-3yr, 3-5yr, 5+yr) as of 2023.",Tenure = hire_date to end of year; bucket by years.,"  SELECT
+    CASE
+      WHEN EXTRACT(YEAR FROM AGE(DATE '2023-12-31', hire_date)) < 1 THEN '0-1 yr'
+      WHEN EXTRACT(YEAR FROM AGE(DATE '2023-12-31', hire_date)) < 3 THEN '1-3 yr'
+      WHEN EXTRACT(YEAR FROM AGE(DATE '2023-12-31', hire_date)) < 5 THEN '3-5 yr'
+      ELSE '5+ yr'
+    END AS tenure_bucket,
+    COUNT(*) AS employee_count
+  FROM div_03.employees
+  WHERE hire_date <= DATE '2023-12-31'
+    AND (termination_date IS NULL OR termination_date > DATE '2023-12-31')
+  GROUP BY tenure_bucket
+  ORDER BY tenure_bucket;",employees,employees.hire_date,"hr,temporal",employee_tenure_distribution
+Q0014,moderate,Count of open customer service cases by priority.,Use cust_srv_case; open/pending are not closed.,"  SELECT priority, COUNT(*) AS case_count
+  FROM div_14.cust_srv_case
+  WHERE status IN ('open','pending')
+  GROUP BY priority;",cust_srv_case,"cust_srv_case.status,cust_srv_case.priority",support,sla_backlog
+Q0015,challenging,"Order-to-cash cycle: customer, order, lines, AR invoice, payment for 2022.",5-table join: customers -> sales_orders -> order_lines -> finance_ar_invoices -> finance_ar_payments.,"  SELECT c.name AS customer,
+         so.order_id,
+         SUM(ol.quantity * ol.unit_price) AS order_total,
+         ar.invoice_number,
+         ar.amount AS invoice_amount,
+         p.payment_date,
+         p.amount AS payment_amount
+  FROM div_16.customers c
+  JOIN div_16.sales_orders so ON so.customer_id = c.customer_id
+  JOIN div_16.order_lines ol ON ol.order_id = so.order_id
+  JOIN div_16.finance_ar_invoices ar ON ar.customer_id = c.customer_id
+  LEFT JOIN div_16.finance_ar_payments p ON p.ar_invoice_id = ar.ar_invoice_id
+  WHERE EXTRACT(YEAR FROM so.order_date) = 2022
+  GROUP BY c.name, so.order_id, ar.invoice_number, ar.amount, p.payment_date, p.amount
+  LIMIT 50;","customers,sales_orders,order_lines,finance_ar_invoices,finance_ar_payments","customers.name,sales_orders.order_date,finance_ar_payments.payment_date","sales,finance,multi_join",order_to_cash_cycle
+Q0016,challenging,Days Sales Outstanding (DSO) by customer for 2023.,DSO = (AR balance / total credit sales) * days in period. Approximate as avg days from invoice to payment.,"  SELECT c.name,
+         ROUND(AVG(p.payment_date - i.invoice_date), 1) AS avg_dso
+  FROM div_10.finance_ar_invoices i
+  JOIN div_10.finance_ar_payments p ON p.ar_invoice_id = i.ar_invoice_id
+  JOIN div_10.customers c ON c.customer_id = i.customer_id
+  WHERE EXTRACT(YEAR FROM i.invoice_date) = 2023
+  GROUP BY c.name
+  ORDER BY avg_dso DESC;","finance_ar_invoices,finance_ar_payments,customers","finance_ar_invoices.invoice_date,finance_ar_payments.payment_date,customers.name","finance,ar,kpi",dso_by_customer
+Q0017,moderate,Approval rate of purchase orders in 2022.,Use procurement_po_approvals; approved vs rejected.,"  SELECT
+    ROUND(100.0 * SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) / COUNT(*), 2) AS approval_pct
+  FROM div_10.procurement_po_approvals
+  WHERE EXTRACT(YEAR FROM approval_date) = 2022;",procurement_po_approvals,"procurement_po_approvals.status,procurement_po_approvals.approval_date",procurement,po_approval_rate
+Q0018,challenging,Gross margin (revenue - COGS estimate) by product for 2024.,Revenue from order_lines; COGS approximated by list_price * 0.6.,"  SELECT p.name,
+         SUM(ol.quantity * ol.unit_price) AS revenue,
+         SUM(ol.quantity * ol.unit_price * 0.6) AS estimated_cogs,
+         ROUND(SUM(ol.quantity * ol.unit_price * 0.4), 2) AS gross_margin
+  FROM div_06.order_lines ol
+  JOIN div_06.sales_orders so ON so.order_id = ol.order_id
+  JOIN div_06.products p ON p.product_id = ol.product_id
+  WHERE EXTRACT(YEAR FROM so.order_date) = 2024
+  GROUP BY p.name
+  ORDER BY gross_margin DESC
+  LIMIT 20;","order_lines,sales_orders,products","order_lines.quantity,order_lines.unit_price,products.name","sales,finance,kpi",gross_margin_by_product
+Q0019,moderate,Top expense categories for 2024.,Use project_expenses.category and amount.,"  SELECT category, SUM(amount) AS total
+  FROM div_09.project_expenses
+  WHERE EXTRACT(YEAR FROM expense_date) = 2024
+  GROUP BY category
+  ORDER BY total DESC;",project_expenses,"project_expenses.category,project_expenses.amount,project_expenses.expense_date",projects,expense_categories
+Q0020,challenging,Net intercompany balance between divisions for corporate division div_18.,Use corp_intercompany_txns; net = sum sent - sum received per division pair.,"  SELECT from_division, to_division,
+         SUM(amount) AS total_transferred,
+         COUNT(*) AS txn_count
+  FROM div_18.corp_intercompany_txns
+  WHERE status_code = 'AP'
+  GROUP BY from_division, to_division
+  ORDER BY total_transferred DESC;",corp_intercompany_txns,"corp_intercompany_txns.from_division,corp_intercompany_txns.to_division,corp_intercompany_txns.amount",corporate,corp_intercompany_balance
+Q0021,challenging,Total SOW contract value by customer for services division div_08.,"Sum svc_statements_of_work.total_amount grouped by customer_id, join to customers.","  SELECT c.name, SUM(sow.total_amount) AS total_contract_value, COUNT(*) AS sow_count
+  FROM div_08.svc_statements_of_work sow
+  JOIN div_08.customers c ON c.customer_id = sow.customer_id
+  GROUP BY c.name
+  ORDER BY total_contract_value DESC
+  LIMIT 10;","svc_statements_of_work,customers","svc_statements_of_work.total_amount,svc_statements_of_work.customer_id,customers.name",services,svc_revenue_by_customer
+Q0022,moderate,Work order count by decoded status in manufacturing division div_03.,Join mfg_work_orders.status_code to lookup_codes where domain='WO_STATUS'.,"  SELECT lc.meaning AS status,
+         COUNT(*) AS wo_count
+  FROM div_03.mfg_work_orders wo
+  JOIN div_03.lookup_codes lc ON lc.code = wo.status_code AND lc.domain = 'WO_STATUS'
+  GROUP BY lc.meaning
+  ORDER BY wo_count DESC;","mfg_work_orders,lookup_codes","mfg_work_orders.status_code,lookup_codes.meaning","manufacturing,lookup",wo_status_decoded
+Q0023,challenging,Inventory turns by product category for 2023.,Approximate turns using inventory_transactions quantity.,"  SELECT pc.name, SUM(it.quantity) AS total_moved
+  FROM div_05.inventory_transactions it
+  JOIN div_05.products p ON p.product_id = it.product_id
+  JOIN div_05.product_categories pc ON pc.category_id = p.category_id
+  WHERE EXTRACT(YEAR FROM it.transaction_date) = 2023
+  GROUP BY pc.name
+  ORDER BY total_moved DESC;","inventory_transactions,products,product_categories","inventory_transactions.quantity,inventory_transactions.transaction_date,product_categories.name",inventory,inventory_turns
+Q0024,moderate,Headcount by department for 2023.,Use employees.department_id.,"  SELECT d.name, COUNT(*) AS headcount
+  FROM div_02.employees e
+  JOIN div_02.departments d ON d.department_id = e.department_id
+  WHERE EXTRACT(YEAR FROM e.hire_date) <= 2023
+  GROUP BY d.name
+  ORDER BY headcount DESC;","employees,departments",employees.department_id,hr,org_headcount
+Q0025,moderate,Vendor invoices past due as of today.,Use vendor_invoices.due_date and status.,"  SELECT invoice_id, vendor_id, due_date, total, status
+  FROM div_20.vendor_invoices
+  WHERE due_date < CURRENT_DATE AND status <> 'paid';",vendor_invoices,"vendor_invoices.due_date,vendor_invoices.total",procurement,overdue_vendor_invoices
+Q0026,moderate,Top expense categories for 2021.,Use project_expenses.category and amount.,"  SELECT category, SUM(amount) AS total
+  FROM div_05.project_expenses
+  WHERE EXTRACT(YEAR FROM expense_date) = 2021
+  GROUP BY category
+  ORDER BY total DESC;",project_expenses,"project_expenses.category,project_expenses.amount,project_expenses.expense_date",projects,expense_categories
+Q0027,moderate,Total payroll net pay by pay period for 2023.,Payroll tables are payroll_run_hdr and payroll_run_line.,"  SELECT h.pay_period_start, h.pay_period_end, SUM(l.net_pay) AS total_net_pay
+  FROM div_11.payroll_run_hdr h
+  JOIN div_11.payroll_run_line l ON l.run_id = h.run_id
+  WHERE EXTRACT(YEAR FROM h.pay_period_start) = 2023
+  GROUP BY h.pay_period_start, h.pay_period_end
+  ORDER BY h.pay_period_start;","payroll_run_hdr,payroll_run_line","payroll_run_hdr.pay_period_start,payroll_run_line.net_pay","hr,payroll",payroll_total
+Q0028,moderate,Total journal line amounts by cost center for 2021.,Use journal_lines.debit and credit.,"  SELECT cc.name, SUM(jl.debit - jl.credit) AS net_amount
+  FROM div_03.journal_lines jl
+  JOIN div_03.journal_entries je ON je.entry_id = jl.entry_id
+  JOIN div_03.cost_centers cc ON cc.cost_center_id = jl.cost_center_id
+  WHERE EXTRACT(YEAR FROM je.entry_date) = 2021
+  GROUP BY cc.name;","journal_lines,cost_centers,journal_entries","journal_lines.debit,journal_lines.credit,journal_entries.entry_date",finance,cost_center_spend
+Q0029,simple,List open sales opportunities with probability over 0.6.,Use sales_opportunities.probability.,"  SELECT opportunity_id, name, amount, probability
+  FROM div_07.sales_opportunities
+  WHERE probability > 0.6;",sales_opportunities,sales_opportunities.probability,sales,open_opportunities
+Q0030,moderate,Loyalty member count by tier for retail division div_11.,"Use rtl_loyalty_members; tier_code values: BZ (Bronze), SV (Silver), GD (Gold), PT (Platinum).","  SELECT tier_code, COUNT(*) AS member_count,
+         AVG(points_balance) AS avg_points
+  FROM div_11.rtl_loyalty_members
+  WHERE status_code = 'AC'
+  GROUP BY tier_code
+  ORDER BY member_count DESC;",rtl_loyalty_members,"rtl_loyalty_members.tier_code,rtl_loyalty_members.status_code","retail,lookup",rtl_loyalty_tier_distribution
+Q0031,challenging,Departments where actual expenses exceed budget in 2024.,Compare project_expenses vs budgets by department.,"  SELECT d.name, b.total_amount, COALESCE(SUM(pe.amount),0) AS actual_spend
+  FROM div_02.budgets b
+  JOIN div_02.departments d ON d.department_id = b.department_id
+  LEFT JOIN div_02.project_expenses pe ON pe.project_id IS NOT NULL
+  WHERE EXTRACT(YEAR FROM b.created_at) = 2024
+  GROUP BY d.name, b.total_amount
+  HAVING COALESCE(SUM(pe.amount),0) > b.total_amount;","budgets,budget_lines,project_expenses,departments","budgets.total_amount,project_expenses.amount","finance,projects",budget_vs_actual
+Q0032,challenging,Working capital ratio: current assets (AR) vs current liabilities (AP) for 2022.,Working capital = AR open amounts / AP open amounts.,"  WITH ar AS (
+    SELECT SUM(amount) AS total_ar
+    FROM div_11.finance_ar_invoices
+    WHERE status = 'open' AND EXTRACT(YEAR FROM invoice_date) = 2022
+  ),
+  ap AS (
+    SELECT SUM(amount) AS total_ap
+    FROM div_11.finance_ap_invoices
+    WHERE status = 'open' AND EXTRACT(YEAR FROM invoice_date) = 2022
+  )
+  SELECT ar.total_ar, ap.total_ap,
+         ROUND(ar.total_ar / NULLIF(ap.total_ap, 0), 2) AS working_capital_ratio
+  FROM ar, ap;","finance_ar_invoices,finance_ap_invoices","finance_ar_invoices.amount,finance_ap_invoices.amount","finance,jargon",working_capital_ratio
+Q0033,challenging,Employee turnover rate for 2022.,Turnover = terminations / average headcount.,"  WITH terminations AS (
+    SELECT COUNT(*) AS term_count
+    FROM div_03.employees
+    WHERE EXTRACT(YEAR FROM termination_date) = 2022
+  ),
+  headcount AS (
+    SELECT COUNT(*) AS headcount
+    FROM div_03.employees
+    WHERE hire_date <= DATE '2022-12-31'
+      AND (termination_date IS NULL OR termination_date > DATE '2022-01-01')
+  )
+  SELECT ROUND(100.0 * t.term_count / NULLIF(h.headcount,0), 2) AS turnover_pct
+  FROM terminations t, headcount h;",employees,"employees.termination_date,employees.hire_date",hr,employee_turnover
+Q0034,moderate,What percentage of AR invoices were late in 2024?,Late invoices have status = 'late'.,"  SELECT
+    ROUND(100.0 * SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) / COUNT(*), 2) AS late_pct
+  FROM div_10.finance_ar_invoices
+  WHERE EXTRACT(YEAR FROM invoice_date) = 2024;",finance_ar_invoices,"finance_ar_invoices.status,finance_ar_invoices.invoice_date","finance,ar,rate",ar_late_rate
+Q0035,simple,Timesheets awaiting approval in 2024.,Use timesheets.status = 'submitted'.,"  SELECT timesheet_id, employee_id, week_start_date, status
+  FROM div_05.timesheets
+  WHERE status = 'submitted'
+    AND EXTRACT(YEAR FROM week_start_date) = 2024;",timesheets,"timesheets.status,timesheets.week_start_date",projects,timesheet_approvals
+Q0036,challenging,Total contract value by customer for services division div_07.,"Table is zz_svc_sow with abbreviated columns: tot_amt for total amount, cust_nbr for customer ID. Join to customers.","  SELECT c.name, SUM(sow.tot_amt) AS total_value, COUNT(*) AS sow_count
+  FROM div_07.zz_svc_sow sow
+  JOIN div_07.customers c ON c.customer_id = sow.cust_nbr
+  GROUP BY c.name
+  ORDER BY total_value DESC
+  LIMIT 10;","zz_svc_sow,customers","zz_svc_sow.tot_amt,zz_svc_sow.cust_nbr,customers.name","services,dirty_naming",dirty_svc_sow_value
+Q0037,moderate,Sales order count by sales region for 2024.,Join sales_orders -> customers -> addresses -> cities -> states_provinces -> countries?,"  SELECT s.name AS state, COUNT(*) AS order_count
+  FROM div_04.sales_orders so
+  JOIN div_04.customers c ON c.customer_id = so.customer_id
+  LEFT JOIN div_04.addresses a ON a.address_id = c.billing_address_id
+  LEFT JOIN div_04.cities ci ON ci.city_id = a.city_id
+  LEFT JOIN div_04.states_provinces s ON s.state_id = ci.state_id
+  WHERE EXTRACT(YEAR FROM so.order_date) = 2024
+  GROUP BY s.name
+  ORDER BY order_count DESC;","sales_orders,customers,addresses,cities,states_provinces","sales_orders.order_date,customers.customer_id","sales,geography",sales_by_region
+Q0038,moderate,Top expense categories for 2023.,Use project_expenses.category and amount.,"  SELECT category, SUM(amount) AS total
+  FROM div_12.project_expenses
+  WHERE EXTRACT(YEAR FROM expense_date) = 2023
+  GROUP BY category
+  ORDER BY total DESC;",project_expenses,"project_expenses.category,project_expenses.amount,project_expenses.expense_date",projects,expense_categories
+Q0039,challenging,Days Sales Outstanding (DSO) by customer for 2021.,DSO = (AR balance / total credit sales) * days in period. Approximate as avg days from invoice to payment.,"  SELECT c.name,
+         ROUND(AVG(p.payment_date - i.invoice_date), 1) AS avg_dso
+  FROM div_17.finance_ar_invoices i
+  JOIN div_17.finance_ar_payments p ON p.ar_invoice_id = i.ar_invoice_id
+  JOIN div_17.customers c ON c.customer_id = i.customer_id
+  WHERE EXTRACT(YEAR FROM i.invoice_date) = 2021
+  GROUP BY c.name
+  ORDER BY avg_dso DESC;","finance_ar_invoices,finance_ar_payments,customers","finance_ar_invoices.invoice_date,finance_ar_payments.payment_date,customers.name","finance,ar,kpi",dso_by_customer
+Q0040,challenging,Total contract value by customer for services division div_09.,"Table is zz_svc_sow with abbreviated columns: tot_amt for total amount, cust_nbr for customer ID. Join to customers.","  SELECT c.name, SUM(sow.tot_amt) AS total_value, COUNT(*) AS sow_count
+  FROM div_09.zz_svc_sow sow
+  JOIN div_09.customers c ON c.customer_id = sow.cust_nbr
+  GROUP BY c.name
+  ORDER BY total_value DESC
+  LIMIT 10;","zz_svc_sow,customers","zz_svc_sow.tot_amt,zz_svc_sow.cust_nbr,customers.name","services,dirty_naming",dirty_svc_sow_value
+Q0041,moderate,Total depreciation by period for 2023.,Use depreciation_entries.period_id and amount.,"  SELECT fp.start_date, SUM(de.amount) AS total_depr
+  FROM div_04.depreciation_entries de
+  JOIN div_04.fiscal_periods fp ON fp.period_id = de.period_id
+  WHERE EXTRACT(YEAR FROM fp.start_date) = 2023
+  GROUP BY fp.start_date
+  ORDER BY fp.start_date;","depreciation_entries,fiscal_periods","depreciation_entries.amount,fiscal_periods.start_date","assets,finance",asset_depreciation
+Q0042,challenging,Compare effective vs statutory tax rate by jurisdiction for corporate division div_19.,Use corp_tax_provisions; compare effective_rate to statutory_rate.,"  SELECT jurisdiction, tax_type,
+         ROUND(AVG(effective_rate), 4) AS avg_effective_rate,
+         ROUND(AVG(statutory_rate), 4) AS avg_statutory_rate,
+         ROUND(AVG(statutory_rate - effective_rate), 4) AS avg_rate_gap,
+         SUM(current_provision + deferred_provision) AS total_provision
+  FROM div_19.corp_tax_provisions
+  GROUP BY jurisdiction, tax_type
+  ORDER BY total_provision DESC;",corp_tax_provisions,"corp_tax_provisions.jurisdiction,corp_tax_provisions.effective_rate,corp_tax_provisions.statutory_rate",corporate,corp_tax_effective_vs_statutory
+Q0043,challenging,Project margin = (budget - actual expenses) for active projects in 2024.,"Use projects, project_budgets, project_expenses.","  SELECT p.project_id, p.name,
+         pb.planned_amount - COALESCE(SUM(pe.amount),0) AS margin
+  FROM div_18.projects p
+  JOIN div_18.project_budgets pb ON pb.project_id = p.project_id
+  LEFT JOIN div_18.project_expenses pe ON pe.project_id = p.project_id
+  WHERE p.status = 'active'
+    AND EXTRACT(YEAR FROM p.start_date) = 2024
+  GROUP BY p.project_id, p.name, pb.planned_amount
+  ORDER BY margin DESC;","projects,project_budgets,project_expenses","projects.status,project_budgets.planned_amount,project_expenses.amount",projects,project_margin
+Q0044,challenging,Top 10 products by POS revenue for retail division div_15.,Join rtl_pos_line_items to products via product_id. Revenue = line_total.,"  SELECT p.name, SUM(li.line_total) AS total_revenue,
+         SUM(li.quantity) AS units_sold
+  FROM div_15.rtl_pos_line_items li
+  JOIN div_15.products p ON p.product_id = li.product_id
+  GROUP BY p.name
+  ORDER BY total_revenue DESC
+  LIMIT 10;","rtl_pos_line_items,products","rtl_pos_line_items.line_total,products.name",retail,rtl_top_products_by_revenue
+Q0045,challenging,Average resource allocation percent by role for active SOWs in services division div_06.,Join svc_resource_plan to svc_statements_of_work; filter active SOWs (status_code='AC').,"  SELECT rp.role_name,
+         ROUND(AVG(rp.allocation_percent), 1) AS avg_allocation,
+         COUNT(*) AS assignments
+  FROM div_06.svc_resource_plan rp
+  JOIN div_06.svc_statements_of_work sow ON sow.sow_id = rp.sow_id
+  WHERE sow.status_code = 'AC'
+  GROUP BY rp.role_name
+  ORDER BY avg_allocation DESC;","svc_resource_plan,svc_statements_of_work","svc_resource_plan.role_name,svc_resource_plan.allocation_percent,svc_statements_of_work.status_code","services,kpi",svc_resource_utilization
+Q0046,moderate,Total payroll net pay by pay period for 2023.,Payroll tables are payroll_run_hdr and payroll_run_line.,"  SELECT h.pay_period_start, h.pay_period_end, SUM(l.net_pay) AS total_net_pay
+  FROM div_15.payroll_run_hdr h
+  JOIN div_15.payroll_run_line l ON l.run_id = h.run_id
+  WHERE EXTRACT(YEAR FROM h.pay_period_start) = 2023
+  GROUP BY h.pay_period_start, h.pay_period_end
+  ORDER BY h.pay_period_start;","payroll_run_hdr,payroll_run_line","payroll_run_hdr.pay_period_start,payroll_run_line.net_pay","hr,payroll",payroll_total
+Q0047,challenging,Total SOW contract value by customer for services division div_06.,"Sum svc_statements_of_work.total_amount grouped by customer_id, join to customers.","  SELECT c.name, SUM(sow.total_amount) AS total_contract_value, COUNT(*) AS sow_count
+  FROM div_06.svc_statements_of_work sow
+  JOIN div_06.customers c ON c.customer_id = sow.customer_id
+  GROUP BY c.name
+  ORDER BY total_contract_value DESC
+  LIMIT 10;","svc_statements_of_work,customers","svc_statements_of_work.total_amount,svc_statements_of_work.customer_id,customers.name",services,svc_revenue_by_customer
+Q0048,challenging,Average resource allocation percent by role for active SOWs in services division div_06.,Join svc_resource_plan to svc_statements_of_work; filter active SOWs (status_code='AC').,"  SELECT rp.role_name,
+         ROUND(AVG(rp.allocation_percent), 1) AS avg_allocation,
+         COUNT(*) AS assignments
+  FROM div_06.svc_resource_plan rp
+  JOIN div_06.svc_statements_of_work sow ON sow.sow_id = rp.sow_id
+  WHERE sow.status_code = 'AC'
+  GROUP BY rp.role_name
+  ORDER BY avg_allocation DESC;","svc_resource_plan,svc_statements_of_work","svc_resource_plan.role_name,svc_resource_plan.allocation_percent,svc_statements_of_work.status_code","services,kpi",svc_resource_utilization
+Q0049,moderate,Loyalty member count by tier for retail division div_11.,"Use rtl_loyalty_members; tier_code values: BZ (Bronze), SV (Silver), GD (Gold), PT (Platinum).","  SELECT tier_code, COUNT(*) AS member_count,
+         AVG(points_balance) AS avg_points
+  FROM div_11.rtl_loyalty_members
+  WHERE status_code = 'AC'
+  GROUP BY tier_code
+  ORDER BY member_count DESC;",rtl_loyalty_members,"rtl_loyalty_members.tier_code,rtl_loyalty_members.status_code","retail,lookup",rtl_loyalty_tier_distribution
+Q0050,moderate,High and critical priority work orders using lookup codes in div_03.,"Filter mfg_work_orders.priority_code via lookup_codes domain='PRIORITY' where meaning IN ('High','Critical').","  SELECT wo.work_order_id, wo.work_order_number, lc.meaning AS priority
+  FROM div_03.mfg_work_orders wo
+  JOIN div_03.lookup_codes lc ON lc.code = wo.priority_code AND lc.domain = 'PRIORITY'
+  WHERE lc.meaning IN ('High', 'Critical');","mfg_work_orders,lookup_codes","mfg_work_orders.priority_code,lookup_codes.meaning","manufacturing,lookup",priority_filter_decoded
+Q0051,moderate,Training completion rate by course for 2024.,Use employee_training.completion_date.,"  SELECT c.name, COUNT(*) AS completions
+  FROM div_06.employee_training et
+  JOIN div_06.training_courses c ON c.course_id = et.course_id
+  WHERE EXTRACT(YEAR FROM et.completion_date) = 2024
+  GROUP BY c.name
+  ORDER BY completions DESC;","training_courses,employee_training",employee_training.completion_date,"hr,training",training_completion
+Q0052,moderate,Loyalty member count by tier for retail division div_13.,"Use rtl_loyalty_members; tier_code values: BZ (Bronze), SV (Silver), GD (Gold), PT (Platinum).","  SELECT tier_code, COUNT(*) AS member_count,
+         AVG(points_balance) AS avg_points
+  FROM div_13.rtl_loyalty_members
+  WHERE status_code = 'AC'
+  GROUP BY tier_code
+  ORDER BY member_count DESC;",rtl_loyalty_members,"rtl_loyalty_members.tier_code,rtl_loyalty_members.status_code","retail,lookup",rtl_loyalty_tier_distribution
+Q0053,moderate,Projects where actual expenses exceed project budget.,Compare project_expenses to project_budgets.,"  SELECT p.project_id, p.name
+  FROM div_04.projects p
+  JOIN div_04.project_budgets pb ON pb.project_id = p.project_id
+  LEFT JOIN div_04.project_expenses pe ON pe.project_id = p.project_id
+  GROUP BY p.project_id, p.name, pb.planned_amount
+  HAVING COALESCE(SUM(pe.amount),0) > pb.planned_amount;","project_budgets,project_expenses,projects","project_budgets.planned_amount,project_expenses.amount",projects,projects_over_budget
+Q0054,challenging,Period-over-period headcount change by month for 2022.,Count active employees at end of each month.,"  WITH months AS (
+    SELECT generate_series(1, 12) AS month_num
+  ),
+  headcount AS (
+    SELECT m.month_num,
+           COUNT(*) AS hc
+    FROM months m
+    JOIN div_08.employees e ON e.hire_date <= DATE '2022-12-31'
+      AND (DATE '2022-01-01' + (m.month_num - 1) * INTERVAL '1 month') >= e.hire_date
+      AND (e.termination_date IS NULL
+           OR e.termination_date > DATE '2022-01-01' + (m.month_num - 1) * INTERVAL '1 month')
+    GROUP BY m.month_num
+  )
+  SELECT month_num, hc,
+         hc - LAG(hc) OVER (ORDER BY month_num) AS change
+  FROM headcount
+  ORDER BY month_num;",employees,"employees.hire_date,employees.termination_date","hr,temporal",pop_headcount_change
+Q0055,challenging,Total POS sales by payment method for retail division div_12.,"Table is zz_pos_trnx with abbreviated columns: tot_amt, pay_mthd_cd, trnx_dt.","  SELECT pay_mthd_cd, COUNT(*) AS txn_count,
+         SUM(tot_amt) AS total_sales
+  FROM div_12.zz_pos_trnx
+  GROUP BY pay_mthd_cd
+  ORDER BY total_sales DESC;",zz_pos_trnx,"zz_pos_trnx.pay_mthd_cd,zz_pos_trnx.tot_amt","retail,dirty_naming",dirty_rtl_pos_sales
+Q0056,challenging,"Order-to-cash cycle: customer, order, lines, AR invoice, payment for 2021.",5-table join: customers -> sales_orders -> order_lines -> finance_ar_invoices -> finance_ar_payments.,"  SELECT c.name AS customer,
+         so.order_id,
+         SUM(ol.quantity * ol.unit_price) AS order_total,
+         ar.invoice_number,
+         ar.amount AS invoice_amount,
+         p.payment_date,
+         p.amount AS payment_amount
+  FROM div_20.customers c
+  JOIN div_20.sales_orders so ON so.customer_id = c.customer_id
+  JOIN div_20.order_lines ol ON ol.order_id = so.order_id
+  JOIN div_20.finance_ar_invoices ar ON ar.customer_id = c.customer_id
+  LEFT JOIN div_20.finance_ar_payments p ON p.ar_invoice_id = ar.ar_invoice_id
+  WHERE EXTRACT(YEAR FROM so.order_date) = 2021
+  GROUP BY c.name, so.order_id, ar.invoice_number, ar.amount, p.payment_date, p.amount
+  LIMIT 50;","customers,sales_orders,order_lines,finance_ar_invoices,finance_ar_payments","customers.name,sales_orders.order_date,finance_ar_payments.payment_date","sales,finance,multi_join",order_to_cash_cycle
+Q0057,challenging,Compare effective vs statutory tax rate by jurisdiction for corporate division div_16.,Use corp_tax_provisions; compare effective_rate to statutory_rate.,"  SELECT jurisdiction, tax_type,
+         ROUND(AVG(effective_rate), 4) AS avg_effective_rate,
+         ROUND(AVG(statutory_rate), 4) AS avg_statutory_rate,
+         ROUND(AVG(statutory_rate - effective_rate), 4) AS avg_rate_gap,
+         SUM(current_provision + deferred_provision) AS total_provision
+  FROM div_16.corp_tax_provisions
+  GROUP BY jurisdiction, tax_type
+  ORDER BY total_provision DESC;",corp_tax_provisions,"corp_tax_provisions.jurisdiction,corp_tax_provisions.effective_rate,corp_tax_provisions.statutory_rate",corporate,corp_tax_effective_vs_statutory
+Q0058,challenging,Total SOW contract value by customer for services division div_10.,"Sum svc_statements_of_work.total_amount grouped by customer_id, join to customers.","  SELECT c.name, SUM(sow.total_amount) AS total_contract_value, COUNT(*) AS sow_count
+  FROM div_10.svc_statements_of_work sow
+  JOIN div_10.customers c ON c.customer_id = sow.customer_id
+  GROUP BY c.name
+  ORDER BY total_contract_value DESC
+  LIMIT 10;","svc_statements_of_work,customers","svc_statements_of_work.total_amount,svc_statements_of_work.customer_id,customers.name",services,svc_revenue_by_customer
+Q0059,challenging,Total contract value by customer for services division div_09.,"Table is zz_svc_sow with abbreviated columns: tot_amt for total amount, cust_nbr for customer ID. Join to customers.","  SELECT c.name, SUM(sow.tot_amt) AS total_value, COUNT(*) AS sow_count
+  FROM div_09.zz_svc_sow sow
+  JOIN div_09.customers c ON c.customer_id = sow.cust_nbr
+  GROUP BY c.name
+  ORDER BY total_value DESC
+  LIMIT 10;","zz_svc_sow,customers","zz_svc_sow.tot_amt,zz_svc_sow.cust_nbr,customers.name","services,dirty_naming",dirty_svc_sow_value
+Q0060,simple,List inventory lots expiring within 60 days.,Use inventory_lots.expiration_date.,"  SELECT lot_id, lot_number, expiration_date
+  FROM div_11.inventory_lots
+  WHERE expiration_date <= CURRENT_DATE + INTERVAL '60 days';",inventory_lots,"inventory_lots.expiration_date,inventory_lots.lot_number",inventory,inventory_lot_expiring
+Q0061,moderate,Employees with more than 10 time clock entries in a week during 2024.,Use hr_time_clock_entries.work_date; count per week.,"  SELECT e.employee_id, e.first_name, e.last_name, DATE_TRUNC('week', t.work_date) AS week_start, COUNT(*) AS entries
+  FROM div_14.hr_time_clock_entries t
+  JOIN div_14.employees e ON e.employee_id = t.employee_id
+  WHERE EXTRACT(YEAR FROM t.work_date) = 2024
+  GROUP BY e.employee_id, e.first_name, e.last_name, week_start
+  HAVING COUNT(*) > 10;","hr_time_clock_entries,employees","hr_time_clock_entries.work_date,employees.employee_id","hr,time",time_clock_overtime
+Q0062,moderate,Count of open customer service cases by priority.,Use cust_srv_case; open/pending are not closed.,"  SELECT priority, COUNT(*) AS case_count
+  FROM div_17.cust_srv_case
+  WHERE status IN ('open','pending')
+  GROUP BY priority;",cust_srv_case,"cust_srv_case.status,cust_srv_case.priority",support,sla_backlog
+Q0063,moderate,Assets transferred between locations in 2022.,Use asset_transfers.transfer_date.,"  SELECT transfer_id, asset_id, from_location_id, to_location_id, transfer_date
+  FROM div_10.asset_transfers
+  WHERE EXTRACT(YEAR FROM transfer_date) = 2022;",asset_transfers,asset_transfers.transfer_date,assets,asset_transfer
+Q0064,simple,Customers with credit limit over 500.,Use customers.credit_limit.,"  SELECT customer_id, name, credit_limit
+  FROM div_09.customers
+  WHERE credit_limit > 500;",customers,customers.credit_limit,sales,customer_credit_limit
+Q0065,challenging,Quote-to-order conversion rate for 2024.,Join sales_quotes to sales_orders by customer and dates.,"  SELECT
+    ROUND(100.0 * COUNT(DISTINCT so.order_id) / NULLIF(COUNT(DISTINCT sq.quote_id),0), 2) AS conversion_pct
+  FROM div_05.sales_quotes sq
+  LEFT JOIN div_05.sales_orders so ON so.customer_id = sq.customer_id
+  WHERE EXTRACT(YEAR FROM sq.quote_date) = 2024;","sales_quotes,sales_orders","sales_quotes.quote_date,sales_orders.order_date",sales,quote_to_order_rate
+Q0066,moderate,Top 5 vendors by total spend in 2021.,Use purchase_orders.total and vendor names.,"  SELECT v.name, SUM(po.total) AS total_spend
+  FROM div_01.purchase_orders po
+  JOIN div_01.vendors v ON v.vendor_id = po.vendor_id
+  WHERE EXTRACT(YEAR FROM po.order_date) = 2021
+  GROUP BY v.name
+  ORDER BY total_spend DESC
+  LIMIT 5;","purchase_orders,vendors","purchase_orders.total,purchase_orders.order_date,vendors.name",procurement,vendor_spend_top
+Q0067,moderate,Work order count by decoded status in manufacturing division div_03.,Join mfg_work_orders.status_code to lookup_codes where domain='WO_STATUS'.,"  SELECT lc.meaning AS status,
+         COUNT(*) AS wo_count
+  FROM div_03.mfg_work_orders wo
+  JOIN div_03.lookup_codes lc ON lc.code = wo.status_code AND lc.domain = 'WO_STATUS'
+  GROUP BY lc.meaning
+  ORDER BY wo_count DESC;","mfg_work_orders,lookup_codes","mfg_work_orders.status_code,lookup_codes.meaning","manufacturing,lookup",wo_status_decoded
+Q0068,challenging,Period-over-period headcount change by month for 2023.,Count active employees at end of each month.,"  WITH months AS (
+    SELECT generate_series(1, 12) AS month_num
+  ),
+  headcount AS (
+    SELECT m.month_num,
+           COUNT(*) AS hc
+    FROM months m
+    JOIN div_02.employees e ON e.hire_date <= DATE '2023-12-31'
+      AND (DATE '2023-01-01' + (m.month_num - 1) * INTERVAL '1 month') >= e.hire_date
+      AND (e.termination_date IS NULL
+           OR e.termination_date > DATE '2023-01-01' + (m.month_num - 1) * INTERVAL '1 month')
+    GROUP BY m.month_num
+  )
+  SELECT month_num, hc,
+         hc - LAG(hc) OVER (ORDER BY month_num) AS change
+  FROM headcount
+  ORDER BY month_num;",employees,"employees.hire_date,employees.termination_date","hr,temporal",pop_headcount_change
+Q0069,moderate,QC failure rate for inventory lots in 2021.,Fail results have result = 'fail'.,"  SELECT
+    ROUND(100.0 * SUM(CASE WHEN qi.result = 'fail' THEN 1 ELSE 0 END) / COUNT(*), 2) AS fail_pct
+  FROM div_15.inventory_qc_inspections qi
+  WHERE EXTRACT(YEAR FROM qi.inspection_date) = 2021;","inventory_qc_inspections,inventory_lots","inventory_qc_inspections.result,inventory_qc_inspections.inspection_date","inventory,qc",inventory_qc_fail_rate
+Q0070,challenging,Net intercompany balance between divisions for corporate division div_16.,Use corp_intercompany_txns; net = sum sent - sum received per division pair.,"  SELECT from_division, to_division,
+         SUM(amount) AS total_transferred,
+         COUNT(*) AS txn_count
+  FROM div_16.corp_intercompany_txns
+  WHERE status_code = 'AP'
+  GROUP BY from_division, to_division
+  ORDER BY total_transferred DESC;",corp_intercompany_txns,"corp_intercompany_txns.from_division,corp_intercompany_txns.to_division,corp_intercompany_txns.amount",corporate,corp_intercompany_balance
+Q0071,challenging,Days Sales Outstanding (DSO) by customer for 2024.,DSO = (AR balance / total credit sales) * days in period. Approximate as avg days from invoice to payment.,"  SELECT c.name,
+         ROUND(AVG(p.payment_date - i.invoice_date), 1) AS avg_dso
+  FROM div_14.finance_ar_invoices i
+  JOIN div_14.finance_ar_payments p ON p.ar_invoice_id = i.ar_invoice_id
+  JOIN div_14.customers c ON c.customer_id = i.customer_id
+  WHERE EXTRACT(YEAR FROM i.invoice_date) = 2024
+  GROUP BY c.name
+  ORDER BY avg_dso DESC;","finance_ar_invoices,finance_ar_payments,customers","finance_ar_invoices.invoice_date,finance_ar_payments.payment_date,customers.name","finance,ar,kpi",dso_by_customer
+Q0072,simple,Sales order counts by status for 2024.,Use sales_orders.status.,"  SELECT status, COUNT(*) AS order_count
+  FROM div_07.sales_orders
+  WHERE EXTRACT(YEAR FROM order_date) = 2024
+  GROUP BY status;",sales_orders,"sales_orders.status,sales_orders.order_date",sales,sales_order_status
+Q0073,challenging,Weighted average cost per unit by product for 2024.,Weighted avg = sum(qty * unit_price) / sum(qty) from order lines.,"  SELECT p.name,
+         ROUND(SUM(ol.quantity * ol.unit_price) / NULLIF(SUM(ol.quantity), 0), 2) AS weighted_avg_cost,
+         SUM(ol.quantity) AS total_units
+  FROM div_06.order_lines ol
+  JOIN div_06.sales_orders so ON so.order_id = ol.order_id
+  JOIN div_06.products p ON p.product_id = ol.product_id
+  WHERE EXTRACT(YEAR FROM so.order_date) = 2024
+  GROUP BY p.name
+  ORDER BY weighted_avg_cost DESC;","order_lines,sales_orders,products","order_lines.quantity,order_lines.unit_price,products.name","finance,jargon",weighted_avg_cost
+Q0074,moderate,Total POS sales by payment method for retail division div_13.,"Use rtl_pos_transactions; payment_method_code values: CASH, CC, DC, GC, MW.","  SELECT payment_method_code, COUNT(*) AS txn_count,
+         SUM(total_amount) AS total_sales
+  FROM div_13.rtl_pos_transactions
+  GROUP BY payment_method_code
+  ORDER BY total_sales DESC;",rtl_pos_transactions,"rtl_pos_transactions.payment_method_code,rtl_pos_transactions.total_amount",retail,rtl_sales_by_payment_method
+Q0075,moderate,Count of open customer service cases by priority.,Use cust_srv_case; open/pending are not closed.,"  SELECT priority, COUNT(*) AS case_count
+  FROM div_12.cust_srv_case
+  WHERE status IN ('open','pending')
+  GROUP BY priority;",cust_srv_case,"cust_srv_case.status,cust_srv_case.priority",support,sla_backlog
+Q0076,moderate,Average discount percentage on sales order lines in 2024.,discount is in order_lines.discount_percent.,"  SELECT ROUND(AVG(ol.discount_percent), 2) AS avg_discount
+  FROM div_20.order_lines ol
+  JOIN div_20.sales_orders so ON so.order_id = ol.order_id
+  WHERE EXTRACT(YEAR FROM so.order_date) = 2024;","order_lines,sales_orders","order_lines.discount_percent,sales_orders.order_date",sales,sales_order_discount
+Q0077,challenging,Employee turnover rate for 2021.,Turnover = terminations / average headcount.,"  WITH terminations AS (
+    SELECT COUNT(*) AS term_count
+    FROM div_10.employees
+    WHERE EXTRACT(YEAR FROM termination_date) = 2021
+  ),
+  headcount AS (
+    SELECT COUNT(*) AS headcount
+    FROM div_10.employees
+    WHERE hire_date <= DATE '2021-12-31'
+      AND (termination_date IS NULL OR termination_date > DATE '2021-01-01')
+  )
+  SELECT ROUND(100.0 * t.term_count / NULLIF(h.headcount,0), 2) AS turnover_pct
+  FROM terminations t, headcount h;",employees,"employees.termination_date,employees.hire_date",hr,employee_turnover
+Q0078,challenging,Top 10 products by POS revenue for retail division div_11.,Join rtl_pos_line_items to products via product_id. Revenue = line_total.,"  SELECT p.name, SUM(li.line_total) AS total_revenue,
+         SUM(li.quantity) AS units_sold
+  FROM div_11.rtl_pos_line_items li
+  JOIN div_11.products p ON p.product_id = li.product_id
+  GROUP BY p.name
+  ORDER BY total_revenue DESC
+  LIMIT 10;","rtl_pos_line_items,products","rtl_pos_line_items.line_total,products.name",retail,rtl_top_products_by_revenue
+Q0079,challenging,Total contract value by customer for services division div_09.,"Table is zz_svc_sow with abbreviated columns: tot_amt for total amount, cust_nbr for customer ID. Join to customers.","  SELECT c.name, SUM(sow.tot_amt) AS total_value, COUNT(*) AS sow_count
+  FROM div_09.zz_svc_sow sow
+  JOIN div_09.customers c ON c.customer_id = sow.cust_nbr
+  GROUP BY c.name
+  ORDER BY total_value DESC
+  LIMIT 10;","zz_svc_sow,customers","zz_svc_sow.tot_amt,zz_svc_sow.cust_nbr,customers.name","services,dirty_naming",dirty_svc_sow_value
+Q0080,simple,List bank accounts with balance under 10000.,Use bank_accounts.current_balance.,"  SELECT bank_account_id, account_number, bank_name, current_balance
+  FROM div_17.bank_accounts
+  WHERE current_balance < 10000;",bank_accounts,bank_accounts.current_balance,finance,bank_balance
+Q0081,challenging,Top 10 products by POS revenue for retail division div_13.,Join rtl_pos_line_items to products via product_id. Revenue = line_total.,"  SELECT p.name, SUM(li.line_total) AS total_revenue,
+         SUM(li.quantity) AS units_sold
+  FROM div_13.rtl_pos_line_items li
+  JOIN div_13.products p ON p.product_id = li.product_id
+  GROUP BY p.name
+  ORDER BY total_revenue DESC
+  LIMIT 10;","rtl_pos_line_items,products","rtl_pos_line_items.line_total,products.name",retail,rtl_top_products_by_revenue
+Q0082,challenging,Compare effective vs statutory tax rate by jurisdiction for corporate division div_20.,Use corp_tax_provisions; compare effective_rate to statutory_rate.,"  SELECT jurisdiction, tax_type,
+         ROUND(AVG(effective_rate), 4) AS avg_effective_rate,
+         ROUND(AVG(statutory_rate), 4) AS avg_statutory_rate,
+         ROUND(AVG(statutory_rate - effective_rate), 4) AS avg_rate_gap,
+         SUM(current_provision + deferred_provision) AS total_provision
+  FROM div_20.corp_tax_provisions
+  GROUP BY jurisdiction, tax_type
+  ORDER BY total_provision DESC;",corp_tax_provisions,"corp_tax_provisions.jurisdiction,corp_tax_provisions.effective_rate,corp_tax_provisions.statutory_rate",corporate,corp_tax_effective_vs_statutory
+Q0083,moderate,Headcount by department for 2022.,Use employees.department_id.,"  SELECT d.name, COUNT(*) AS headcount
+  FROM div_01.employees e
+  JOIN div_01.departments d ON d.department_id = e.department_id
+  WHERE EXTRACT(YEAR FROM e.hire_date) <= 2022
+  GROUP BY d.name
+  ORDER BY headcount DESC;","employees,departments",employees.department_id,hr,org_headcount
+Q0084,challenging,Total contract value by customer for services division div_09.,"Table is zz_svc_sow with abbreviated columns: tot_amt for total amount, cust_nbr for customer ID. Join to customers.","  SELECT c.name, SUM(sow.tot_amt) AS total_value, COUNT(*) AS sow_count
+  FROM div_09.zz_svc_sow sow
+  JOIN div_09.customers c ON c.customer_id = sow.cust_nbr
+  GROUP BY c.name
+  ORDER BY total_value DESC
+  LIMIT 10;","zz_svc_sow,customers","zz_svc_sow.tot_amt,zz_svc_sow.cust_nbr,customers.name","services,dirty_naming",dirty_svc_sow_value
+Q0085,challenging,Monthly AR invoice trend with running total for 2021.,Use window function SUM() OVER for running total.,"  SELECT
+    DATE_TRUNC('month', invoice_date) AS month,
+    SUM(amount) AS monthly_amount,
+    SUM(SUM(amount)) OVER (ORDER BY DATE_TRUNC('month', invoice_date)) AS running_total
+  FROM div_09.finance_ar_invoices
+  WHERE EXTRACT(YEAR FROM invoice_date) = 2021
+  GROUP BY month
+  ORDER BY month;",finance_ar_invoices,"finance_ar_invoices.invoice_date,finance_ar_invoices.amount","finance,temporal,window",monthly_ar_trend
+Q0086,moderate,Approval rate of purchase orders in 2022.,Use procurement_po_approvals; approved vs rejected.,"  SELECT
+    ROUND(100.0 * SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) / COUNT(*), 2) AS approval_pct
+  FROM div_08.procurement_po_approvals
+  WHERE EXTRACT(YEAR FROM approval_date) = 2022;",procurement_po_approvals,"procurement_po_approvals.status,procurement_po_approvals.approval_date",procurement,po_approval_rate
+Q0087,simple,Number of comments per support case in 2024.,Use support_ticket_comments.comment_ts.,"  SELECT case_id, COUNT(*) AS comment_count
+  FROM div_11.support_ticket_comments
+  WHERE EXTRACT(YEAR FROM comment_ts) = 2024
+  GROUP BY case_id;",support_ticket_comments,support_ticket_comments.comment_ts,support,ticket_comment_volume
+Q0088,challenging,Average days between PO order date and goods receipt for each vendor in 2021.,Join purchase_orders -> goods_receipts -> vendors.,"  SELECT v.name, ROUND(AVG(gr.receipt_date - po.order_date), 2) AS avg_days
+  FROM div_15.purchase_orders po
+  JOIN div_15.goods_receipts gr ON gr.po_id = po.po_id
+  JOIN div_15.vendors v ON v.vendor_id = po.vendor_id
+  WHERE EXTRACT(YEAR FROM po.order_date) = 2021
+  GROUP BY v.name
+  ORDER BY avg_days;","purchase_orders,goods_receipts,vendors","purchase_orders.order_date,goods_receipts.receipt_date,vendors.name",procurement,vendor_performance
+Q0089,simple,Bank transaction totals by type for 2023.,Use bank_transactions.transaction_type.,"  SELECT transaction_type, SUM(amount) AS total_amount
+  FROM div_06.bank_transactions
+  WHERE EXTRACT(YEAR FROM transaction_date) = 2023
+  GROUP BY transaction_type;",bank_transactions,"bank_transactions.transaction_type,bank_transactions.amount,bank_transactions.transaction_date",finance,bank_tx_by_type
+Q0090,moderate,Assets transferred between locations in 2023.,Use asset_transfers.transfer_date.,"  SELECT transfer_id, asset_id, from_location_id, to_location_id, transfer_date
+  FROM div_18.asset_transfers
+  WHERE EXTRACT(YEAR FROM transfer_date) = 2023;",asset_transfers,asset_transfers.transfer_date,assets,asset_transfer
+Q0091,challenging,"Aged AR receivables buckets (0-30, 31-60, 61-90, 90+) for 2023.",Use finance_ar_invoices with status='open'; age = CURRENT_DATE - due_date.,"  SELECT
+    CASE
+      WHEN CURRENT_DATE - due_date <= 30 THEN '0-30'
+      WHEN CURRENT_DATE - due_date <= 60 THEN '31-60'
+      WHEN CURRENT_DATE - due_date <= 90 THEN '61-90'
+      ELSE '90+'
+    END AS aging_bucket,
+    COUNT(*) AS invoice_count,
+    SUM(amount) AS total_amount
+  FROM div_07.finance_ar_invoices
+  WHERE status = 'open'
+    AND EXTRACT(YEAR FROM invoice_date) = 2023
+  GROUP BY aging_bucket
+  ORDER BY aging_bucket;",finance_ar_invoices,"finance_ar_invoices.due_date,finance_ar_invoices.amount,finance_ar_invoices.status","finance,ar,aging",aged_ar_receivables
+Q0092,moderate,Sales order count by sales region for 2021.,Join sales_orders -> customers -> addresses -> cities -> states_provinces -> countries?,"  SELECT s.name AS state, COUNT(*) AS order_count
+  FROM div_10.sales_orders so
+  JOIN div_10.customers c ON c.customer_id = so.customer_id
+  LEFT JOIN div_10.addresses a ON a.address_id = c.billing_address_id
+  LEFT JOIN div_10.cities ci ON ci.city_id = a.city_id
+  LEFT JOIN div_10.states_provinces s ON s.state_id = ci.state_id
+  WHERE EXTRACT(YEAR FROM so.order_date) = 2021
+  GROUP BY s.name
+  ORDER BY order_count DESC;","sales_orders,customers,addresses,cities,states_provinces","sales_orders.order_date,customers.customer_id","sales,geography",sales_by_region
+Q0093,challenging,Total contract value by customer for services division div_07.,"Table is zz_svc_sow with abbreviated columns: tot_amt for total amount, cust_nbr for customer ID. Join to customers.","  SELECT c.name, SUM(sow.tot_amt) AS total_value, COUNT(*) AS sow_count
+  FROM div_07.zz_svc_sow sow
+  JOIN div_07.customers c ON c.customer_id = sow.cust_nbr
+  GROUP BY c.name
+  ORDER BY total_value DESC
+  LIMIT 10;","zz_svc_sow,customers","zz_svc_sow.tot_amt,zz_svc_sow.cust_nbr,customers.name","services,dirty_naming",dirty_svc_sow_value
+Q0094,moderate,Total maintenance cost by asset category in 2024.,Join asset_maintenance -> fixed_assets -> asset_categories.,"  SELECT ac.name, SUM(am.cost) AS total_cost
+  FROM div_03.asset_maintenance am
+  JOIN div_03.fixed_assets fa ON fa.asset_id = am.asset_id
+  JOIN div_03.asset_categories ac ON ac.category_id = fa.category_id
+  WHERE EXTRACT(YEAR FROM am.scheduled_date) = 2024
+  GROUP BY ac.name;","asset_maintenance,fixed_assets,asset_categories","asset_maintenance.cost,asset_categories.name",assets,asset_maintenance_costs
+Q0095,moderate,Total depreciation by period for 2024.,Use depreciation_entries.period_id and amount.,"  SELECT fp.start_date, SUM(de.amount) AS total_depr
+  FROM div_12.depreciation_entries de
+  JOIN div_12.fiscal_periods fp ON fp.period_id = de.period_id
+  WHERE EXTRACT(YEAR FROM fp.start_date) = 2024
+  GROUP BY fp.start_date
+  ORDER BY fp.start_date;","depreciation_entries,fiscal_periods","depreciation_entries.amount,fiscal_periods.start_date","assets,finance",asset_depreciation
+Q0096,challenging,Promotion effectiveness: average discount and transaction count per active promotion for div_13.,Join rtl_pos_line_items.promotion_code to rtl_promotions.promotion_code; only active promos.,"  SELECT pr.promotion_name, pr.discount_type_code,
+         COUNT(*) AS line_items,
+         ROUND(AVG(li.discount_amount), 2) AS avg_discount
+  FROM div_13.rtl_pos_line_items li
+  JOIN div_13.rtl_promotions pr ON pr.promotion_code = li.promotion_code
+  WHERE pr.status_code = 'AC' AND li.promotion_code IS NOT NULL
+  GROUP BY pr.promotion_name, pr.discount_type_code
+  ORDER BY line_items DESC;","rtl_pos_line_items,rtl_promotions","rtl_pos_line_items.discount_amount,rtl_promotions.promotion_code,rtl_promotions.status_code",retail,rtl_promotion_effectiveness
+Q0097,moderate,Loyalty member count by tier for retail division div_15.,"Use rtl_loyalty_members; tier_code values: BZ (Bronze), SV (Silver), GD (Gold), PT (Platinum).","  SELECT tier_code, COUNT(*) AS member_count,
+         AVG(points_balance) AS avg_points
+  FROM div_15.rtl_loyalty_members
+  WHERE status_code = 'AC'
+  GROUP BY tier_code
+  ORDER BY member_count DESC;",rtl_loyalty_members,"rtl_loyalty_members.tier_code,rtl_loyalty_members.status_code","retail,lookup",rtl_loyalty_tier_distribution
+Q0098,moderate,Headcount by department for 2023.,Use employees.department_id.,"  SELECT d.name, COUNT(*) AS headcount
+  FROM div_03.employees e
+  JOIN div_03.departments d ON d.department_id = e.department_id
+  WHERE EXTRACT(YEAR FROM e.hire_date) <= 2023
+  GROUP BY d.name
+  ORDER BY headcount DESC;","employees,departments",employees.department_id,hr,org_headcount
+Q0099,challenging,Average days from RFQ to vendor response for 2022.,Join procurement_rfqs to procurement_rfq_responses.,"  SELECT ROUND(AVG(r.response_date - q.rfq_date), 2) AS avg_days
+  FROM div_03.procurement_rfqs q
+  JOIN div_03.procurement_rfq_responses r ON r.rfq_id = q.rfq_id
+  WHERE EXTRACT(YEAR FROM q.rfq_date) = 2022;","procurement_rfqs,procurement_rfq_responses","procurement_rfqs.rfq_date,procurement_rfq_responses.response_date","procurement,time",rfq_response_time
+Q0100,challenging,Procure-to-pay cycle: PO to receipt to invoice for each vendor in 2022.,Join purchase_orders -> goods_receipts -> vendor_invoices -> vendors.,"  SELECT v.name AS vendor,
+         po.po_id,
+         po.order_date,
+         gr.receipt_id,
+         gr.receipt_date,
+         vi.invoice_id,
+         vi.invoice_date,
+         vi.total AS invoice_total
+  FROM div_19.purchase_orders po
+  JOIN div_19.goods_receipts gr ON gr.po_id = po.po_id
+  JOIN div_19.vendor_invoices vi ON vi.po_id = po.po_id
+  JOIN div_19.vendors v ON v.vendor_id = po.vendor_id
+  WHERE EXTRACT(YEAR FROM po.order_date) = 2022
+  ORDER BY po.order_date
+  LIMIT 50;","purchase_orders,goods_receipts,vendor_invoices,vendors","purchase_orders.order_date,goods_receipts.receipt_date,vendor_invoices.invoice_date","procurement,multi_join",procure_to_pay_cycle
+Q0101,moderate,Sales order count by sales region for 2024.,Join sales_orders -> customers -> addresses -> cities -> states_provinces -> countries?,"  SELECT s.name AS state, COUNT(*) AS order_count
+  FROM div_06.sales_orders so
+  JOIN div_06.customers c ON c.customer_id = so.customer_id
+  LEFT JOIN div_06.addresses a ON a.address_id = c.billing_address_id
+  LEFT JOIN div_06.cities ci ON ci.city_id = a.city_id
+  LEFT JOIN div_06.states_provinces s ON s.state_id = ci.state_id
+  WHERE EXTRACT(YEAR FROM so.order_date) = 2024
+  GROUP BY s.name
+  ORDER BY order_count DESC;","sales_orders,customers,addresses,cities,states_provinces","sales_orders.order_date,customers.customer_id","sales,geography",sales_by_region
+Q0102,challenging,Project profitability: budget vs actual with milestones and timesheets for 2022.,Join projects -> project_budgets -> project_expenses -> timesheets -> timesheet_entries.,"  SELECT p.name,
+         pb.planned_amount AS budget,
+         COALESCE(SUM(DISTINCT pe.amount), 0) AS total_expenses,
+         COALESCE(SUM(te.hours), 0) AS total_hours,
+         pb.planned_amount - COALESCE(SUM(DISTINCT pe.amount), 0) AS profit_margin
+  FROM div_19.projects p
+  JOIN div_19.project_budgets pb ON pb.project_id = p.project_id
+  LEFT JOIN div_19.project_expenses pe ON pe.project_id = p.project_id
+  LEFT JOIN div_19.timesheets ts ON ts.employee_id IN (
+    SELECT employee_id FROM div_19.project_resources WHERE project_id = p.project_id
+  )
+  LEFT JOIN div_19.timesheet_entries te ON te.timesheet_id = ts.timesheet_id
+  WHERE EXTRACT(YEAR FROM p.start_date) = 2022
+  GROUP BY p.name, pb.planned_amount
+  ORDER BY profit_margin DESC;","projects,project_budgets,project_expenses,timesheets,timesheet_entries","project_budgets.planned_amount,project_expenses.amount,timesheet_entries.hours","projects,multi_join",project_profitability_full
+Q0103,moderate,Count of statements of work by status for services division div_10.,Join svc_statements_of_work.status_code to lookup_codes domain='PROJECT_STATUS' for decoded names.,"  SELECT lc.meaning AS status, COUNT(*) AS sow_count
+  FROM div_10.svc_statements_of_work sow
+  JOIN div_10.lookup_codes lc ON lc.code = sow.status_code AND lc.domain = 'PROJECT_STATUS'
+  GROUP BY lc.meaning
+  ORDER BY sow_count DESC;","svc_statements_of_work,lookup_codes","svc_statements_of_work.status_code,lookup_codes.meaning","services,lookup",svc_sow_by_status
+Q0104,moderate,QC failure rate for inventory lots in 2024.,Fail results have result = 'fail'.,"  SELECT
+    ROUND(100.0 * SUM(CASE WHEN qi.result = 'fail' THEN 1 ELSE 0 END) / COUNT(*), 2) AS fail_pct
+  FROM div_20.inventory_qc_inspections qi
+  WHERE EXTRACT(YEAR FROM qi.inspection_date) = 2024;","inventory_qc_inspections,inventory_lots","inventory_qc_inspections.result,inventory_qc_inspections.inspection_date","inventory,qc",inventory_qc_fail_rate
+Q0105,challenging,Total POS sales by payment method for retail division div_14.,"Table is zz_pos_trnx with abbreviated columns: tot_amt, pay_mthd_cd, trnx_dt.","  SELECT pay_mthd_cd, COUNT(*) AS txn_count,
+         SUM(tot_amt) AS total_sales
+  FROM div_14.zz_pos_trnx
+  GROUP BY pay_mthd_cd
+  ORDER BY total_sales DESC;",zz_pos_trnx,"zz_pos_trnx.pay_mthd_cd,zz_pos_trnx.tot_amt","retail,dirty_naming",dirty_rtl_pos_sales
+Q0106,challenging,Employee utilization rate = hours logged / 40 by week in 2021.,Use timesheet_entries.hours.,"  SELECT e.employee_id, DATE_TRUNC('week', t.week_start_date) AS week_start,
+         ROUND(SUM(te.hours) / 40.0, 2) AS utilization
+  FROM div_19.timesheets t
+  JOIN div_19.timesheet_entries te ON te.timesheet_id = t.timesheet_id
+  JOIN div_19.employees e ON e.employee_id = t.employee_id
+  WHERE EXTRACT(YEAR FROM t.week_start_date) = 2021
+  GROUP BY e.employee_id, week_start;","timesheet_entries,timesheets,employees","timesheet_entries.hours,timesheets.week_start_date","projects,hr",employee_utilization
+Q0107,challenging,Total POS sales by payment method for retail division div_12.,"Table is zz_pos_trnx with abbreviated columns: tot_amt, pay_mthd_cd, trnx_dt.","  SELECT pay_mthd_cd, COUNT(*) AS txn_count,
+         SUM(tot_amt) AS total_sales
+  FROM div_12.zz_pos_trnx
+  GROUP BY pay_mthd_cd
+  ORDER BY total_sales DESC;",zz_pos_trnx,"zz_pos_trnx.pay_mthd_cd,zz_pos_trnx.tot_amt","retail,dirty_naming",dirty_rtl_pos_sales
+Q0108,simple,List bank accounts with balance under 500.,Use bank_accounts.current_balance.,"  SELECT bank_account_id, account_number, bank_name, current_balance
+  FROM div_09.bank_accounts
+  WHERE current_balance < 500;",bank_accounts,bank_accounts.current_balance,finance,bank_balance
+Q0109,simple,List inventory lots expiring within 60 days.,Use inventory_lots.expiration_date.,"  SELECT lot_id, lot_number, expiration_date
+  FROM div_17.inventory_lots
+  WHERE expiration_date <= CURRENT_DATE + INTERVAL '60 days';",inventory_lots,"inventory_lots.expiration_date,inventory_lots.lot_number",inventory,inventory_lot_expiring
+Q0110,challenging,Average days between PO order date and goods receipt for each vendor in 2023.,Join purchase_orders -> goods_receipts -> vendors.,"  SELECT v.name, ROUND(AVG(gr.receipt_date - po.order_date), 2) AS avg_days
+  FROM div_15.purchase_orders po
+  JOIN div_15.goods_receipts gr ON gr.po_id = po.po_id
+  JOIN div_15.vendors v ON v.vendor_id = po.vendor_id
+  WHERE EXTRACT(YEAR FROM po.order_date) = 2023
+  GROUP BY v.name
+  ORDER BY avg_days;","purchase_orders,goods_receipts,vendors","purchase_orders.order_date,goods_receipts.receipt_date,vendors.name",procurement,vendor_performance
+Q0111,simple,Timesheets awaiting approval in 2021.,Use timesheets.status = 'submitted'.,"  SELECT timesheet_id, employee_id, week_start_date, status
+  FROM div_07.timesheets
+  WHERE status = 'submitted'
+    AND EXTRACT(YEAR FROM week_start_date) = 2021;",timesheets,"timesheets.status,timesheets.week_start_date",projects,timesheet_approvals
+Q0112,challenging,Total SOW contract value by customer for services division div_06.,"Sum svc_statements_of_work.total_amount grouped by customer_id, join to customers.","  SELECT c.name, SUM(sow.total_amount) AS total_contract_value, COUNT(*) AS sow_count
+  FROM div_06.svc_statements_of_work sow
+  JOIN div_06.customers c ON c.customer_id = sow.customer_id
+  GROUP BY c.name
+  ORDER BY total_contract_value DESC
+  LIMIT 10;","svc_statements_of_work,customers","svc_statements_of_work.total_amount,svc_statements_of_work.customer_id,customers.name",services,svc_revenue_by_customer
+Q0113,simple,List bank accounts with balance under 5000.,Use bank_accounts.current_balance.,"  SELECT bank_account_id, account_number, bank_name, current_balance
+  FROM div_13.bank_accounts
+  WHERE current_balance < 5000;",bank_accounts,bank_accounts.current_balance,finance,bank_balance
+Q0114,challenging,Total POS sales by payment method for retail division div_14.,"Table is zz_pos_trnx with abbreviated columns: tot_amt, pay_mthd_cd, trnx_dt.","  SELECT pay_mthd_cd, COUNT(*) AS txn_count,
+         SUM(tot_amt) AS total_sales
+  FROM div_14.zz_pos_trnx
+  GROUP BY pay_mthd_cd
+  ORDER BY total_sales DESC;",zz_pos_trnx,"zz_pos_trnx.pay_mthd_cd,zz_pos_trnx.tot_amt","retail,dirty_naming",dirty_rtl_pos_sales
+Q0115,simple,Sales order counts by status for 2022.,Use sales_orders.status.,"  SELECT status, COUNT(*) AS order_count
+  FROM div_09.sales_orders
+  WHERE EXTRACT(YEAR FROM order_date) = 2022
+  GROUP BY status;",sales_orders,"sales_orders.status,sales_orders.order_date",sales,sales_order_status
+Q0116,simple,List inactive vendors.,Use vendors.is_active.,"  SELECT vendor_id, name
+  FROM div_08.vendors
+  WHERE is_active = FALSE;",vendors,vendors.is_active,procurement,vendor_active
+Q0117,moderate,Sales orders shipped after ship_date in 2024.,Use sales_orders.ship_date and order_date; assume ship_date is planned date.,"  SELECT order_id, customer_id, order_date, ship_date
+  FROM div_02.sales_orders
+  WHERE ship_date IS NOT NULL
+    AND ship_date > order_date
+    AND EXTRACT(YEAR FROM order_date) = 2024;",sales_orders,"sales_orders.ship_date,sales_orders.order_date",sales,late_shipments
+Q0118,moderate,Sales orders shipped after ship_date in 2022.,Use sales_orders.ship_date and order_date; assume ship_date is planned date.,"  SELECT order_id, customer_id, order_date, ship_date
+  FROM div_03.sales_orders
+  WHERE ship_date IS NOT NULL
+    AND ship_date > order_date
+    AND EXTRACT(YEAR FROM order_date) = 2022;",sales_orders,"sales_orders.ship_date,sales_orders.order_date",sales,late_shipments
+Q0119,challenging,Promotion effectiveness: average discount and transaction count per active promotion for div_15.,Join rtl_pos_line_items.promotion_code to rtl_promotions.promotion_code; only active promos.,"  SELECT pr.promotion_name, pr.discount_type_code,
+         COUNT(*) AS line_items,
+         ROUND(AVG(li.discount_amount), 2) AS avg_discount
+  FROM div_15.rtl_pos_line_items li
+  JOIN div_15.rtl_promotions pr ON pr.promotion_code = li.promotion_code
+  WHERE pr.status_code = 'AC' AND li.promotion_code IS NOT NULL
+  GROUP BY pr.promotion_name, pr.discount_type_code
+  ORDER BY line_items DESC;","rtl_pos_line_items,rtl_promotions","rtl_pos_line_items.discount_amount,rtl_promotions.promotion_code,rtl_promotions.status_code",retail,rtl_promotion_effectiveness
+Q0120,challenging,Cost of goods sold by product line for 2021.,COGS = quantity sold * list_price * cost_ratio (approximate).,"  SELECT pc.name AS product_line,
+         SUM(ol.quantity * ol.unit_price) AS total_revenue,
+         COUNT(DISTINCT so.order_id) AS order_count
+  FROM div_10.order_lines ol
+  JOIN div_10.sales_orders so ON so.order_id = ol.order_id
+  JOIN div_10.products p ON p.product_id = ol.product_id
+  JOIN div_10.product_categories pc ON pc.category_id = p.category_id
+  WHERE EXTRACT(YEAR FROM so.order_date) = 2021
+  GROUP BY pc.name
+  ORDER BY total_revenue DESC;","order_lines,sales_orders,products,product_categories","order_lines.quantity,order_lines.unit_price,product_categories.name","finance,kpi",cogs_by_product
+Q0121,simple,Show onboarding tasks overdue as of today.,Overdue if status not done and due_date < today.,"  SELECT task_id, employee_id, task_name, due_date, status
+  FROM div_11.hr_onboarding_tasks
+  WHERE status <> 'done'
+    AND due_date < CURRENT_DATE;",hr_onboarding_tasks,"hr_onboarding_tasks.status,hr_onboarding_tasks.due_date",hr,onboarding_overdue
+Q0122,moderate,Benefit election count by coverage level in 2023.,Use hr_benefit_elections.election_date.,"  SELECT coverage_level, COUNT(*) AS elections
+  FROM div_11.hr_benefit_elections
+  WHERE EXTRACT(YEAR FROM election_date) = 2023
+  GROUP BY coverage_level;",hr_benefit_elections,"hr_benefit_elections.coverage_level,hr_benefit_elections.election_date","hr,benefits",benefit_election_rate
+Q0123,challenging,Average time to close support cases in 2021.,Closed cases have status = 'closed'; use opened_at vs updated_at.,"  SELECT ROUND(AVG(EXTRACT(EPOCH FROM (updated_at - opened_at)) / 3600), 2) AS avg_close_hours
+  FROM div_05.cust_srv_case
+  WHERE status = 'closed'
+    AND EXTRACT(YEAR FROM opened_at) = 2021;",cust_srv_case,"cust_srv_case.opened_at,cust_srv_case.updated_at",support,customer_service_sla
+Q0124,moderate,Average allocation percent by project in 2023.,Use project_resources.allocation_percent.,"  SELECT p.name, ROUND(AVG(pr.allocation_percent), 2) AS avg_alloc
+  FROM div_19.project_resources pr
+  JOIN div_19.projects p ON p.project_id = pr.project_id
+  WHERE EXTRACT(YEAR FROM p.start_date) = 2023
+  GROUP BY p.name;","project_resources,projects","project_resources.allocation_percent,projects.start_date",projects,project_resource_alloc
+Q0125,challenging,Inventory turns by product category for 2021.,Approximate turns using inventory_transactions quantity.,"  SELECT pc.name, SUM(it.quantity) AS total_moved
+  FROM div_16.inventory_transactions it
+  JOIN div_16.products p ON p.product_id = it.product_id
+  JOIN div_16.product_categories pc ON pc.category_id = p.category_id
+  WHERE EXTRACT(YEAR FROM it.transaction_date) = 2021
+  GROUP BY pc.name
+  ORDER BY total_moved DESC;","inventory_transactions,products,product_categories","inventory_transactions.quantity,inventory_transactions.transaction_date,product_categories.name",inventory,inventory_turns
+Q0126,challenging,Average days from requisition to PO for 2021.,Join purchase_requisitions to purchase_orders by requisition_id.,"  SELECT ROUND(AVG(po.order_date - pr.request_date), 2) AS avg_days
+  FROM div_09.purchase_requisitions pr
+  JOIN div_09.purchase_orders po ON po.requisition_id = pr.requisition_id
+  WHERE EXTRACT(YEAR FROM pr.request_date) = 2021;","purchase_requisitions,purchase_orders","purchase_requisitions.request_date,purchase_orders.order_date",procurement,procurement_cycle_time
+Q0127,moderate,Workflow approval counts by decoded approval status.,"Join wf_approval_step.status to lookup_codes where domain='APPROVAL_STATUS'. Note: status values may be 'pending','approved','rejected' (text) not codes.","  SELECT status, COUNT(*) AS step_count
+  FROM div_08.wf_approval_step
+  GROUP BY status
+  ORDER BY step_count DESC;","wf_approval_step,lookup_codes","wf_approval_step.status,lookup_codes.meaning","workflow,lookup",approval_status_decoded
+Q0128,challenging,"Employee tenure distribution (0-1yr, 1-3yr, 3-5yr, 5+yr) as of 2021.",Tenure = hire_date to end of year; bucket by years.,"  SELECT
+    CASE
+      WHEN EXTRACT(YEAR FROM AGE(DATE '2021-12-31', hire_date)) < 1 THEN '0-1 yr'
+      WHEN EXTRACT(YEAR FROM AGE(DATE '2021-12-31', hire_date)) < 3 THEN '1-3 yr'
+      WHEN EXTRACT(YEAR FROM AGE(DATE '2021-12-31', hire_date)) < 5 THEN '3-5 yr'
+      ELSE '5+ yr'
+    END AS tenure_bucket,
+    COUNT(*) AS employee_count
+  FROM div_19.employees
+  WHERE hire_date <= DATE '2021-12-31'
+    AND (termination_date IS NULL OR termination_date > DATE '2021-12-31')
+  GROUP BY tenure_bucket
+  ORDER BY tenure_bucket;",employees,employees.hire_date,"hr,temporal",employee_tenure_distribution
+Q0129,challenging,Total POS sales by payment method for retail division div_14.,"Table is zz_pos_trnx with abbreviated columns: tot_amt, pay_mthd_cd, trnx_dt.","  SELECT pay_mthd_cd, COUNT(*) AS txn_count,
+         SUM(tot_amt) AS total_sales
+  FROM div_14.zz_pos_trnx
+  GROUP BY pay_mthd_cd
+  ORDER BY total_sales DESC;",zz_pos_trnx,"zz_pos_trnx.pay_mthd_cd,zz_pos_trnx.tot_amt","retail,dirty_naming",dirty_rtl_pos_sales
+Q0130,challenging,Period-over-period headcount change by month for 2024.,Count active employees at end of each month.,"  WITH months AS (
+    SELECT generate_series(1, 12) AS month_num
+  ),
+  headcount AS (
+    SELECT m.month_num,
+           COUNT(*) AS hc
+    FROM months m
+    JOIN div_18.employees e ON e.hire_date <= DATE '2024-12-31'
+      AND (DATE '2024-01-01' + (m.month_num - 1) * INTERVAL '1 month') >= e.hire_date
+      AND (e.termination_date IS NULL
+           OR e.termination_date > DATE '2024-01-01' + (m.month_num - 1) * INTERVAL '1 month')
+    GROUP BY m.month_num
+  )
+  SELECT month_num, hc,
+         hc - LAG(hc) OVER (ORDER BY month_num) AS change
+  FROM headcount
+  ORDER BY month_num;",employees,"employees.hire_date,employees.termination_date","hr,temporal",pop_headcount_change
+Q0131,challenging,Employee utilization rate = hours logged / 40 by week in 2024.,Use timesheet_entries.hours.,"  SELECT e.employee_id, DATE_TRUNC('week', t.week_start_date) AS week_start,
+         ROUND(SUM(te.hours) / 40.0, 2) AS utilization
+  FROM div_19.timesheets t
+  JOIN div_19.timesheet_entries te ON te.timesheet_id = t.timesheet_id
+  JOIN div_19.employees e ON e.employee_id = t.employee_id
+  WHERE EXTRACT(YEAR FROM t.week_start_date) = 2024
+  GROUP BY e.employee_id, week_start;","timesheet_entries,timesheets,employees","timesheet_entries.hours,timesheets.week_start_date","projects,hr",employee_utilization
+Q0132,moderate,Benefit election count by coverage level in 2022.,Use hr_benefit_elections.election_date.,"  SELECT coverage_level, COUNT(*) AS elections
+  FROM div_01.hr_benefit_elections
+  WHERE EXTRACT(YEAR FROM election_date) = 2022
+  GROUP BY coverage_level;",hr_benefit_elections,"hr_benefit_elections.coverage_level,hr_benefit_elections.election_date","hr,benefits",benefit_election_rate
+Q0133,moderate,Assets transferred between locations in 2023.,Use asset_transfers.transfer_date.,"  SELECT transfer_id, asset_id, from_location_id, to_location_id, transfer_date
+  FROM div_13.asset_transfers
+  WHERE EXTRACT(YEAR FROM transfer_date) = 2023;",asset_transfers,asset_transfers.transfer_date,assets,asset_transfer
+Q0134,challenging,Average days from requisition to PO for 2024.,Join purchase_requisitions to purchase_orders by requisition_id.,"  SELECT ROUND(AVG(po.order_date - pr.request_date), 2) AS avg_days
+  FROM div_04.purchase_requisitions pr
+  JOIN div_04.purchase_orders po ON po.requisition_id = pr.requisition_id
+  WHERE EXTRACT(YEAR FROM pr.request_date) = 2024;","purchase_requisitions,purchase_orders","purchase_requisitions.request_date,purchase_orders.order_date",procurement,procurement_cycle_time
+Q0135,challenging,Top 10 products by POS revenue for retail division div_13.,Join rtl_pos_line_items to products via product_id. Revenue = line_total.,"  SELECT p.name, SUM(li.line_total) AS total_revenue,
+         SUM(li.quantity) AS units_sold
+  FROM div_13.rtl_pos_line_items li
+  JOIN div_13.products p ON p.product_id = li.product_id
+  GROUP BY p.name
+  ORDER BY total_revenue DESC
+  LIMIT 10;","rtl_pos_line_items,products","rtl_pos_line_items.line_total,products.name",retail,rtl_top_products_by_revenue
+Q0136,challenging,Average resource allocation percent by role for active SOWs in services division div_06.,Join svc_resource_plan to svc_statements_of_work; filter active SOWs (status_code='AC').,"  SELECT rp.role_name,
+         ROUND(AVG(rp.allocation_percent), 1) AS avg_allocation,
+         COUNT(*) AS assignments
+  FROM div_06.svc_resource_plan rp
+  JOIN div_06.svc_statements_of_work sow ON sow.sow_id = rp.sow_id
+  WHERE sow.status_code = 'AC'
+  GROUP BY rp.role_name
+  ORDER BY avg_allocation DESC;","svc_resource_plan,svc_statements_of_work","svc_resource_plan.role_name,svc_resource_plan.allocation_percent,svc_statements_of_work.status_code","services,kpi",svc_resource_utilization
+Q0137,challenging,Work order count by decoded status in manufacturing division div_02.,Table is xx_mfg_wo with abbreviated columns: sts_cd for status. Join to lookup_codes domain='WO_STATUS'.,"  SELECT lc.meaning AS status, COUNT(*) AS wo_count
+  FROM div_02.xx_mfg_wo wo
+  JOIN div_02.lookup_codes lc ON lc.code = wo.sts_cd AND lc.domain = 'WO_STATUS'
+  GROUP BY lc.meaning
+  ORDER BY wo_count DESC;","xx_mfg_wo,lookup_codes","xx_mfg_wo.sts_cd,lookup_codes.meaning","manufacturing,dirty_naming,lookup",dirty_mfg_wo_status
+Q0138,moderate,Total depreciation by period for 2024.,Use depreciation_entries.period_id and amount.,"  SELECT fp.start_date, SUM(de.amount) AS total_depr
+  FROM div_12.depreciation_entries de
+  JOIN div_12.fiscal_periods fp ON fp.period_id = de.period_id
+  WHERE EXTRACT(YEAR FROM fp.start_date) = 2024
+  GROUP BY fp.start_date
+  ORDER BY fp.start_date;","depreciation_entries,fiscal_periods","depreciation_entries.amount,fiscal_periods.start_date","assets,finance",asset_depreciation
+Q0139,challenging,Average time to close support cases in 2021.,Closed cases have status = 'closed'; use opened_at vs updated_at.,"  SELECT ROUND(AVG(EXTRACT(EPOCH FROM (updated_at - opened_at)) / 3600), 2) AS avg_close_hours
+  FROM div_15.cust_srv_case
+  WHERE status = 'closed'
+    AND EXTRACT(YEAR FROM opened_at) = 2021;",cust_srv_case,"cust_srv_case.opened_at,cust_srv_case.updated_at",support,customer_service_sla
+Q0140,moderate,Open audit findings by severity and type for corporate division div_18.,"Use corp_audit_findings where status_code IN ('OP','IP').","  SELECT audit_type, severity, COUNT(*) AS finding_count
+  FROM div_18.corp_audit_findings
+  WHERE status_code IN ('OP', 'IP')
+  GROUP BY audit_type, severity
+  ORDER BY severity, finding_count DESC;",corp_audit_findings,"corp_audit_findings.severity,corp_audit_findings.audit_type,corp_audit_findings.status_code",corporate,corp_audit_findings_open
+Q0141,simple,Vendors with payment terms of 30 days or more.,"Use vendors.payment_terms (integer, number of days).","  SELECT vendor_id, name, payment_terms
+  FROM div_16.vendors
+  WHERE payment_terms >= 30;",vendors,vendors.payment_terms,procurement,supplier_terms
+Q0142,challenging,"Aged AR receivables buckets (0-30, 31-60, 61-90, 90+) for 2022.",Use finance_ar_invoices with status='open'; age = CURRENT_DATE - due_date.,"  SELECT
+    CASE
+      WHEN CURRENT_DATE - due_date <= 30 THEN '0-30'
+      WHEN CURRENT_DATE - due_date <= 60 THEN '31-60'
+      WHEN CURRENT_DATE - due_date <= 90 THEN '61-90'
+      ELSE '90+'
+    END AS aging_bucket,
+    COUNT(*) AS invoice_count,
+    SUM(amount) AS total_amount
+  FROM div_07.finance_ar_invoices
+  WHERE status = 'open'
+    AND EXTRACT(YEAR FROM invoice_date) = 2022
+  GROUP BY aging_bucket
+  ORDER BY aging_bucket;",finance_ar_invoices,"finance_ar_invoices.due_date,finance_ar_invoices.amount,finance_ar_invoices.status","finance,ar,aging",aged_ar_receivables
+Q0143,moderate,Sales order count by sales region for 2021.,Join sales_orders -> customers -> addresses -> cities -> states_provinces -> countries?,"  SELECT s.name AS state, COUNT(*) AS order_count
+  FROM div_11.sales_orders so
+  JOIN div_11.customers c ON c.customer_id = so.customer_id
+  LEFT JOIN div_11.addresses a ON a.address_id = c.billing_address_id
+  LEFT JOIN div_11.cities ci ON ci.city_id = a.city_id
+  LEFT JOIN div_11.states_provinces s ON s.state_id = ci.state_id
+  WHERE EXTRACT(YEAR FROM so.order_date) = 2021
+  GROUP BY s.name
+  ORDER BY order_count DESC;","sales_orders,customers,addresses,cities,states_provinces","sales_orders.order_date,customers.customer_id","sales,geography",sales_by_region
+Q0144,challenging,Average resource allocation percent by role for active SOWs in services division div_08.,Join svc_resource_plan to svc_statements_of_work; filter active SOWs (status_code='AC').,"  SELECT rp.role_name,
+         ROUND(AVG(rp.allocation_percent), 1) AS avg_allocation,
+         COUNT(*) AS assignments
+  FROM div_08.svc_resource_plan rp
+  JOIN div_08.svc_statements_of_work sow ON sow.sow_id = rp.sow_id
+  WHERE sow.status_code = 'AC'
+  GROUP BY rp.role_name
+  ORDER BY avg_allocation DESC;","svc_resource_plan,svc_statements_of_work","svc_resource_plan.role_name,svc_resource_plan.allocation_percent,svc_statements_of_work.status_code","services,kpi",svc_resource_utilization
+Q0145,moderate,Training completion rate by course for 2023.,Use employee_training.completion_date.,"  SELECT c.name, COUNT(*) AS completions
+  FROM div_10.employee_training et
+  JOIN div_10.training_courses c ON c.course_id = et.course_id
+  WHERE EXTRACT(YEAR FROM et.completion_date) = 2023
+  GROUP BY c.name
+  ORDER BY completions DESC;","training_courses,employee_training",employee_training.completion_date,"hr,training",training_completion
+Q0146,challenging,Total contract value by customer for services division div_09.,"Table is zz_svc_sow with abbreviated columns: tot_amt for total amount, cust_nbr for customer ID. Join to customers.","  SELECT c.name, SUM(sow.tot_amt) AS total_value, COUNT(*) AS sow_count
+  FROM div_09.zz_svc_sow sow
+  JOIN div_09.customers c ON c.customer_id = sow.cust_nbr
+  GROUP BY c.name
+  ORDER BY total_value DESC
+  LIMIT 10;","zz_svc_sow,customers","zz_svc_sow.tot_amt,zz_svc_sow.cust_nbr,customers.name","services,dirty_naming",dirty_svc_sow_value
+Q0147,challenging,Total POS sales by payment method for retail division div_14.,"Table is zz_pos_trnx with abbreviated columns: tot_amt, pay_mthd_cd, trnx_dt.","  SELECT pay_mthd_cd, COUNT(*) AS txn_count,
+         SUM(tot_amt) AS total_sales
+  FROM div_14.zz_pos_trnx
+  GROUP BY pay_mthd_cd
+  ORDER BY total_sales DESC;",zz_pos_trnx,"zz_pos_trnx.pay_mthd_cd,zz_pos_trnx.tot_amt","retail,dirty_naming",dirty_rtl_pos_sales
+Q0148,simple,Timesheets awaiting approval in 2022.,Use timesheets.status = 'submitted'.,"  SELECT timesheet_id, employee_id, week_start_date, status
+  FROM div_12.timesheets
+  WHERE status = 'submitted'
+    AND EXTRACT(YEAR FROM week_start_date) = 2022;",timesheets,"timesheets.status,timesheets.week_start_date",projects,timesheet_approvals
+Q0149,challenging,Inventory turnover ratio by product category for 2021.,Turnover = total units moved / average quantity on hand. Use inventory_transactions for movement.,"  SELECT pc.name,
+         SUM(ABS(it.quantity)) AS total_moved,
+         AVG(il.quantity_on_hand) AS avg_on_hand,
+         ROUND(SUM(ABS(it.quantity)) / NULLIF(AVG(il.quantity_on_hand), 0), 2) AS turnover_ratio
+  FROM div_09.inventory_transactions it
+  JOIN div_09.products p ON p.product_id = it.product_id
+  JOIN div_09.product_categories pc ON pc.category_id = p.category_id
+  LEFT JOIN div_09.inventory_levels il ON il.product_id = p.product_id
+  WHERE EXTRACT(YEAR FROM it.transaction_date) = 2021
+  GROUP BY pc.name
+  ORDER BY turnover_ratio DESC;","inventory_transactions,products,product_categories,inventory_levels","inventory_transactions.quantity,inventory_transactions.transaction_date,product_categories.name","inventory,kpi",inventory_turnover_ratio
+Q0150,challenging,Inventory turns by product category for 2021.,Approximate turns using inventory_transactions quantity.,"  SELECT pc.name, SUM(it.quantity) AS total_moved
+  FROM div_05.inventory_transactions it
+  JOIN div_05.products p ON p.product_id = it.product_id
+  JOIN div_05.product_categories pc ON pc.category_id = p.category_id
+  WHERE EXTRACT(YEAR FROM it.transaction_date) = 2021
+  GROUP BY pc.name
+  ORDER BY total_moved DESC;","inventory_transactions,products,product_categories","inventory_transactions.quantity,inventory_transactions.transaction_date,product_categories.name",inventory,inventory_turns
+Q0151,moderate,Total scrap quantity by reason for manufacturing division div_05.,"Use mfg_scrap_log; reason_code values are abbreviations like DM, OP, EQ, MT.","  SELECT reason_code, SUM(scrap_quantity) AS total_scrap
+  FROM div_05.mfg_scrap_log
+  GROUP BY reason_code
+  ORDER BY total_scrap DESC;",mfg_scrap_log,"mfg_scrap_log.reason_code,mfg_scrap_log.scrap_quantity",manufacturing,scrap_by_reason_decoded
+Q0152,simple,List open sales opportunities with probability over 0.9.,Use sales_opportunities.probability.,"  SELECT opportunity_id, name, amount, probability
+  FROM div_18.sales_opportunities
+  WHERE probability > 0.9;",sales_opportunities,sales_opportunities.probability,sales,open_opportunities
+Q0153,simple,Vendors with payment terms of 30 days or more.,"Use vendors.payment_terms (integer, number of days).","  SELECT vendor_id, name, payment_terms
+  FROM div_15.vendors
+  WHERE payment_terms >= 30;",vendors,vendors.payment_terms,procurement,supplier_terms
+Q0154,challenging,Project profitability: budget vs actual with milestones and timesheets for 2022.,Join projects -> project_budgets -> project_expenses -> timesheets -> timesheet_entries.,"  SELECT p.name,
+         pb.planned_amount AS budget,
+         COALESCE(SUM(DISTINCT pe.amount), 0) AS total_expenses,
+         COALESCE(SUM(te.hours), 0) AS total_hours,
+         pb.planned_amount - COALESCE(SUM(DISTINCT pe.amount), 0) AS profit_margin
+  FROM div_16.projects p
+  JOIN div_16.project_budgets pb ON pb.project_id = p.project_id
+  LEFT JOIN div_16.project_expenses pe ON pe.project_id = p.project_id
+  LEFT JOIN div_16.timesheets ts ON ts.employee_id IN (
+    SELECT employee_id FROM div_16.project_resources WHERE project_id = p.project_id
+  )
+  LEFT JOIN div_16.timesheet_entries te ON te.timesheet_id = ts.timesheet_id
+  WHERE EXTRACT(YEAR FROM p.start_date) = 2022
+  GROUP BY p.name, pb.planned_amount
+  ORDER BY profit_margin DESC;","projects,project_budgets,project_expenses,timesheets,timesheet_entries","project_budgets.planned_amount,project_expenses.amount,timesheet_entries.hours","projects,multi_join",project_profitability_full
+Q0155,moderate,Products below reorder minimum by warehouse.,Join reorder_rules to inventory_levels.,"  SELECT rr.warehouse_id, p.sku, il.quantity_on_hand, rr.min_quantity
+  FROM div_19.reorder_rules rr
+  JOIN div_19.inventory_levels il ON il.product_id = rr.product_id AND il.warehouse_id = rr.warehouse_id
+  JOIN div_19.products p ON p.product_id = rr.product_id
+  WHERE il.quantity_on_hand < rr.min_quantity;","reorder_rules,inventory_levels,products","reorder_rules.min_quantity,inventory_levels.quantity_on_hand",inventory,inventory_reorder
+Q0156,challenging,Quote-to-order conversion rate for 2023.,Join sales_quotes to sales_orders by customer and dates.,"  SELECT
+    ROUND(100.0 * COUNT(DISTINCT so.order_id) / NULLIF(COUNT(DISTINCT sq.quote_id),0), 2) AS conversion_pct
+  FROM div_01.sales_quotes sq
+  LEFT JOIN div_01.sales_orders so ON so.customer_id = sq.customer_id
+  WHERE EXTRACT(YEAR FROM sq.quote_date) = 2023;","sales_quotes,sales_orders","sales_quotes.quote_date,sales_orders.order_date",sales,quote_to_order_rate
+Q0157,challenging,Average vendor payment cycle (invoice to payment) by vendor for 2024.,Join finance_ap_invoices to vendor_payments by vendor.,"  SELECT v.name,
+         ROUND(AVG(ai.due_date - ai.invoice_date), 1) AS avg_payment_cycle_days,
+         COUNT(*) AS invoice_count
+  FROM div_15.finance_ap_invoices ai
+  JOIN div_15.vendors v ON v.vendor_id = ai.vendor_id
+  WHERE EXTRACT(YEAR FROM ai.invoice_date) = 2024
+  GROUP BY v.name
+  ORDER BY avg_payment_cycle_days DESC;","finance_ap_invoices,vendors","finance_ap_invoices.invoice_date,finance_ap_invoices.due_date,vendors.name","procurement,kpi",vendor_payment_cycle
+Q0158,moderate,Average allocation percent by project in 2023.,Use project_resources.allocation_percent.,"  SELECT p.name, ROUND(AVG(pr.allocation_percent), 2) AS avg_alloc
+  FROM div_10.project_resources pr
+  JOIN div_10.projects p ON p.project_id = pr.project_id
+  WHERE EXTRACT(YEAR FROM p.start_date) = 2023
+  GROUP BY p.name;","project_resources,projects","project_resources.allocation_percent,projects.start_date",projects,project_resource_alloc
+Q0159,moderate,Top 5 vendors by total spend in 2021.,Use purchase_orders.total and vendor names.,"  SELECT v.name, SUM(po.total) AS total_spend
+  FROM div_14.purchase_orders po
+  JOIN div_14.vendors v ON v.vendor_id = po.vendor_id
+  WHERE EXTRACT(YEAR FROM po.order_date) = 2021
+  GROUP BY v.name
+  ORDER BY total_spend DESC
+  LIMIT 5;","purchase_orders,vendors","purchase_orders.total,purchase_orders.order_date,vendors.name",procurement,vendor_spend_top
+Q0160,moderate,Open opportunities by stage for 2022.,Join sales_opportunities to opportunity_stages.,"  SELECT os.name, COUNT(*) AS opportunity_count
+  FROM div_18.sales_opportunities so
+  JOIN div_18.opportunity_stages os ON os.stage_id = so.stage_id
+  WHERE EXTRACT(YEAR FROM so.expected_close_date) = 2022
+  GROUP BY os.name;","sales_opportunities,opportunity_stages","sales_opportunities.expected_close_date,opportunity_stages.name",sales,sales_pipeline
+Q0161,moderate,FTE headcount by department for 2021.,FTE = full-time equivalent; count employees active during the year.,"  SELECT d.name AS department,
+         COUNT(*) AS fte_count
+  FROM div_05.employees e
+  JOIN div_05.departments d ON d.department_id = e.department_id
+  WHERE e.hire_date <= DATE '2021-12-31'
+    AND (e.termination_date IS NULL OR e.termination_date > DATE '2021-01-01')
+  GROUP BY d.name
+  ORDER BY fte_count DESC;","employees,departments","employees.department_id,employees.hire_date","hr,jargon",fte_headcount
+Q0162,challenging,Top 10 products by POS revenue for retail division div_15.,Join rtl_pos_line_items to products via product_id. Revenue = line_total.,"  SELECT p.name, SUM(li.line_total) AS total_revenue,
+         SUM(li.quantity) AS units_sold
+  FROM div_15.rtl_pos_line_items li
+  JOIN div_15.products p ON p.product_id = li.product_id
+  GROUP BY p.name
+  ORDER BY total_revenue DESC
+  LIMIT 10;","rtl_pos_line_items,products","rtl_pos_line_items.line_total,products.name",retail,rtl_top_products_by_revenue
+Q0163,moderate,Average discount percentage on sales order lines in 2022.,discount is in order_lines.discount_percent.,"  SELECT ROUND(AVG(ol.discount_percent), 2) AS avg_discount
+  FROM div_18.order_lines ol
+  JOIN div_18.sales_orders so ON so.order_id = ol.order_id
+  WHERE EXTRACT(YEAR FROM so.order_date) = 2022;","order_lines,sales_orders","order_lines.discount_percent,sales_orders.order_date",sales,sales_order_discount
+Q0164,moderate,Billing milestones past due and not yet invoiced for services division div_08.,svc_billing_milestones where due_date < today and invoice_date IS NULL.,"  SELECT sow.sow_number, bm.description, bm.amount, bm.due_date
+  FROM div_08.svc_billing_milestones bm
+  JOIN div_08.svc_statements_of_work sow ON sow.sow_id = bm.sow_id
+  WHERE bm.due_date < CURRENT_DATE AND bm.invoice_date IS NULL
+  ORDER BY bm.due_date;","svc_billing_milestones,svc_statements_of_work","svc_billing_milestones.due_date,svc_billing_milestones.invoice_date,svc_billing_milestones.amount",services,svc_overdue_milestones
+Q0165,moderate,Average discount percentage on sales order lines in 2024.,discount is in order_lines.discount_percent.,"  SELECT ROUND(AVG(ol.discount_percent), 2) AS avg_discount
+  FROM div_06.order_lines ol
+  JOIN div_06.sales_orders so ON so.order_id = ol.order_id
+  WHERE EXTRACT(YEAR FROM so.order_date) = 2024;","order_lines,sales_orders","order_lines.discount_percent,sales_orders.order_date",sales,sales_order_discount
+Q0166,simple,List inactive vendors.,Use vendors.is_active.,"  SELECT vendor_id, name
+  FROM div_18.vendors
+  WHERE is_active = FALSE;",vendors,vendors.is_active,procurement,vendor_active
+Q0167,challenging,Period-over-period headcount change by month for 2024.,Count active employees at end of each month.,"  WITH months AS (
+    SELECT generate_series(1, 12) AS month_num
+  ),
+  headcount AS (
+    SELECT m.month_num,
+           COUNT(*) AS hc
+    FROM months m
+    JOIN div_10.employees e ON e.hire_date <= DATE '2024-12-31'
+      AND (DATE '2024-01-01' + (m.month_num - 1) * INTERVAL '1 month') >= e.hire_date
+      AND (e.termination_date IS NULL
+           OR e.termination_date > DATE '2024-01-01' + (m.month_num - 1) * INTERVAL '1 month')
+    GROUP BY m.month_num
+  )
+  SELECT month_num, hc,
+         hc - LAG(hc) OVER (ORDER BY month_num) AS change
+  FROM headcount
+  ORDER BY month_num;",employees,"employees.hire_date,employees.termination_date","hr,temporal",pop_headcount_change
+Q0168,challenging,Promotion effectiveness: average discount and transaction count per active promotion for div_11.,Join rtl_pos_line_items.promotion_code to rtl_promotions.promotion_code; only active promos.,"  SELECT pr.promotion_name, pr.discount_type_code,
+         COUNT(*) AS line_items,
+         ROUND(AVG(li.discount_amount), 2) AS avg_discount
+  FROM div_11.rtl_pos_line_items li
+  JOIN div_11.rtl_promotions pr ON pr.promotion_code = li.promotion_code
+  WHERE pr.status_code = 'AC' AND li.promotion_code IS NOT NULL
+  GROUP BY pr.promotion_name, pr.discount_type_code
+  ORDER BY line_items DESC;","rtl_pos_line_items,rtl_promotions","rtl_pos_line_items.discount_amount,rtl_promotions.promotion_code,rtl_promotions.status_code",retail,rtl_promotion_effectiveness
+Q0169,moderate,Work order count by decoded status in manufacturing division div_03.,Join mfg_work_orders.status_code to lookup_codes where domain='WO_STATUS'.,"  SELECT lc.meaning AS status,
+         COUNT(*) AS wo_count
+  FROM div_03.mfg_work_orders wo
+  JOIN div_03.lookup_codes lc ON lc.code = wo.status_code AND lc.domain = 'WO_STATUS'
+  GROUP BY lc.meaning
+  ORDER BY wo_count DESC;","mfg_work_orders,lookup_codes","mfg_work_orders.status_code,lookup_codes.meaning","manufacturing,lookup",wo_status_decoded
+Q0170,moderate,Quarterly revenue comparison for 2023.,Revenue = sum of order_lines.quantity * unit_price by quarter.,"  SELECT
+    EXTRACT(QUARTER FROM so.order_date) AS quarter,
+    SUM(ol.quantity * ol.unit_price) AS revenue
+  FROM div_06.order_lines ol
+  JOIN div_06.sales_orders so ON so.order_id = ol.order_id
+  WHERE EXTRACT(YEAR FROM so.order_date) = 2023
+  GROUP BY quarter
+  ORDER BY quarter;","order_lines,sales_orders","order_lines.quantity,order_lines.unit_price,sales_orders.order_date","sales,temporal",quarterly_revenue
+Q0171,simple,List inventory lots expiring within 60 days.,Use inventory_lots.expiration_date.,"  SELECT lot_id, lot_number, expiration_date
+  FROM div_11.inventory_lots
+  WHERE expiration_date <= CURRENT_DATE + INTERVAL '60 days';",inventory_lots,"inventory_lots.expiration_date,inventory_lots.lot_number",inventory,inventory_lot_expiring
+Q0172,moderate,Top expense categories for 2023.,Use project_expenses.category and amount.,"  SELECT category, SUM(amount) AS total
+  FROM div_18.project_expenses
+  WHERE EXTRACT(YEAR FROM expense_date) = 2023
+  GROUP BY category
+  ORDER BY total DESC;",project_expenses,"project_expenses.category,project_expenses.amount,project_expenses.expense_date",projects,expense_categories
+Q0173,moderate,Count of open customer service cases by priority.,Use cust_srv_case; open/pending are not closed.,"  SELECT priority, COUNT(*) AS case_count
+  FROM div_11.cust_srv_case
+  WHERE status IN ('open','pending')
+  GROUP BY priority;",cust_srv_case,"cust_srv_case.status,cust_srv_case.priority",support,sla_backlog
+Q0174,challenging,Weighted average cost per unit by product for 2021.,Weighted avg = sum(qty * unit_price) / sum(qty) from order lines.,"  SELECT p.name,
+         ROUND(SUM(ol.quantity * ol.unit_price) / NULLIF(SUM(ol.quantity), 0), 2) AS weighted_avg_cost,
+         SUM(ol.quantity) AS total_units
+  FROM div_03.order_lines ol
+  JOIN div_03.sales_orders so ON so.order_id = ol.order_id
+  JOIN div_03.products p ON p.product_id = ol.product_id
+  WHERE EXTRACT(YEAR FROM so.order_date) = 2021
+  GROUP BY p.name
+  ORDER BY weighted_avg_cost DESC;","order_lines,sales_orders,products","order_lines.quantity,order_lines.unit_price,products.name","finance,jargon",weighted_avg_cost
+Q0175,challenging,Promotion effectiveness: average discount and transaction count per active promotion for div_11.,Join rtl_pos_line_items.promotion_code to rtl_promotions.promotion_code; only active promos.,"  SELECT pr.promotion_name, pr.discount_type_code,
+         COUNT(*) AS line_items,
+         ROUND(AVG(li.discount_amount), 2) AS avg_discount
+  FROM div_11.rtl_pos_line_items li
+  JOIN div_11.rtl_promotions pr ON pr.promotion_code = li.promotion_code
+  WHERE pr.status_code = 'AC' AND li.promotion_code IS NOT NULL
+  GROUP BY pr.promotion_name, pr.discount_type_code
+  ORDER BY line_items DESC;","rtl_pos_line_items,rtl_promotions","rtl_pos_line_items.discount_amount,rtl_promotions.promotion_code,rtl_promotions.status_code",retail,rtl_promotion_effectiveness
+Q0176,moderate,Quarterly revenue comparison for 2024.,Revenue = sum of order_lines.quantity * unit_price by quarter.,"  SELECT
+    EXTRACT(QUARTER FROM so.order_date) AS quarter,
+    SUM(ol.quantity * ol.unit_price) AS revenue
+  FROM div_12.order_lines ol
+  JOIN div_12.sales_orders so ON so.order_id = ol.order_id
+  WHERE EXTRACT(YEAR FROM so.order_date) = 2024
+  GROUP BY quarter
+  ORDER BY quarter;","order_lines,sales_orders","order_lines.quantity,order_lines.unit_price,sales_orders.order_date","sales,temporal",quarterly_revenue
+Q0177,challenging,Work order count by decoded status in manufacturing division div_04.,Table is xx_mfg_wo with abbreviated columns: sts_cd for status. Join to lookup_codes domain='WO_STATUS'.,"  SELECT lc.meaning AS status, COUNT(*) AS wo_count
+  FROM div_04.xx_mfg_wo wo
+  JOIN div_04.lookup_codes lc ON lc.code = wo.sts_cd AND lc.domain = 'WO_STATUS'
+  GROUP BY lc.meaning
+  ORDER BY wo_count DESC;","xx_mfg_wo,lookup_codes","xx_mfg_wo.sts_cd,lookup_codes.meaning","manufacturing,dirty_naming,lookup",dirty_mfg_wo_status
+Q0178,challenging,Working capital ratio: current assets (AR) vs current liabilities (AP) for 2023.,Working capital = AR open amounts / AP open amounts.,"  WITH ar AS (
+    SELECT SUM(amount) AS total_ar
+    FROM div_17.finance_ar_invoices
+    WHERE status = 'open' AND EXTRACT(YEAR FROM invoice_date) = 2023
+  ),
+  ap AS (
+    SELECT SUM(amount) AS total_ap
+    FROM div_17.finance_ap_invoices
+    WHERE status = 'open' AND EXTRACT(YEAR FROM invoice_date) = 2023
+  )
+  SELECT ar.total_ar, ap.total_ap,
+         ROUND(ar.total_ar / NULLIF(ap.total_ap, 0), 2) AS working_capital_ratio
+  FROM ar, ap;","finance_ar_invoices,finance_ap_invoices","finance_ar_invoices.amount,finance_ap_invoices.amount","finance,jargon",working_capital_ratio
+Q0179,moderate,Sales orders shipped after ship_date in 2023.,Use sales_orders.ship_date and order_date; assume ship_date is planned date.,"  SELECT order_id, customer_id, order_date, ship_date
+  FROM div_12.sales_orders
+  WHERE ship_date IS NOT NULL
+    AND ship_date > order_date
+    AND EXTRACT(YEAR FROM order_date) = 2023;",sales_orders,"sales_orders.ship_date,sales_orders.order_date",sales,late_shipments
+Q0180,moderate,Total journal line amounts by cost center for 2023.,Use journal_lines.debit and credit.,"  SELECT cc.name, SUM(jl.debit - jl.credit) AS net_amount
+  FROM div_17.journal_lines jl
+  JOIN div_17.journal_entries je ON je.entry_id = jl.entry_id
+  JOIN div_17.cost_centers cc ON cc.cost_center_id = jl.cost_center_id
+  WHERE EXTRACT(YEAR FROM je.entry_date) = 2023
+  GROUP BY cc.name;","journal_lines,cost_centers,journal_entries","journal_lines.debit,journal_lines.credit,journal_entries.entry_date",finance,cost_center_spend
+Q0181,challenging,Revenue per FTE by department for 2021.,Revenue from sales; FTE from employee count. Join via sales_rep or department.,"  WITH dept_revenue AS (
+    SELECT e.department_id,
+           SUM(ol.quantity * ol.unit_price) AS revenue
+    FROM div_20.order_lines ol
+    JOIN div_20.sales_orders so ON so.order_id = ol.order_id
+    JOIN div_20.employees e ON e.employee_id = so.sales_rep_id
+    WHERE EXTRACT(YEAR FROM so.order_date) = 2021
+    GROUP BY e.department_id
+  ),
+  dept_fte AS (
+    SELECT department_id, COUNT(*) AS fte
+    FROM div_20.employees
+    WHERE hire_date <= DATE '2021-12-31'
+      AND (termination_date IS NULL OR termination_date > DATE '2021-01-01')
+    GROUP BY department_id
+  )
+  SELECT d.name,
+         dr.revenue,
+         df.fte,
+         ROUND(dr.revenue / NULLIF(df.fte, 0), 2) AS revenue_per_fte
+  FROM dept_revenue dr
+  JOIN dept_fte df ON df.department_id = dr.department_id
+  JOIN div_20.departments d ON d.department_id = dr.department_id
+  ORDER BY revenue_per_fte DESC;","order_lines,sales_orders,employees,departments","order_lines.quantity,order_lines.unit_price,employees.department_id","sales,hr,jargon",revenue_per_fte
+Q0182,moderate,Training completion rate by course for 2021.,Use employee_training.completion_date.,"  SELECT c.name, COUNT(*) AS completions
+  FROM div_09.employee_training et
+  JOIN div_09.training_courses c ON c.course_id = et.course_id
+  WHERE EXTRACT(YEAR FROM et.completion_date) = 2021
+  GROUP BY c.name
+  ORDER BY completions DESC;","training_courses,employee_training",employee_training.completion_date,"hr,training",training_completion
+Q0183,challenging,Inventory turns by product category for 2024.,Approximate turns using inventory_transactions quantity.,"  SELECT pc.name, SUM(it.quantity) AS total_moved
+  FROM div_12.inventory_transactions it
+  JOIN div_12.products p ON p.product_id = it.product_id
+  JOIN div_12.product_categories pc ON pc.category_id = p.category_id
+  WHERE EXTRACT(YEAR FROM it.transaction_date) = 2024
+  GROUP BY pc.name
+  ORDER BY total_moved DESC;","inventory_transactions,products,product_categories","inventory_transactions.quantity,inventory_transactions.transaction_date,product_categories.name",inventory,inventory_turns
+Q0184,simple,Count inventory adjustments by reason in 2024.,Use inventory_adjustments.reason.,"  SELECT reason, COUNT(*) AS adjustment_count
+  FROM div_09.inventory_adjustments
+  WHERE EXTRACT(YEAR FROM adjustment_date) = 2024
+  GROUP BY reason;",inventory_adjustments,"inventory_adjustments.reason,inventory_adjustments.adjustment_date",inventory,inventory_adjustments
+Q0185,challenging,Total POS sales by payment method for retail division div_12.,"Table is zz_pos_trnx with abbreviated columns: tot_amt, pay_mthd_cd, trnx_dt.","  SELECT pay_mthd_cd, COUNT(*) AS txn_count,
+         SUM(tot_amt) AS total_sales
+  FROM div_12.zz_pos_trnx
+  GROUP BY pay_mthd_cd
+  ORDER BY total_sales DESC;",zz_pos_trnx,"zz_pos_trnx.pay_mthd_cd,zz_pos_trnx.tot_amt","retail,dirty_naming",dirty_rtl_pos_sales
+Q0186,challenging,Cost of goods sold by product line for 2022.,COGS = quantity sold * list_price * cost_ratio (approximate).,"  SELECT pc.name AS product_line,
+         SUM(ol.quantity * ol.unit_price) AS total_revenue,
+         COUNT(DISTINCT so.order_id) AS order_count
+  FROM div_04.order_lines ol
+  JOIN div_04.sales_orders so ON so.order_id = ol.order_id
+  JOIN div_04.products p ON p.product_id = ol.product_id
+  JOIN div_04.product_categories pc ON pc.category_id = p.category_id
+  WHERE EXTRACT(YEAR FROM so.order_date) = 2022
+  GROUP BY pc.name
+  ORDER BY total_revenue DESC;","order_lines,sales_orders,products,product_categories","order_lines.quantity,order_lines.unit_price,product_categories.name","finance,kpi",cogs_by_product
+Q0187,challenging,"Complete employee profile: department, position, salary, benefits, certifications for 2021.",Join employees -> departments -> positions -> employee_salaries -> hr_benefit_elections -> employee_certifications.,"  SELECT e.first_name, e.last_name,
+         d.name AS department,
+         pos.title AS position,
+         es.amount AS salary,
+         COUNT(DISTINCT be.election_id) AS benefit_elections,
+         COUNT(DISTINCT ec.certification_id) AS certifications
+  FROM div_02.employees e
+  JOIN div_02.departments d ON d.department_id = e.department_id
+  LEFT JOIN div_02.positions pos ON pos.position_id = e.position_id
+  LEFT JOIN div_02.employee_salaries es ON es.employee_id = e.employee_id
+    AND es.effective_date <= DATE '2021-12-31'
+  LEFT JOIN div_02.hr_benefit_elections be ON be.employee_id = e.employee_id
+    AND EXTRACT(YEAR FROM be.election_date) = 2021
+  LEFT JOIN div_02.employee_certifications ec ON ec.employee_id = e.employee_id
+  GROUP BY e.first_name, e.last_name, d.name, pos.title, es.amount
+  LIMIT 50;","employees,departments,positions,employee_salaries,hr_benefit_elections,employee_certifications","employees.first_name,employees.last_name,departments.name,employee_salaries.salary","hr,multi_join",complete_employee_profile
+Q0188,simple,List bank accounts with balance under 500.,Use bank_accounts.current_balance.,"  SELECT bank_account_id, account_number, bank_name, current_balance
+  FROM div_05.bank_accounts
+  WHERE current_balance < 500;",bank_accounts,bank_accounts.current_balance,finance,bank_balance
+Q0189,challenging,Average days from RFQ to vendor response for 2021.,Join procurement_rfqs to procurement_rfq_responses.,"  SELECT ROUND(AVG(r.response_date - q.rfq_date), 2) AS avg_days
+  FROM div_12.procurement_rfqs q
+  JOIN div_12.procurement_rfq_responses r ON r.rfq_id = q.rfq_id
+  WHERE EXTRACT(YEAR FROM q.rfq_date) = 2021;","procurement_rfqs,procurement_rfq_responses","procurement_rfqs.rfq_date,procurement_rfq_responses.response_date","procurement,time",rfq_response_time
+Q0190,challenging,Total POS sales by payment method for retail division div_14.,"Table is zz_pos_trnx with abbreviated columns: tot_amt, pay_mthd_cd, trnx_dt.","  SELECT pay_mthd_cd, COUNT(*) AS txn_count,
+         SUM(tot_amt) AS total_sales
+  FROM div_14.zz_pos_trnx
+  GROUP BY pay_mthd_cd
+  ORDER BY total_sales DESC;",zz_pos_trnx,"zz_pos_trnx.pay_mthd_cd,zz_pos_trnx.tot_amt","retail,dirty_naming",dirty_rtl_pos_sales
+Q0191,moderate,Average days between vendor invoice date and due date by vendor.,Use vendor_invoices.invoice_date and due_date.,"  SELECT v.name, ROUND(AVG(vi.due_date - vi.invoice_date)::numeric, 2) AS avg_days
+  FROM div_18.vendor_invoices vi
+  JOIN div_18.vendors v ON v.vendor_id = vi.vendor_id
+  GROUP BY v.name
+  ORDER BY avg_days DESC;","vendor_invoices,vendors","vendor_invoices.invoice_date,vendor_invoices.due_date",procurement,vendor_invoice_aging
+Q0192,moderate,QC failure rate for inventory lots in 2023.,Fail results have result = 'fail'.,"  SELECT
+    ROUND(100.0 * SUM(CASE WHEN qi.result = 'fail' THEN 1 ELSE 0 END) / COUNT(*), 2) AS fail_pct
+  FROM div_12.inventory_qc_inspections qi
+  WHERE EXTRACT(YEAR FROM qi.inspection_date) = 2023;","inventory_qc_inspections,inventory_lots","inventory_qc_inspections.result,inventory_qc_inspections.inspection_date","inventory,qc",inventory_qc_fail_rate
+Q0193,moderate,Count of statements of work by status for services division div_06.,Join svc_statements_of_work.status_code to lookup_codes domain='PROJECT_STATUS' for decoded names.,"  SELECT lc.meaning AS status, COUNT(*) AS sow_count
+  FROM div_06.svc_statements_of_work sow
+  JOIN div_06.lookup_codes lc ON lc.code = sow.status_code AND lc.domain = 'PROJECT_STATUS'
+  GROUP BY lc.meaning
+  ORDER BY sow_count DESC;","svc_statements_of_work,lookup_codes","svc_statements_of_work.status_code,lookup_codes.meaning","services,lookup",svc_sow_by_status
+Q0194,moderate,Open opportunities by stage for 2023.,Join sales_opportunities to opportunity_stages.,"  SELECT os.name, COUNT(*) AS opportunity_count
+  FROM div_02.sales_opportunities so
+  JOIN div_02.opportunity_stages os ON os.stage_id = so.stage_id
+  WHERE EXTRACT(YEAR FROM so.expected_close_date) = 2023
+  GROUP BY os.name;","sales_opportunities,opportunity_stages","sales_opportunities.expected_close_date,opportunity_stages.name",sales,sales_pipeline
+Q0195,moderate,Total journal line amounts by cost center for 2024.,Use journal_lines.debit and credit.,"  SELECT cc.name, SUM(jl.debit - jl.credit) AS net_amount
+  FROM div_16.journal_lines jl
+  JOIN div_16.journal_entries je ON je.entry_id = jl.entry_id
+  JOIN div_16.cost_centers cc ON cc.cost_center_id = jl.cost_center_id
+  WHERE EXTRACT(YEAR FROM je.entry_date) = 2024
+  GROUP BY cc.name;","journal_lines,cost_centers,journal_entries","journal_lines.debit,journal_lines.credit,journal_entries.entry_date",finance,cost_center_spend
+Q0196,challenging,Work order count by decoded status in manufacturing division div_02.,Table is xx_mfg_wo with abbreviated columns: sts_cd for status. Join to lookup_codes domain='WO_STATUS'.,"  SELECT lc.meaning AS status, COUNT(*) AS wo_count
+  FROM div_02.xx_mfg_wo wo
+  JOIN div_02.lookup_codes lc ON lc.code = wo.sts_cd AND lc.domain = 'WO_STATUS'
+  GROUP BY lc.meaning
+  ORDER BY wo_count DESC;","xx_mfg_wo,lookup_codes","xx_mfg_wo.sts_cd,lookup_codes.meaning","manufacturing,dirty_naming,lookup",dirty_mfg_wo_status
+Q0197,moderate,Total scrap quantity by reason for manufacturing division div_05.,"Use mfg_scrap_log; reason_code values are abbreviations like DM, OP, EQ, MT.","  SELECT reason_code, SUM(scrap_quantity) AS total_scrap
+  FROM div_05.mfg_scrap_log
+  GROUP BY reason_code
+  ORDER BY total_scrap DESC;",mfg_scrap_log,"mfg_scrap_log.reason_code,mfg_scrap_log.scrap_quantity",manufacturing,scrap_by_reason_decoded
+Q0198,moderate,Count of statements of work by status for services division div_08.,Join svc_statements_of_work.status_code to lookup_codes domain='PROJECT_STATUS' for decoded names.,"  SELECT lc.meaning AS status, COUNT(*) AS sow_count
+  FROM div_08.svc_statements_of_work sow
+  JOIN div_08.lookup_codes lc ON lc.code = sow.status_code AND lc.domain = 'PROJECT_STATUS'
+  GROUP BY lc.meaning
+  ORDER BY sow_count DESC;","svc_statements_of_work,lookup_codes","svc_statements_of_work.status_code,lookup_codes.meaning","services,lookup",svc_sow_by_status
+Q0199,challenging,Employee utilization rate = hours logged / 40 by week in 2021.,Use timesheet_entries.hours.,"  SELECT e.employee_id, DATE_TRUNC('week', t.week_start_date) AS week_start,
+         ROUND(SUM(te.hours) / 40.0, 2) AS utilization
+  FROM div_04.timesheets t
+  JOIN div_04.timesheet_entries te ON te.timesheet_id = t.timesheet_id
+  JOIN div_04.employees e ON e.employee_id = t.employee_id
+  WHERE EXTRACT(YEAR FROM t.week_start_date) = 2021
+  GROUP BY e.employee_id, week_start;","timesheet_entries,timesheets,employees","timesheet_entries.hours,timesheets.week_start_date","projects,hr",employee_utilization
+Q0200,challenging,Budget variance (planned vs actual) by department for 2023.,Use budgets for planned and project_expenses for actual; join via department_id on budgets.,"  SELECT d.name,
+         b.total_amount AS planned,
+         COALESCE(SUM(pe.amount), 0) AS actual,
+         b.total_amount - COALESCE(SUM(pe.amount), 0) AS variance
+  FROM div_01.budgets b
+  JOIN div_01.departments d ON d.department_id = b.department_id
+  LEFT JOIN div_01.project_expenses pe ON pe.project_id IN (
+    SELECT project_id FROM div_01.projects WHERE customer_id IS NOT NULL
+  ) AND EXTRACT(YEAR FROM pe.expense_date) = 2023
+  WHERE EXTRACT(YEAR FROM b.created_at) = 2023
+  GROUP BY d.name, b.total_amount
+  ORDER BY variance;","budgets,departments,project_expenses","budgets.total_amount,project_expenses.amount,departments.name","finance,budget",budget_variance_dept
+Q0201,moderate,Total scrap quantity by reason for manufacturing division div_05.,"Use mfg_scrap_log; reason_code values are abbreviations like DM, OP, EQ, MT.","  SELECT reason_code, SUM(scrap_quantity) AS total_scrap
+  FROM div_05.mfg_scrap_log
+  GROUP BY reason_code
+  ORDER BY total_scrap DESC;",mfg_scrap_log,"mfg_scrap_log.reason_code,mfg_scrap_log.scrap_quantity",manufacturing,scrap_by_reason_decoded
+Q0202,challenging,Gross margin (revenue - COGS estimate) by product for 2022.,Revenue from order_lines; COGS approximated by list_price * 0.6.,"  SELECT p.name,
+         SUM(ol.quantity * ol.unit_price) AS revenue,
+         SUM(ol.quantity * ol.unit_price * 0.6) AS estimated_cogs,
+         ROUND(SUM(ol.quantity * ol.unit_price * 0.4), 2) AS gross_margin
+  FROM div_09.order_lines ol
+  JOIN div_09.sales_orders so ON so.order_id = ol.order_id
+  JOIN div_09.products p ON p.product_id = ol.product_id
+  WHERE EXTRACT(YEAR FROM so.order_date) = 2022
+  GROUP BY p.name
+  ORDER BY gross_margin DESC
+  LIMIT 20;","order_lines,sales_orders,products","order_lines.quantity,order_lines.unit_price,products.name","sales,finance,kpi",gross_margin_by_product
+Q0203,challenging,Work order count by decoded status in manufacturing division div_04.,Table is xx_mfg_wo with abbreviated columns: sts_cd for status. Join to lookup_codes domain='WO_STATUS'.,"  SELECT lc.meaning AS status, COUNT(*) AS wo_count
+  FROM div_04.xx_mfg_wo wo
+  JOIN div_04.lookup_codes lc ON lc.code = wo.sts_cd AND lc.domain = 'WO_STATUS'
+  GROUP BY lc.meaning
+  ORDER BY wo_count DESC;","xx_mfg_wo,lookup_codes","xx_mfg_wo.sts_cd,lookup_codes.meaning","manufacturing,dirty_naming,lookup",dirty_mfg_wo_status
+Q0204,challenging,Period-over-period headcount change by month for 2022.,Count active employees at end of each month.,"  WITH months AS (
+    SELECT generate_series(1, 12) AS month_num
+  ),
+  headcount AS (
+    SELECT m.month_num,
+           COUNT(*) AS hc
+    FROM months m
+    JOIN div_05.employees e ON e.hire_date <= DATE '2022-12-31'
+      AND (DATE '2022-01-01' + (m.month_num - 1) * INTERVAL '1 month') >= e.hire_date
+      AND (e.termination_date IS NULL
+           OR e.termination_date > DATE '2022-01-01' + (m.month_num - 1) * INTERVAL '1 month')
+    GROUP BY m.month_num
+  )
+  SELECT month_num, hc,
+         hc - LAG(hc) OVER (ORDER BY month_num) AS change
+  FROM headcount
+  ORDER BY month_num;",employees,"employees.hire_date,employees.termination_date","hr,temporal",pop_headcount_change
+Q0205,moderate,Total journal line amounts by cost center for 2021.,Use journal_lines.debit and credit.,"  SELECT cc.name, SUM(jl.debit - jl.credit) AS net_amount
+  FROM div_20.journal_lines jl
+  JOIN div_20.journal_entries je ON je.entry_id = jl.entry_id
+  JOIN div_20.cost_centers cc ON cc.cost_center_id = jl.cost_center_id
+  WHERE EXTRACT(YEAR FROM je.entry_date) = 2021
+  GROUP BY cc.name;","journal_lines,cost_centers,journal_entries","journal_lines.debit,journal_lines.credit,journal_entries.entry_date",finance,cost_center_spend
+Q0206,challenging,"Aged AR receivables buckets (0-30, 31-60, 61-90, 90+) for 2023.",Use finance_ar_invoices with status='open'; age = CURRENT_DATE - due_date.,"  SELECT
+    CASE
+      WHEN CURRENT_DATE - due_date <= 30 THEN '0-30'
+      WHEN CURRENT_DATE - due_date <= 60 THEN '31-60'
+      WHEN CURRENT_DATE - due_date <= 90 THEN '61-90'
+      ELSE '90+'
+    END AS aging_bucket,
+    COUNT(*) AS invoice_count,
+    SUM(amount) AS total_amount
+  FROM div_20.finance_ar_invoices
+  WHERE status = 'open'
+    AND EXTRACT(YEAR FROM invoice_date) = 2023
+  GROUP BY aging_bucket
+  ORDER BY aging_bucket;",finance_ar_invoices,"finance_ar_invoices.due_date,finance_ar_invoices.amount,finance_ar_invoices.status","finance,ar,aging",aged_ar_receivables
+Q0207,challenging,Procure-to-pay cycle: PO to receipt to invoice for each vendor in 2021.,Join purchase_orders -> goods_receipts -> vendor_invoices -> vendors.,"  SELECT v.name AS vendor,
+         po.po_id,
+         po.order_date,
+         gr.receipt_id,
+         gr.receipt_date,
+         vi.invoice_id,
+         vi.invoice_date,
+         vi.total AS invoice_total
+  FROM div_10.purchase_orders po
+  JOIN div_10.goods_receipts gr ON gr.po_id = po.po_id
+  JOIN div_10.vendor_invoices vi ON vi.po_id = po.po_id
+  JOIN div_10.vendors v ON v.vendor_id = po.vendor_id
+  WHERE EXTRACT(YEAR FROM po.order_date) = 2021
+  ORDER BY po.order_date
+  LIMIT 50;","purchase_orders,goods_receipts,vendor_invoices,vendors","purchase_orders.order_date,goods_receipts.receipt_date,vendor_invoices.invoice_date","procurement,multi_join",procure_to_pay_cycle
+Q0208,moderate,Total AP invoice amount by vendor for 2024.,Join finance_ap_invoices to vendors.,"  SELECT v.name, SUM(ai.amount) AS total_amount
+  FROM div_17.finance_ap_invoices ai
+  JOIN div_17.vendors v ON v.vendor_id = ai.vendor_id
+  WHERE EXTRACT(YEAR FROM ai.invoice_date) = 2024
+  GROUP BY v.name
+  ORDER BY total_amount DESC;","finance_ap_invoices,vendors","finance_ap_invoices.amount,finance_ap_invoices.invoice_date,vendors.name","finance,ap",ap_by_vendor
+Q0209,moderate,Total maintenance cost by asset category in 2022.,Join asset_maintenance -> fixed_assets -> asset_categories.,"  SELECT ac.name, SUM(am.cost) AS total_cost
+  FROM div_03.asset_maintenance am
+  JOIN div_03.fixed_assets fa ON fa.asset_id = am.asset_id
+  JOIN div_03.asset_categories ac ON ac.category_id = fa.category_id
+  WHERE EXTRACT(YEAR FROM am.scheduled_date) = 2022
+  GROUP BY ac.name;","asset_maintenance,fixed_assets,asset_categories","asset_maintenance.cost,asset_categories.name",assets,asset_maintenance_costs
+Q0210,moderate,Work order count by decoded status in manufacturing division div_01.,Join mfg_work_orders.status_code to lookup_codes where domain='WO_STATUS'.,"  SELECT lc.meaning AS status,
+         COUNT(*) AS wo_count
+  FROM div_01.mfg_work_orders wo
+  JOIN div_01.lookup_codes lc ON lc.code = wo.status_code AND lc.domain = 'WO_STATUS'
+  GROUP BY lc.meaning
+  ORDER BY wo_count DESC;","mfg_work_orders,lookup_codes","mfg_work_orders.status_code,lookup_codes.meaning","manufacturing,lookup",wo_status_decoded
+Q0211,moderate,Top expense categories for 2024.,Use project_expenses.category and amount.,"  SELECT category, SUM(amount) AS total
+  FROM div_12.project_expenses
+  WHERE EXTRACT(YEAR FROM expense_date) = 2024
+  GROUP BY category
+  ORDER BY total DESC;",project_expenses,"project_expenses.category,project_expenses.amount,project_expenses.expense_date",projects,expense_categories
+Q0212,moderate,Billing milestones past due and not yet invoiced for services division div_08.,svc_billing_milestones where due_date < today and invoice_date IS NULL.,"  SELECT sow.sow_number, bm.description, bm.amount, bm.due_date
+  FROM div_08.svc_billing_milestones bm
+  JOIN div_08.svc_statements_of_work sow ON sow.sow_id = bm.sow_id
+  WHERE bm.due_date < CURRENT_DATE AND bm.invoice_date IS NULL
+  ORDER BY bm.due_date;","svc_billing_milestones,svc_statements_of_work","svc_billing_milestones.due_date,svc_billing_milestones.invoice_date,svc_billing_milestones.amount",services,svc_overdue_milestones
+Q0213,moderate,Total journal line amounts by cost center for 2022.,Use journal_lines.debit and credit.,"  SELECT cc.name, SUM(jl.debit - jl.credit) AS net_amount
+  FROM div_14.journal_lines jl
+  JOIN div_14.journal_entries je ON je.entry_id = jl.entry_id
+  JOIN div_14.cost_centers cc ON cc.cost_center_id = jl.cost_center_id
+  WHERE EXTRACT(YEAR FROM je.entry_date) = 2022
+  GROUP BY cc.name;","journal_lines,cost_centers,journal_entries","journal_lines.debit,journal_lines.credit,journal_entries.entry_date",finance,cost_center_spend
+Q0214,challenging,Work order count by decoded status in manufacturing division div_04.,Table is xx_mfg_wo with abbreviated columns: sts_cd for status. Join to lookup_codes domain='WO_STATUS'.,"  SELECT lc.meaning AS status, COUNT(*) AS wo_count
+  FROM div_04.xx_mfg_wo wo
+  JOIN div_04.lookup_codes lc ON lc.code = wo.sts_cd AND lc.domain = 'WO_STATUS'
+  GROUP BY lc.meaning
+  ORDER BY wo_count DESC;","xx_mfg_wo,lookup_codes","xx_mfg_wo.sts_cd,lookup_codes.meaning","manufacturing,dirty_naming,lookup",dirty_mfg_wo_status
+Q0215,challenging,Net intercompany balance between divisions for corporate division div_16.,Use corp_intercompany_txns; net = sum sent - sum received per division pair.,"  SELECT from_division, to_division,
+         SUM(amount) AS total_transferred,
+         COUNT(*) AS txn_count
+  FROM div_16.corp_intercompany_txns
+  WHERE status_code = 'AP'
+  GROUP BY from_division, to_division
+  ORDER BY total_transferred DESC;",corp_intercompany_txns,"corp_intercompany_txns.from_division,corp_intercompany_txns.to_division,corp_intercompany_txns.amount",corporate,corp_intercompany_balance
+Q0216,moderate,Count of open customer service cases by priority.,Use cust_srv_case; open/pending are not closed.,"  SELECT priority, COUNT(*) AS case_count
+  FROM div_08.cust_srv_case
+  WHERE status IN ('open','pending')
+  GROUP BY priority;",cust_srv_case,"cust_srv_case.status,cust_srv_case.priority",support,sla_backlog
+Q0217,moderate,Average days between vendor invoice date and due date by vendor.,Use vendor_invoices.invoice_date and due_date.,"  SELECT v.name, ROUND(AVG(vi.due_date - vi.invoice_date)::numeric, 2) AS avg_days
+  FROM div_05.vendor_invoices vi
+  JOIN div_05.vendors v ON v.vendor_id = vi.vendor_id
+  GROUP BY v.name
+  ORDER BY avg_days DESC;","vendor_invoices,vendors","vendor_invoices.invoice_date,vendor_invoices.due_date",procurement,vendor_invoice_aging
+Q0218,challenging,Work order count by decoded status in manufacturing division div_04.,Table is xx_mfg_wo with abbreviated columns: sts_cd for status. Join to lookup_codes domain='WO_STATUS'.,"  SELECT lc.meaning AS status, COUNT(*) AS wo_count
+  FROM div_04.xx_mfg_wo wo
+  JOIN div_04.lookup_codes lc ON lc.code = wo.sts_cd AND lc.domain = 'WO_STATUS'
+  GROUP BY lc.meaning
+  ORDER BY wo_count DESC;","xx_mfg_wo,lookup_codes","xx_mfg_wo.sts_cd,lookup_codes.meaning","manufacturing,dirty_naming,lookup",dirty_mfg_wo_status
+Q0219,challenging,Total employee cost (gross pay) per department for 2023.,Join payroll_run_line to employees to departments.,"  SELECT d.name,
+         SUM(prl.gross_pay) AS total_cost,
+         COUNT(DISTINCT prl.employee_id) AS employee_count
+  FROM div_09.payroll_run_line prl
+  JOIN div_09.payroll_run_hdr prh ON prh.run_id = prl.run_id
+  JOIN div_09.employees e ON e.employee_id = prl.employee_id
+  JOIN div_09.departments d ON d.department_id = e.department_id
+  WHERE EXTRACT(YEAR FROM prh.pay_period_start) = 2023
+  GROUP BY d.name
+  ORDER BY total_cost DESC;","payroll_run_line,payroll_run_hdr,employees,departments","payroll_run_line.gross_pay,employees.department_id,departments.name","hr,finance",employee_cost_per_dept
+Q0220,moderate,Work order count by decoded status in manufacturing division div_01.,Join mfg_work_orders.status_code to lookup_codes where domain='WO_STATUS'.,"  SELECT lc.meaning AS status,
+         COUNT(*) AS wo_count
+  FROM div_01.mfg_work_orders wo
+  JOIN div_01.lookup_codes lc ON lc.code = wo.status_code AND lc.domain = 'WO_STATUS'
+  GROUP BY lc.meaning
+  ORDER BY wo_count DESC;","mfg_work_orders,lookup_codes","mfg_work_orders.status_code,lookup_codes.meaning","manufacturing,lookup",wo_status_decoded
+Q0221,challenging,Weighted average cost per unit by product for 2021.,Weighted avg = sum(qty * unit_price) / sum(qty) from order lines.,"  SELECT p.name,
+         ROUND(SUM(ol.quantity * ol.unit_price) / NULLIF(SUM(ol.quantity), 0), 2) AS weighted_avg_cost,
+         SUM(ol.quantity) AS total_units
+  FROM div_19.order_lines ol
+  JOIN div_19.sales_orders so ON so.order_id = ol.order_id
+  JOIN div_19.products p ON p.product_id = ol.product_id
+  WHERE EXTRACT(YEAR FROM so.order_date) = 2021
+  GROUP BY p.name
+  ORDER BY weighted_avg_cost DESC;","order_lines,sales_orders,products","order_lines.quantity,order_lines.unit_price,products.name","finance,jargon",weighted_avg_cost
+Q0222,moderate,Workflow approval counts by decoded approval status.,"Join wf_approval_step.status to lookup_codes where domain='APPROVAL_STATUS'. Note: status values may be 'pending','approved','rejected' (text) not codes.","  SELECT status, COUNT(*) AS step_count
+  FROM div_10.wf_approval_step
+  GROUP BY status
+  ORDER BY step_count DESC;","wf_approval_step,lookup_codes","wf_approval_step.status,lookup_codes.meaning","workflow,lookup",approval_status_decoded
+Q0223,challenging,Gross margin (revenue - COGS estimate) by product for 2022.,Revenue from order_lines; COGS approximated by list_price * 0.6.,"  SELECT p.name,
+         SUM(ol.quantity * ol.unit_price) AS revenue,
+         SUM(ol.quantity * ol.unit_price * 0.6) AS estimated_cogs,
+         ROUND(SUM(ol.quantity * ol.unit_price * 0.4), 2) AS gross_margin
+  FROM div_08.order_lines ol
+  JOIN div_08.sales_orders so ON so.order_id = ol.order_id
+  JOIN div_08.products p ON p.product_id = ol.product_id
+  WHERE EXTRACT(YEAR FROM so.order_date) = 2022
+  GROUP BY p.name
+  ORDER BY gross_margin DESC
+  LIMIT 20;","order_lines,sales_orders,products","order_lines.quantity,order_lines.unit_price,products.name","sales,finance,kpi",gross_margin_by_product
+Q0224,challenging,Net intercompany balance between divisions for corporate division div_19.,Use corp_intercompany_txns; net = sum sent - sum received per division pair.,"  SELECT from_division, to_division,
+         SUM(amount) AS total_transferred,
+         COUNT(*) AS txn_count
+  FROM div_19.corp_intercompany_txns
+  WHERE status_code = 'AP'
+  GROUP BY from_division, to_division
+  ORDER BY total_transferred DESC;",corp_intercompany_txns,"corp_intercompany_txns.from_division,corp_intercompany_txns.to_division,corp_intercompany_txns.amount",corporate,corp_intercompany_balance
+Q0225,challenging,Promotion effectiveness: average discount and transaction count per active promotion for div_11.,Join rtl_pos_line_items.promotion_code to rtl_promotions.promotion_code; only active promos.,"  SELECT pr.promotion_name, pr.discount_type_code,
+         COUNT(*) AS line_items,
+         ROUND(AVG(li.discount_amount), 2) AS avg_discount
+  FROM div_11.rtl_pos_line_items li
+  JOIN div_11.rtl_promotions pr ON pr.promotion_code = li.promotion_code
+  WHERE pr.status_code = 'AC' AND li.promotion_code IS NOT NULL
+  GROUP BY pr.promotion_name, pr.discount_type_code
+  ORDER BY line_items DESC;","rtl_pos_line_items,rtl_promotions","rtl_pos_line_items.discount_amount,rtl_promotions.promotion_code,rtl_promotions.status_code",retail,rtl_promotion_effectiveness
+Q0226,challenging,Compare effective vs statutory tax rate by jurisdiction for corporate division div_19.,Use corp_tax_provisions; compare effective_rate to statutory_rate.,"  SELECT jurisdiction, tax_type,
+         ROUND(AVG(effective_rate), 4) AS avg_effective_rate,
+         ROUND(AVG(statutory_rate), 4) AS avg_statutory_rate,
+         ROUND(AVG(statutory_rate - effective_rate), 4) AS avg_rate_gap,
+         SUM(current_provision + deferred_provision) AS total_provision
+  FROM div_19.corp_tax_provisions
+  GROUP BY jurisdiction, tax_type
+  ORDER BY total_provision DESC;",corp_tax_provisions,"corp_tax_provisions.jurisdiction,corp_tax_provisions.effective_rate,corp_tax_provisions.statutory_rate",corporate,corp_tax_effective_vs_statutory
+Q0227,challenging,Project profitability: budget vs actual with milestones and timesheets for 2021.,Join projects -> project_budgets -> project_expenses -> timesheets -> timesheet_entries.,"  SELECT p.name,
+         pb.planned_amount AS budget,
+         COALESCE(SUM(DISTINCT pe.amount), 0) AS total_expenses,
+         COALESCE(SUM(te.hours), 0) AS total_hours,
+         pb.planned_amount - COALESCE(SUM(DISTINCT pe.amount), 0) AS profit_margin
+  FROM div_11.projects p
+  JOIN div_11.project_budgets pb ON pb.project_id = p.project_id
+  LEFT JOIN div_11.project_expenses pe ON pe.project_id = p.project_id
+  LEFT JOIN div_11.timesheets ts ON ts.employee_id IN (
+    SELECT employee_id FROM div_11.project_resources WHERE project_id = p.project_id
+  )
+  LEFT JOIN div_11.timesheet_entries te ON te.timesheet_id = ts.timesheet_id
+  WHERE EXTRACT(YEAR FROM p.start_date) = 2021
+  GROUP BY p.name, pb.planned_amount
+  ORDER BY profit_margin DESC;","projects,project_budgets,project_expenses,timesheets,timesheet_entries","project_budgets.planned_amount,project_expenses.amount,timesheet_entries.hours","projects,multi_join",project_profitability_full
+Q0228,challenging,Year-over-year sales growth comparing 2022 to the prior year.,Compare total order line amounts between two consecutive years.,"  WITH yearly AS (
+    SELECT EXTRACT(YEAR FROM so.order_date) AS yr,
+           SUM(ol.quantity * ol.unit_price) AS total_sales
+    FROM div_07.order_lines ol
+    JOIN div_07.sales_orders so ON so.order_id = ol.order_id
+    WHERE EXTRACT(YEAR FROM so.order_date) IN (2022, 2022 - 1)
+    GROUP BY yr
+  )
+  SELECT
+    cur.total_sales AS current_year_sales,
+    prev.total_sales AS prior_year_sales,
+    ROUND(100.0 * (cur.total_sales - prev.total_sales) / NULLIF(prev.total_sales, 0), 2) AS growth_pct
+  FROM yearly cur
+  JOIN yearly prev ON cur.yr = prev.yr + 1;","order_lines,sales_orders","order_lines.quantity,order_lines.unit_price,sales_orders.order_date","sales,temporal",yoy_sales_growth
+Q0229,simple,Count inventory adjustments by reason in 2023.,Use inventory_adjustments.reason.,"  SELECT reason, COUNT(*) AS adjustment_count
+  FROM div_04.inventory_adjustments
+  WHERE EXTRACT(YEAR FROM adjustment_date) = 2023
+  GROUP BY reason;",inventory_adjustments,"inventory_adjustments.reason,inventory_adjustments.adjustment_date",inventory,inventory_adjustments
+Q0230,challenging,Departments where actual expenses exceed budget in 2024.,Compare project_expenses vs budgets by department.,"  SELECT d.name, b.total_amount, COALESCE(SUM(pe.amount),0) AS actual_spend
+  FROM div_01.budgets b
+  JOIN div_01.departments d ON d.department_id = b.department_id
+  LEFT JOIN div_01.project_expenses pe ON pe.project_id IS NOT NULL
+  WHERE EXTRACT(YEAR FROM b.created_at) = 2024
+  GROUP BY d.name, b.total_amount
+  HAVING COALESCE(SUM(pe.amount),0) > b.total_amount;","budgets,budget_lines,project_expenses,departments","budgets.total_amount,project_expenses.amount","finance,projects",budget_vs_actual
+Q0231,moderate,Count of statements of work by status for services division div_10.,Join svc_statements_of_work.status_code to lookup_codes domain='PROJECT_STATUS' for decoded names.,"  SELECT lc.meaning AS status, COUNT(*) AS sow_count
+  FROM div_10.svc_statements_of_work sow
+  JOIN div_10.lookup_codes lc ON lc.code = sow.status_code AND lc.domain = 'PROJECT_STATUS'
+  GROUP BY lc.meaning
+  ORDER BY sow_count DESC;","svc_statements_of_work,lookup_codes","svc_statements_of_work.status_code,lookup_codes.meaning","services,lookup",svc_sow_by_status
+Q0232,challenging,Inventory turns by product category for 2021.,Approximate turns using inventory_transactions quantity.,"  SELECT pc.name, SUM(it.quantity) AS total_moved
+  FROM div_14.inventory_transactions it
+  JOIN div_14.products p ON p.product_id = it.product_id
+  JOIN div_14.product_categories pc ON pc.category_id = p.category_id
+  WHERE EXTRACT(YEAR FROM it.transaction_date) = 2021
+  GROUP BY pc.name
+  ORDER BY total_moved DESC;","inventory_transactions,products,product_categories","inventory_transactions.quantity,inventory_transactions.transaction_date,product_categories.name",inventory,inventory_turns
+Q0233,challenging,"Complete employee profile: department, position, salary, benefits, certifications for 2021.",Join employees -> departments -> positions -> employee_salaries -> hr_benefit_elections -> employee_certifications.,"  SELECT e.first_name, e.last_name,
+         d.name AS department,
+         pos.title AS position,
+         es.amount AS salary,
+         COUNT(DISTINCT be.election_id) AS benefit_elections,
+         COUNT(DISTINCT ec.certification_id) AS certifications
+  FROM div_07.employees e
+  JOIN div_07.departments d ON d.department_id = e.department_id
+  LEFT JOIN div_07.positions pos ON pos.position_id = e.position_id
+  LEFT JOIN div_07.employee_salaries es ON es.employee_id = e.employee_id
+    AND es.effective_date <= DATE '2021-12-31'
+  LEFT JOIN div_07.hr_benefit_elections be ON be.employee_id = e.employee_id
+    AND EXTRACT(YEAR FROM be.election_date) = 2021
+  LEFT JOIN div_07.employee_certifications ec ON ec.employee_id = e.employee_id
+  GROUP BY e.first_name, e.last_name, d.name, pos.title, es.amount
+  LIMIT 50;","employees,departments,positions,employee_salaries,hr_benefit_elections,employee_certifications","employees.first_name,employees.last_name,departments.name,employee_salaries.salary","hr,multi_join",complete_employee_profile
+Q0234,moderate,Total journal line amounts by cost center for 2022.,Use journal_lines.debit and credit.,"  SELECT cc.name, SUM(jl.debit - jl.credit) AS net_amount
+  FROM div_02.journal_lines jl
+  JOIN div_02.journal_entries je ON je.entry_id = jl.entry_id
+  JOIN div_02.cost_centers cc ON cc.cost_center_id = jl.cost_center_id
+  WHERE EXTRACT(YEAR FROM je.entry_date) = 2022
+  GROUP BY cc.name;","journal_lines,cost_centers,journal_entries","journal_lines.debit,journal_lines.credit,journal_entries.entry_date",finance,cost_center_spend
+Q0235,simple,Show onboarding tasks overdue as of today.,Overdue if status not done and due_date < today.,"  SELECT task_id, employee_id, task_name, due_date, status
+  FROM div_06.hr_onboarding_tasks
+  WHERE status <> 'done'
+    AND due_date < CURRENT_DATE;",hr_onboarding_tasks,"hr_onboarding_tasks.status,hr_onboarding_tasks.due_date",hr,onboarding_overdue
+Q0236,simple,Number of journal entries by month in 2023.,Use journal_entries.entry_date.,"  SELECT DATE_TRUNC('month', entry_date) AS month, COUNT(*) AS entry_count
+  FROM div_08.journal_entries
+  WHERE EXTRACT(YEAR FROM entry_date) = 2023
+  GROUP BY month
+  ORDER BY month;",journal_entries,journal_entries.entry_date,finance,journal_entry_volume
+Q0237,moderate,Work order count by decoded status in manufacturing division div_03.,Join mfg_work_orders.status_code to lookup_codes where domain='WO_STATUS'.,"  SELECT lc.meaning AS status,
+         COUNT(*) AS wo_count
+  FROM div_03.mfg_work_orders wo
+  JOIN div_03.lookup_codes lc ON lc.code = wo.status_code AND lc.domain = 'WO_STATUS'
+  GROUP BY lc.meaning
+  ORDER BY wo_count DESC;","mfg_work_orders,lookup_codes","mfg_work_orders.status_code,lookup_codes.meaning","manufacturing,lookup",wo_status_decoded
+Q0238,challenging,Procure-to-pay cycle: PO to receipt to invoice for each vendor in 2023.,Join purchase_orders -> goods_receipts -> vendor_invoices -> vendors.,"  SELECT v.name AS vendor,
+         po.po_id,
+         po.order_date,
+         gr.receipt_id,
+         gr.receipt_date,
+         vi.invoice_id,
+         vi.invoice_date,
+         vi.total AS invoice_total
+  FROM div_13.purchase_orders po
+  JOIN div_13.goods_receipts gr ON gr.po_id = po.po_id
+  JOIN div_13.vendor_invoices vi ON vi.po_id = po.po_id
+  JOIN div_13.vendors v ON v.vendor_id = po.vendor_id
+  WHERE EXTRACT(YEAR FROM po.order_date) = 2023
+  ORDER BY po.order_date
+  LIMIT 50;","purchase_orders,goods_receipts,vendor_invoices,vendors","purchase_orders.order_date,goods_receipts.receipt_date,vendor_invoices.invoice_date","procurement,multi_join",procure_to_pay_cycle
+Q0239,simple,List inventory lots expiring within 60 days.,Use inventory_lots.expiration_date.,"  SELECT lot_id, lot_number, expiration_date
+  FROM div_04.inventory_lots
+  WHERE expiration_date <= CURRENT_DATE + INTERVAL '60 days';",inventory_lots,"inventory_lots.expiration_date,inventory_lots.lot_number",inventory,inventory_lot_expiring
+Q0240,simple,Primary contacts for all customers.,Join customers to customer_contacts where is_primary = TRUE.,"  SELECT c.name AS customer, cc.first_name || ' ' || cc.last_name AS contact, cc.email
+  FROM div_08.customers c
+  JOIN div_08.customer_contacts cc ON cc.customer_id = c.customer_id
+  WHERE cc.is_primary = TRUE
+  ORDER BY c.name;","customers,customer_contacts","customer_contacts.is_primary,customer_contacts.first_name,customer_contacts.last_name",sales,customer_contact_primary
+Q0241,challenging,Employee utilization rate = hours logged / 40 by week in 2023.,Use timesheet_entries.hours.,"  SELECT e.employee_id, DATE_TRUNC('week', t.week_start_date) AS week_start,
+         ROUND(SUM(te.hours) / 40.0, 2) AS utilization
+  FROM div_09.timesheets t
+  JOIN div_09.timesheet_entries te ON te.timesheet_id = t.timesheet_id
+  JOIN div_09.employees e ON e.employee_id = t.employee_id
+  WHERE EXTRACT(YEAR FROM t.week_start_date) = 2023
+  GROUP BY e.employee_id, week_start;","timesheet_entries,timesheets,employees","timesheet_entries.hours,timesheets.week_start_date","projects,hr",employee_utilization
+Q0242,simple,List open AR invoices over 10000 in 2023.,AR invoices are in finance_ar_invoices.,"  SELECT ar_invoice_id, invoice_number, amount, status
+  FROM div_10.finance_ar_invoices
+  WHERE status = 'open'
+    AND amount > 10000
+    AND EXTRACT(YEAR FROM invoice_date) = 2023;",finance_ar_invoices,"finance_ar_invoices.amount,finance_ar_invoices.status,finance_ar_invoices.invoice_date","finance,ar",ar_open_invoices
+Q0243,moderate,Vendor invoices past due as of today.,Use vendor_invoices.due_date and status.,"  SELECT invoice_id, vendor_id, due_date, total, status
+  FROM div_01.vendor_invoices
+  WHERE due_date < CURRENT_DATE AND status <> 'paid';",vendor_invoices,"vendor_invoices.due_date,vendor_invoices.total",procurement,overdue_vendor_invoices
+Q0244,moderate,Projects where actual expenses exceed project budget.,Compare project_expenses to project_budgets.,"  SELECT p.project_id, p.name
+  FROM div_17.projects p
+  JOIN div_17.project_budgets pb ON pb.project_id = p.project_id
+  LEFT JOIN div_17.project_expenses pe ON pe.project_id = p.project_id
+  GROUP BY p.project_id, p.name, pb.planned_amount
+  HAVING COALESCE(SUM(pe.amount),0) > pb.planned_amount;","project_budgets,project_expenses,projects","project_budgets.planned_amount,project_expenses.amount",projects,projects_over_budget
+Q0245,challenging,Budget variance (planned vs actual) by department for 2023.,Use budgets for planned and project_expenses for actual; join via department_id on budgets.,"  SELECT d.name,
+         b.total_amount AS planned,
+         COALESCE(SUM(pe.amount), 0) AS actual,
+         b.total_amount - COALESCE(SUM(pe.amount), 0) AS variance
+  FROM div_11.budgets b
+  JOIN div_11.departments d ON d.department_id = b.department_id
+  LEFT JOIN div_11.project_expenses pe ON pe.project_id IN (
+    SELECT project_id FROM div_11.projects WHERE customer_id IS NOT NULL
+  ) AND EXTRACT(YEAR FROM pe.expense_date) = 2023
+  WHERE EXTRACT(YEAR FROM b.created_at) = 2023
+  GROUP BY d.name, b.total_amount
+  ORDER BY variance;","budgets,departments,project_expenses","budgets.total_amount,project_expenses.amount,departments.name","finance,budget",budget_variance_dept
+Q0246,moderate,Quarterly revenue comparison for 2022.,Revenue = sum of order_lines.quantity * unit_price by quarter.,"  SELECT
+    EXTRACT(QUARTER FROM so.order_date) AS quarter,
+    SUM(ol.quantity * ol.unit_price) AS revenue
+  FROM div_07.order_lines ol
+  JOIN div_07.sales_orders so ON so.order_id = ol.order_id
+  WHERE EXTRACT(YEAR FROM so.order_date) = 2022
+  GROUP BY quarter
+  ORDER BY quarter;","order_lines,sales_orders","order_lines.quantity,order_lines.unit_price,sales_orders.order_date","sales,temporal",quarterly_revenue
+Q0247,moderate,Total maintenance cost by asset category in 2021.,Join asset_maintenance -> fixed_assets -> asset_categories.,"  SELECT ac.name, SUM(am.cost) AS total_cost
+  FROM div_11.asset_maintenance am
+  JOIN div_11.fixed_assets fa ON fa.asset_id = am.asset_id
+  JOIN div_11.asset_categories ac ON ac.category_id = fa.category_id
+  WHERE EXTRACT(YEAR FROM am.scheduled_date) = 2021
+  GROUP BY ac.name;","asset_maintenance,fixed_assets,asset_categories","asset_maintenance.cost,asset_categories.name",assets,asset_maintenance_costs
+Q0248,moderate,Open audit findings by severity and type for corporate division div_16.,"Use corp_audit_findings where status_code IN ('OP','IP').","  SELECT audit_type, severity, COUNT(*) AS finding_count
+  FROM div_16.corp_audit_findings
+  WHERE status_code IN ('OP', 'IP')
+  GROUP BY audit_type, severity
+  ORDER BY severity, finding_count DESC;",corp_audit_findings,"corp_audit_findings.severity,corp_audit_findings.audit_type,corp_audit_findings.status_code",corporate,corp_audit_findings_open
+Q0249,moderate,Work order count by decoded status in manufacturing division div_05.,Join mfg_work_orders.status_code to lookup_codes where domain='WO_STATUS'.,"  SELECT lc.meaning AS status,
+         COUNT(*) AS wo_count
+  FROM div_05.mfg_work_orders wo
+  JOIN div_05.lookup_codes lc ON lc.code = wo.status_code AND lc.domain = 'WO_STATUS'
+  GROUP BY lc.meaning
+  ORDER BY wo_count DESC;","mfg_work_orders,lookup_codes","mfg_work_orders.status_code,lookup_codes.meaning","manufacturing,lookup",wo_status_decoded
+Q0250,challenging,Consolidation totals by currency with FX impact for corporate division div_17.,Use corp_consolidation_entries; FX impact = translated_amount - original_amount.,"  SELECT currency_code,
+         SUM(original_amount) AS total_original,
+         SUM(translated_amount) AS total_translated,
+         SUM(translated_amount - original_amount) AS fx_impact,
+         COUNT(*) AS entry_count
+  FROM div_17.corp_consolidation_entries
+  GROUP BY currency_code
+  ORDER BY total_original DESC;",corp_consolidation_entries,"corp_consolidation_entries.currency_code,corp_consolidation_entries.original_amount,corp_consolidation_entries.translated_amount",corporate,corp_consolidation_by_currency
+Q0251,challenging,Average days from RFQ to vendor response for 2023.,Join procurement_rfqs to procurement_rfq_responses.,"  SELECT ROUND(AVG(r.response_date - q.rfq_date), 2) AS avg_days
+  FROM div_15.procurement_rfqs q
+  JOIN div_15.procurement_rfq_responses r ON r.rfq_id = q.rfq_id
+  WHERE EXTRACT(YEAR FROM q.rfq_date) = 2023;","procurement_rfqs,procurement_rfq_responses","procurement_rfqs.rfq_date,procurement_rfq_responses.response_date","procurement,time",rfq_response_time
+Q0252,challenging,Total contract value by customer for services division div_07.,"Table is zz_svc_sow with abbreviated columns: tot_amt for total amount, cust_nbr for customer ID. Join to customers.","  SELECT c.name, SUM(sow.tot_amt) AS total_value, COUNT(*) AS sow_count
+  FROM div_07.zz_svc_sow sow
+  JOIN div_07.customers c ON c.customer_id = sow.cust_nbr
+  GROUP BY c.name
+  ORDER BY total_value DESC
+  LIMIT 10;","zz_svc_sow,customers","zz_svc_sow.tot_amt,zz_svc_sow.cust_nbr,customers.name","services,dirty_naming",dirty_svc_sow_value
+Q0253,moderate,Benefit election count by coverage level in 2022.,Use hr_benefit_elections.election_date.,"  SELECT coverage_level, COUNT(*) AS elections
+  FROM div_01.hr_benefit_elections
+  WHERE EXTRACT(YEAR FROM election_date) = 2022
+  GROUP BY coverage_level;",hr_benefit_elections,"hr_benefit_elections.coverage_level,hr_benefit_elections.election_date","hr,benefits",benefit_election_rate
+Q0254,simple,Sales order counts by status for 2022.,Use sales_orders.status.,"  SELECT status, COUNT(*) AS order_count
+  FROM div_04.sales_orders
+  WHERE EXTRACT(YEAR FROM order_date) = 2022
+  GROUP BY status;",sales_orders,"sales_orders.status,sales_orders.order_date",sales,sales_order_status
+Q0255,challenging,Project margin = (budget - actual expenses) for active projects in 2023.,"Use projects, project_budgets, project_expenses.","  SELECT p.project_id, p.name,
+         pb.planned_amount - COALESCE(SUM(pe.amount),0) AS margin
+  FROM div_16.projects p
+  JOIN div_16.project_budgets pb ON pb.project_id = p.project_id
+  LEFT JOIN div_16.project_expenses pe ON pe.project_id = p.project_id
+  WHERE p.status = 'active'
+    AND EXTRACT(YEAR FROM p.start_date) = 2023
+  GROUP BY p.project_id, p.name, pb.planned_amount
+  ORDER BY margin DESC;","projects,project_budgets,project_expenses","projects.status,project_budgets.planned_amount,project_expenses.amount",projects,project_margin
+Q0256,simple,List inventory lots expiring within 60 days.,Use inventory_lots.expiration_date.,"  SELECT lot_id, lot_number, expiration_date
+  FROM div_10.inventory_lots
+  WHERE expiration_date <= CURRENT_DATE + INTERVAL '60 days';",inventory_lots,"inventory_lots.expiration_date,inventory_lots.lot_number",inventory,inventory_lot_expiring
+Q0257,challenging,Employee turnover rate for 2022.,Turnover = terminations / average headcount.,"  WITH terminations AS (
+    SELECT COUNT(*) AS term_count
+    FROM div_13.employees
+    WHERE EXTRACT(YEAR FROM termination_date) = 2022
+  ),
+  headcount AS (
+    SELECT COUNT(*) AS headcount
+    FROM div_13.employees
+    WHERE hire_date <= DATE '2022-12-31'
+      AND (termination_date IS NULL OR termination_date > DATE '2022-01-01')
+  )
+  SELECT ROUND(100.0 * t.term_count / NULLIF(h.headcount,0), 2) AS turnover_pct
+  FROM terminations t, headcount h;",employees,"employees.termination_date,employees.hire_date",hr,employee_turnover
+Q0258,moderate,Total depreciation by period for 2023.,Use depreciation_entries.period_id and amount.,"  SELECT fp.start_date, SUM(de.amount) AS total_depr
+  FROM div_06.depreciation_entries de
+  JOIN div_06.fiscal_periods fp ON fp.period_id = de.period_id
+  WHERE EXTRACT(YEAR FROM fp.start_date) = 2023
+  GROUP BY fp.start_date
+  ORDER BY fp.start_date;","depreciation_entries,fiscal_periods","depreciation_entries.amount,fiscal_periods.start_date","assets,finance",asset_depreciation
+Q0259,challenging,Work order count by decoded status in manufacturing division div_02.,Table is xx_mfg_wo with abbreviated columns: sts_cd for status. Join to lookup_codes domain='WO_STATUS'.,"  SELECT lc.meaning AS status, COUNT(*) AS wo_count
+  FROM div_02.xx_mfg_wo wo
+  JOIN div_02.lookup_codes lc ON lc.code = wo.sts_cd AND lc.domain = 'WO_STATUS'
+  GROUP BY lc.meaning
+  ORDER BY wo_count DESC;","xx_mfg_wo,lookup_codes","xx_mfg_wo.sts_cd,lookup_codes.meaning","manufacturing,dirty_naming,lookup",dirty_mfg_wo_status
+Q0260,challenging,Total POS sales by payment method for retail division div_12.,"Table is zz_pos_trnx with abbreviated columns: tot_amt, pay_mthd_cd, trnx_dt.","  SELECT pay_mthd_cd, COUNT(*) AS txn_count,
+         SUM(tot_amt) AS total_sales
+  FROM div_12.zz_pos_trnx
+  GROUP BY pay_mthd_cd
+  ORDER BY total_sales DESC;",zz_pos_trnx,"zz_pos_trnx.pay_mthd_cd,zz_pos_trnx.tot_amt","retail,dirty_naming",dirty_rtl_pos_sales
+Q0261,challenging,Work order count by decoded status in manufacturing division div_04.,Table is xx_mfg_wo with abbreviated columns: sts_cd for status. Join to lookup_codes domain='WO_STATUS'.,"  SELECT lc.meaning AS status, COUNT(*) AS wo_count
+  FROM div_04.xx_mfg_wo wo
+  JOIN div_04.lookup_codes lc ON lc.code = wo.sts_cd AND lc.domain = 'WO_STATUS'
+  GROUP BY lc.meaning
+  ORDER BY wo_count DESC;","xx_mfg_wo,lookup_codes","xx_mfg_wo.sts_cd,lookup_codes.meaning","manufacturing,dirty_naming,lookup",dirty_mfg_wo_status
+Q0262,challenging,Top 10 products by POS revenue for retail division div_11.,Join rtl_pos_line_items to products via product_id. Revenue = line_total.,"  SELECT p.name, SUM(li.line_total) AS total_revenue,
+         SUM(li.quantity) AS units_sold
+  FROM div_11.rtl_pos_line_items li
+  JOIN div_11.products p ON p.product_id = li.product_id
+  GROUP BY p.name
+  ORDER BY total_revenue DESC
+  LIMIT 10;","rtl_pos_line_items,products","rtl_pos_line_items.line_total,products.name",retail,rtl_top_products_by_revenue
+Q0263,challenging,Inventory turns by product category for 2022.,Approximate turns using inventory_transactions quantity.,"  SELECT pc.name, SUM(it.quantity) AS total_moved
+  FROM div_02.inventory_transactions it
+  JOIN div_02.products p ON p.product_id = it.product_id
+  JOIN div_02.product_categories pc ON pc.category_id = p.category_id
+  WHERE EXTRACT(YEAR FROM it.transaction_date) = 2022
+  GROUP BY pc.name
+  ORDER BY total_moved DESC;","inventory_transactions,products,product_categories","inventory_transactions.quantity,inventory_transactions.transaction_date,product_categories.name",inventory,inventory_turns
+Q0264,challenging,Budget variance (planned vs actual) by department for 2022.,Use budgets for planned and project_expenses for actual; join via department_id on budgets.,"  SELECT d.name,
+         b.total_amount AS planned,
+         COALESCE(SUM(pe.amount), 0) AS actual,
+         b.total_amount - COALESCE(SUM(pe.amount), 0) AS variance
+  FROM div_10.budgets b
+  JOIN div_10.departments d ON d.department_id = b.department_id
+  LEFT JOIN div_10.project_expenses pe ON pe.project_id IN (
+    SELECT project_id FROM div_10.projects WHERE customer_id IS NOT NULL
+  ) AND EXTRACT(YEAR FROM pe.expense_date) = 2022
+  WHERE EXTRACT(YEAR FROM b.created_at) = 2022
+  GROUP BY d.name, b.total_amount
+  ORDER BY variance;","budgets,departments,project_expenses","budgets.total_amount,project_expenses.amount,departments.name","finance,budget",budget_variance_dept
+Q0265,challenging,Total POS sales by payment method for retail division div_14.,"Table is zz_pos_trnx with abbreviated columns: tot_amt, pay_mthd_cd, trnx_dt.","  SELECT pay_mthd_cd, COUNT(*) AS txn_count,
+         SUM(tot_amt) AS total_sales
+  FROM div_14.zz_pos_trnx
+  GROUP BY pay_mthd_cd
+  ORDER BY total_sales DESC;",zz_pos_trnx,"zz_pos_trnx.pay_mthd_cd,zz_pos_trnx.tot_amt","retail,dirty_naming",dirty_rtl_pos_sales
+Q0266,moderate,Sales order count by sales region for 2024.,Join sales_orders -> customers -> addresses -> cities -> states_provinces -> countries?,"  SELECT s.name AS state, COUNT(*) AS order_count
+  FROM div_07.sales_orders so
+  JOIN div_07.customers c ON c.customer_id = so.customer_id
+  LEFT JOIN div_07.addresses a ON a.address_id = c.billing_address_id
+  LEFT JOIN div_07.cities ci ON ci.city_id = a.city_id
+  LEFT JOIN div_07.states_provinces s ON s.state_id = ci.state_id
+  WHERE EXTRACT(YEAR FROM so.order_date) = 2024
+  GROUP BY s.name
+  ORDER BY order_count DESC;","sales_orders,customers,addresses,cities,states_provinces","sales_orders.order_date,customers.customer_id","sales,geography",sales_by_region
+Q0267,challenging,"Aged AR receivables buckets (0-30, 31-60, 61-90, 90+) for 2024.",Use finance_ar_invoices with status='open'; age = CURRENT_DATE - due_date.,"  SELECT
+    CASE
+      WHEN CURRENT_DATE - due_date <= 30 THEN '0-30'
+      WHEN CURRENT_DATE - due_date <= 60 THEN '31-60'
+      WHEN CURRENT_DATE - due_date <= 90 THEN '61-90'
+      ELSE '90+'
+    END AS aging_bucket,
+    COUNT(*) AS invoice_count,
+    SUM(amount) AS total_amount
+  FROM div_12.finance_ar_invoices
+  WHERE status = 'open'
+    AND EXTRACT(YEAR FROM invoice_date) = 2024
+  GROUP BY aging_bucket
+  ORDER BY aging_bucket;",finance_ar_invoices,"finance_ar_invoices.due_date,finance_ar_invoices.amount,finance_ar_invoices.status","finance,ar,aging",aged_ar_receivables
+Q0268,moderate,Loyalty member count by tier for retail division div_11.,"Use rtl_loyalty_members; tier_code values: BZ (Bronze), SV (Silver), GD (Gold), PT (Platinum).","  SELECT tier_code, COUNT(*) AS member_count,
+         AVG(points_balance) AS avg_points
+  FROM div_11.rtl_loyalty_members
+  WHERE status_code = 'AC'
+  GROUP BY tier_code
+  ORDER BY member_count DESC;",rtl_loyalty_members,"rtl_loyalty_members.tier_code,rtl_loyalty_members.status_code","retail,lookup",rtl_loyalty_tier_distribution
+Q0269,moderate,Open audit findings by severity and type for corporate division div_17.,"Use corp_audit_findings where status_code IN ('OP','IP').","  SELECT audit_type, severity, COUNT(*) AS finding_count
+  FROM div_17.corp_audit_findings
+  WHERE status_code IN ('OP', 'IP')
+  GROUP BY audit_type, severity
+  ORDER BY severity, finding_count DESC;",corp_audit_findings,"corp_audit_findings.severity,corp_audit_findings.audit_type,corp_audit_findings.status_code",corporate,corp_audit_findings_open
+Q0270,simple,Number of journal entries by month in 2022.,Use journal_entries.entry_date.,"  SELECT DATE_TRUNC('month', entry_date) AS month, COUNT(*) AS entry_count
+  FROM div_01.journal_entries
+  WHERE EXTRACT(YEAR FROM entry_date) = 2022
+  GROUP BY month
+  ORDER BY month;",journal_entries,journal_entries.entry_date,finance,journal_entry_volume
+Q0271,moderate,Projects where actual expenses exceed project budget.,Compare project_expenses to project_budgets.,"  SELECT p.project_id, p.name
+  FROM div_02.projects p
+  JOIN div_02.project_budgets pb ON pb.project_id = p.project_id
+  LEFT JOIN div_02.project_expenses pe ON pe.project_id = p.project_id
+  GROUP BY p.project_id, p.name, pb.planned_amount
+  HAVING COALESCE(SUM(pe.amount),0) > pb.planned_amount;","project_budgets,project_expenses,projects","project_budgets.planned_amount,project_expenses.amount",projects,projects_over_budget
+Q0272,moderate,Top 10 customers by total sales amount in 2022?,Use order date; 'total sales' = sum(order_lines.quantity * order_lines.unit_price).,"  SELECT c.name, SUM(ol.quantity * ol.unit_price) AS total_sales
+  FROM div_06.sales_orders so
+  JOIN div_06.order_lines ol ON ol.order_id = so.order_id
+  JOIN div_06.customers c ON c.customer_id = so.customer_id
+  WHERE EXTRACT(YEAR FROM so.order_date) = 2022
+  GROUP BY c.name
+  ORDER BY total_sales DESC
+  LIMIT 10;","sales_orders,order_lines,customers","sales_orders.order_date,order_lines.quantity,order_lines.unit_price,customers.name","sales,top_n,aggregation",sales_top_customers
+Q0273,moderate,Top 10 customers by total sales amount in 2022?,Use order date; 'total sales' = sum(order_lines.quantity * order_lines.unit_price).,"  SELECT c.name, SUM(ol.quantity * ol.unit_price) AS total_sales
+  FROM div_17.sales_orders so
+  JOIN div_17.order_lines ol ON ol.order_id = so.order_id
+  JOIN div_17.customers c ON c.customer_id = so.customer_id
+  WHERE EXTRACT(YEAR FROM so.order_date) = 2022
+  GROUP BY c.name
+  ORDER BY total_sales DESC
+  LIMIT 10;","sales_orders,order_lines,customers","sales_orders.order_date,order_lines.quantity,order_lines.unit_price,customers.name","sales,top_n,aggregation",sales_top_customers
+Q0274,moderate,What percentage of AR invoices were late in 2024?,Late invoices have status = 'late'.,"  SELECT
+    ROUND(100.0 * SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) / COUNT(*), 2) AS late_pct
+  FROM div_19.finance_ar_invoices
+  WHERE EXTRACT(YEAR FROM invoice_date) = 2024;",finance_ar_invoices,"finance_ar_invoices.status,finance_ar_invoices.invoice_date","finance,ar,rate",ar_late_rate
+Q0275,challenging,Procure-to-pay cycle: PO to receipt to invoice for each vendor in 2021.,Join purchase_orders -> goods_receipts -> vendor_invoices -> vendors.,"  SELECT v.name AS vendor,
+         po.po_id,
+         po.order_date,
+         gr.receipt_id,
+         gr.receipt_date,
+         vi.invoice_id,
+         vi.invoice_date,
+         vi.total AS invoice_total
+  FROM div_07.purchase_orders po
+  JOIN div_07.goods_receipts gr ON gr.po_id = po.po_id
+  JOIN div_07.vendor_invoices vi ON vi.po_id = po.po_id
+  JOIN div_07.vendors v ON v.vendor_id = po.vendor_id
+  WHERE EXTRACT(YEAR FROM po.order_date) = 2021
+  ORDER BY po.order_date
+  LIMIT 50;","purchase_orders,goods_receipts,vendor_invoices,vendors","purchase_orders.order_date,goods_receipts.receipt_date,vendor_invoices.invoice_date","procurement,multi_join",procure_to_pay_cycle
+Q0276,challenging,Inventory turnover ratio by product category for 2022.,Turnover = total units moved / average quantity on hand. Use inventory_transactions for movement.,"  SELECT pc.name,
+         SUM(ABS(it.quantity)) AS total_moved,
+         AVG(il.quantity_on_hand) AS avg_on_hand,
+         ROUND(SUM(ABS(it.quantity)) / NULLIF(AVG(il.quantity_on_hand), 0), 2) AS turnover_ratio
+  FROM div_11.inventory_transactions it
+  JOIN div_11.products p ON p.product_id = it.product_id
+  JOIN div_11.product_categories pc ON pc.category_id = p.category_id
+  LEFT JOIN div_11.inventory_levels il ON il.product_id = p.product_id
+  WHERE EXTRACT(YEAR FROM it.transaction_date) = 2022
+  GROUP BY pc.name
+  ORDER BY turnover_ratio DESC;","inventory_transactions,products,product_categories,inventory_levels","inventory_transactions.quantity,inventory_transactions.transaction_date,product_categories.name","inventory,kpi",inventory_turnover_ratio
+Q0277,challenging,Average days from requisition to PO for 2024.,Join purchase_requisitions to purchase_orders by requisition_id.,"  SELECT ROUND(AVG(po.order_date - pr.request_date), 2) AS avg_days
+  FROM div_18.purchase_requisitions pr
+  JOIN div_18.purchase_orders po ON po.requisition_id = pr.requisition_id
+  WHERE EXTRACT(YEAR FROM pr.request_date) = 2024;","purchase_requisitions,purchase_orders","purchase_requisitions.request_date,purchase_orders.order_date",procurement,procurement_cycle_time
+Q0278,moderate,Warehouse locations with low capacity (< 100).,Use warehouse_locations.capacity.,"  SELECT location_id, warehouse_id, aisle, rack, bin, capacity
+  FROM div_04.warehouse_locations
+  WHERE capacity < 100;",warehouse_locations,warehouse_locations.capacity,inventory,warehouse_capacity
+Q0279,moderate,Total maintenance cost by asset category in 2023.,Join asset_maintenance -> fixed_assets -> asset_categories.,"  SELECT ac.name, SUM(am.cost) AS total_cost
+  FROM div_02.asset_maintenance am
+  JOIN div_02.fixed_assets fa ON fa.asset_id = am.asset_id
+  JOIN div_02.asset_categories ac ON ac.category_id = fa.category_id
+  WHERE EXTRACT(YEAR FROM am.scheduled_date) = 2023
+  GROUP BY ac.name;","asset_maintenance,fixed_assets,asset_categories","asset_maintenance.cost,asset_categories.name",assets,asset_maintenance_costs
+Q0280,moderate,Total scrap quantity by reason for manufacturing division div_05.,"Use mfg_scrap_log; reason_code values are abbreviations like DM, OP, EQ, MT.","  SELECT reason_code, SUM(scrap_quantity) AS total_scrap
+  FROM div_05.mfg_scrap_log
+  GROUP BY reason_code
+  ORDER BY total_scrap DESC;",mfg_scrap_log,"mfg_scrap_log.reason_code,mfg_scrap_log.scrap_quantity",manufacturing,scrap_by_reason_decoded
+Q0281,simple,List bank accounts with balance under 1000.,Use bank_accounts.current_balance.,"  SELECT bank_account_id, account_number, bank_name, current_balance
+  FROM div_02.bank_accounts
+  WHERE current_balance < 1000;",bank_accounts,bank_accounts.current_balance,finance,bank_balance
+Q0282,moderate,Count of open customer service cases by priority.,Use cust_srv_case; open/pending are not closed.,"  SELECT priority, COUNT(*) AS case_count
+  FROM div_07.cust_srv_case
+  WHERE status IN ('open','pending')
+  GROUP BY priority;",cust_srv_case,"cust_srv_case.status,cust_srv_case.priority",support,sla_backlog
+Q0283,challenging,"Employee tenure distribution (0-1yr, 1-3yr, 3-5yr, 5+yr) as of 2021.",Tenure = hire_date to end of year; bucket by years.,"  SELECT
+    CASE
+      WHEN EXTRACT(YEAR FROM AGE(DATE '2021-12-31', hire_date)) < 1 THEN '0-1 yr'
+      WHEN EXTRACT(YEAR FROM AGE(DATE '2021-12-31', hire_date)) < 3 THEN '1-3 yr'
+      WHEN EXTRACT(YEAR FROM AGE(DATE '2021-12-31', hire_date)) < 5 THEN '3-5 yr'
+      ELSE '5+ yr'
+    END AS tenure_bucket,
+    COUNT(*) AS employee_count
+  FROM div_20.employees
+  WHERE hire_date <= DATE '2021-12-31'
+    AND (termination_date IS NULL OR termination_date > DATE '2021-12-31')
+  GROUP BY tenure_bucket
+  ORDER BY tenure_bucket;",employees,employees.hire_date,"hr,temporal",employee_tenure_distribution
+Q0284,challenging,Consolidation totals by currency with FX impact for corporate division div_16.,Use corp_consolidation_entries; FX impact = translated_amount - original_amount.,"  SELECT currency_code,
+         SUM(original_amount) AS total_original,
+         SUM(translated_amount) AS total_translated,
+         SUM(translated_amount - original_amount) AS fx_impact,
+         COUNT(*) AS entry_count
+  FROM div_16.corp_consolidation_entries
+  GROUP BY currency_code
+  ORDER BY total_original DESC;",corp_consolidation_entries,"corp_consolidation_entries.currency_code,corp_consolidation_entries.original_amount,corp_consolidation_entries.translated_amount",corporate,corp_consolidation_by_currency
+Q0285,moderate,Count of statements of work by status for services division div_06.,Join svc_statements_of_work.status_code to lookup_codes domain='PROJECT_STATUS' for decoded names.,"  SELECT lc.meaning AS status, COUNT(*) AS sow_count
+  FROM div_06.svc_statements_of_work sow
+  JOIN div_06.lookup_codes lc ON lc.code = sow.status_code AND lc.domain = 'PROJECT_STATUS'
+  GROUP BY lc.meaning
+  ORDER BY sow_count DESC;","svc_statements_of_work,lookup_codes","svc_statements_of_work.status_code,lookup_codes.meaning","services,lookup",svc_sow_by_status
+Q0286,moderate,Average days between vendor invoice date and due date by vendor.,Use vendor_invoices.invoice_date and due_date.,"  SELECT v.name, ROUND(AVG(vi.due_date - vi.invoice_date)::numeric, 2) AS avg_days
+  FROM div_19.vendor_invoices vi
+  JOIN div_19.vendors v ON v.vendor_id = vi.vendor_id
+  GROUP BY v.name
+  ORDER BY avg_days DESC;","vendor_invoices,vendors","vendor_invoices.invoice_date,vendor_invoices.due_date",procurement,vendor_invoice_aging
+Q0287,challenging,Year-over-year sales growth comparing 2024 to the prior year.,Compare total order line amounts between two consecutive years.,"  WITH yearly AS (
+    SELECT EXTRACT(YEAR FROM so.order_date) AS yr,
+           SUM(ol.quantity * ol.unit_price) AS total_sales
+    FROM div_04.order_lines ol
+    JOIN div_04.sales_orders so ON so.order_id = ol.order_id
+    WHERE EXTRACT(YEAR FROM so.order_date) IN (2024, 2024 - 1)
+    GROUP BY yr
+  )
+  SELECT
+    cur.total_sales AS current_year_sales,
+    prev.total_sales AS prior_year_sales,
+    ROUND(100.0 * (cur.total_sales - prev.total_sales) / NULLIF(prev.total_sales, 0), 2) AS growth_pct
+  FROM yearly cur
+  JOIN yearly prev ON cur.yr = prev.yr + 1;","order_lines,sales_orders","order_lines.quantity,order_lines.unit_price,sales_orders.order_date","sales,temporal",yoy_sales_growth
+Q0288,moderate,Billing milestones past due and not yet invoiced for services division div_10.,svc_billing_milestones where due_date < today and invoice_date IS NULL.,"  SELECT sow.sow_number, bm.description, bm.amount, bm.due_date
+  FROM div_10.svc_billing_milestones bm
+  JOIN div_10.svc_statements_of_work sow ON sow.sow_id = bm.sow_id
+  WHERE bm.due_date < CURRENT_DATE AND bm.invoice_date IS NULL
+  ORDER BY bm.due_date;","svc_billing_milestones,svc_statements_of_work","svc_billing_milestones.due_date,svc_billing_milestones.invoice_date,svc_billing_milestones.amount",services,svc_overdue_milestones
+Q0289,simple,Primary contacts for all customers.,Join customers to customer_contacts where is_primary = TRUE.,"  SELECT c.name AS customer, cc.first_name || ' ' || cc.last_name AS contact, cc.email
+  FROM div_01.customers c
+  JOIN div_01.customer_contacts cc ON cc.customer_id = c.customer_id
+  WHERE cc.is_primary = TRUE
+  ORDER BY c.name;","customers,customer_contacts","customer_contacts.is_primary,customer_contacts.first_name,customer_contacts.last_name",sales,customer_contact_primary
+Q0290,challenging,"Employee tenure distribution (0-1yr, 1-3yr, 3-5yr, 5+yr) as of 2024.",Tenure = hire_date to end of year; bucket by years.,"  SELECT
+    CASE
+      WHEN EXTRACT(YEAR FROM AGE(DATE '2024-12-31', hire_date)) < 1 THEN '0-1 yr'
+      WHEN EXTRACT(YEAR FROM AGE(DATE '2024-12-31', hire_date)) < 3 THEN '1-3 yr'
+      WHEN EXTRACT(YEAR FROM AGE(DATE '2024-12-31', hire_date)) < 5 THEN '3-5 yr'
+      ELSE '5+ yr'
+    END AS tenure_bucket,
+    COUNT(*) AS employee_count
+  FROM div_05.employees
+  WHERE hire_date <= DATE '2024-12-31'
+    AND (termination_date IS NULL OR termination_date > DATE '2024-12-31')
+  GROUP BY tenure_bucket
+  ORDER BY tenure_bucket;",employees,employees.hire_date,"hr,temporal",employee_tenure_distribution
+Q0291,challenging,Average days between PO order date and goods receipt for each vendor in 2023.,Join purchase_orders -> goods_receipts -> vendors.,"  SELECT v.name, ROUND(AVG(gr.receipt_date - po.order_date), 2) AS avg_days
+  FROM div_20.purchase_orders po
+  JOIN div_20.goods_receipts gr ON gr.po_id = po.po_id
+  JOIN div_20.vendors v ON v.vendor_id = po.vendor_id
+  WHERE EXTRACT(YEAR FROM po.order_date) = 2023
+  GROUP BY v.name
+  ORDER BY avg_days;","purchase_orders,goods_receipts,vendors","purchase_orders.order_date,goods_receipts.receipt_date,vendors.name",procurement,vendor_performance
+Q0292,moderate,Count of statements of work by status for services division div_06.,Join svc_statements_of_work.status_code to lookup_codes domain='PROJECT_STATUS' for decoded names.,"  SELECT lc.meaning AS status, COUNT(*) AS sow_count
+  FROM div_06.svc_statements_of_work sow
+  JOIN div_06.lookup_codes lc ON lc.code = sow.status_code AND lc.domain = 'PROJECT_STATUS'
+  GROUP BY lc.meaning
+  ORDER BY sow_count DESC;","svc_statements_of_work,lookup_codes","svc_statements_of_work.status_code,lookup_codes.meaning","services,lookup",svc_sow_by_status
+Q0293,moderate,QC failure rate for inventory lots in 2021.,Fail results have result = 'fail'.,"  SELECT
+    ROUND(100.0 * SUM(CASE WHEN qi.result = 'fail' THEN 1 ELSE 0 END) / COUNT(*), 2) AS fail_pct
+  FROM div_05.inventory_qc_inspections qi
+  WHERE EXTRACT(YEAR FROM qi.inspection_date) = 2021;","inventory_qc_inspections,inventory_lots","inventory_qc_inspections.result,inventory_qc_inspections.inspection_date","inventory,qc",inventory_qc_fail_rate
+Q0294,moderate,Total POS sales by payment method for retail division div_11.,"Use rtl_pos_transactions; payment_method_code values: CASH, CC, DC, GC, MW.","  SELECT payment_method_code, COUNT(*) AS txn_count,
+         SUM(total_amount) AS total_sales
+  FROM div_11.rtl_pos_transactions
+  GROUP BY payment_method_code
+  ORDER BY total_sales DESC;",rtl_pos_transactions,"rtl_pos_transactions.payment_method_code,rtl_pos_transactions.total_amount",retail,rtl_sales_by_payment_method
+Q0295,simple,Count inventory adjustments by reason in 2023.,Use inventory_adjustments.reason.,"  SELECT reason, COUNT(*) AS adjustment_count
+  FROM div_03.inventory_adjustments
+  WHERE EXTRACT(YEAR FROM adjustment_date) = 2023
+  GROUP BY reason;",inventory_adjustments,"inventory_adjustments.reason,inventory_adjustments.adjustment_date",inventory,inventory_adjustments
+Q0296,challenging,Total employee cost (gross pay) per department for 2022.,Join payroll_run_line to employees to departments.,"  SELECT d.name,
+         SUM(prl.gross_pay) AS total_cost,
+         COUNT(DISTINCT prl.employee_id) AS employee_count
+  FROM div_19.payroll_run_line prl
+  JOIN div_19.payroll_run_hdr prh ON prh.run_id = prl.run_id
+  JOIN div_19.employees e ON e.employee_id = prl.employee_id
+  JOIN div_19.departments d ON d.department_id = e.department_id
+  WHERE EXTRACT(YEAR FROM prh.pay_period_start) = 2022
+  GROUP BY d.name
+  ORDER BY total_cost DESC;","payroll_run_line,payroll_run_hdr,employees,departments","payroll_run_line.gross_pay,employees.department_id,departments.name","hr,finance",employee_cost_per_dept
+Q0297,challenging,Average days from RFQ to vendor response for 2021.,Join procurement_rfqs to procurement_rfq_responses.,"  SELECT ROUND(AVG(r.response_date - q.rfq_date), 2) AS avg_days
+  FROM div_05.procurement_rfqs q
+  JOIN div_05.procurement_rfq_responses r ON r.rfq_id = q.rfq_id
+  WHERE EXTRACT(YEAR FROM q.rfq_date) = 2021;","procurement_rfqs,procurement_rfq_responses","procurement_rfqs.rfq_date,procurement_rfq_responses.response_date","procurement,time",rfq_response_time
+Q0298,simple,Number of comments per support case in 2024.,Use support_ticket_comments.comment_ts.,"  SELECT case_id, COUNT(*) AS comment_count
+  FROM div_15.support_ticket_comments
+  WHERE EXTRACT(YEAR FROM comment_ts) = 2024
+  GROUP BY case_id;",support_ticket_comments,support_ticket_comments.comment_ts,support,ticket_comment_volume
+Q0299,challenging,Average resource allocation percent by role for active SOWs in services division div_10.,Join svc_resource_plan to svc_statements_of_work; filter active SOWs (status_code='AC').,"  SELECT rp.role_name,
+         ROUND(AVG(rp.allocation_percent), 1) AS avg_allocation,
+         COUNT(*) AS assignments
+  FROM div_10.svc_resource_plan rp
+  JOIN div_10.svc_statements_of_work sow ON sow.sow_id = rp.sow_id
+  WHERE sow.status_code = 'AC'
+  GROUP BY rp.role_name
+  ORDER BY avg_allocation DESC;","svc_resource_plan,svc_statements_of_work","svc_resource_plan.role_name,svc_resource_plan.allocation_percent,svc_statements_of_work.status_code","services,kpi",svc_resource_utilization
+Q0300,challenging,Departments where actual expenses exceed budget in 2021.,Compare project_expenses vs budgets by department.,"  SELECT d.name, b.total_amount, COALESCE(SUM(pe.amount),0) AS actual_spend
+  FROM div_09.budgets b
+  JOIN div_09.departments d ON d.department_id = b.department_id
+  LEFT JOIN div_09.project_expenses pe ON pe.project_id IS NOT NULL
+  WHERE EXTRACT(YEAR FROM b.created_at) = 2021
+  GROUP BY d.name, b.total_amount
+  HAVING COALESCE(SUM(pe.amount),0) > b.total_amount;","budgets,budget_lines,project_expenses,departments","budgets.total_amount,project_expenses.amount","finance,projects",budget_vs_actual

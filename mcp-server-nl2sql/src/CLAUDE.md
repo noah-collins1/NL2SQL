@@ -1,13 +1,15 @@
 # NL2SQL MCP Server - TypeScript Layer
 
-**Last Updated:** 2026-02-11
+**Last Updated:** 2026-02-13
 
 ## Overview
 
 TypeScript MCP server that converts natural language to SQL. Handles schema retrieval, parallel multi-candidate SQL generation, validation, repair loops, and execution.
 
-**Database:** Enterprise ERP (60+ tables, 8 modules)
-**Current Success Rate:** 88.3% (Easy: 100%, Medium: 88%, Hard: 73.3%) — single run 2026-02-11
+**Database:** Enterprise ERP — tested at both 70-table and 2,000-table scale
+**Current Success Rates:**
+- 70-table DB: 88.3% (60 questions) — Easy: 100%, Medium: 88%, Hard: 73.3%
+- 2,000-table DB: 76.0% (300 questions) — Simple: 95%, Moderate: 74.2%, Challenging: 72.1%
 
 ## Architecture
 
@@ -296,11 +298,16 @@ npm run build
 
 ### Run Exam
 ```bash
-# Single run
-npx tsx scripts/run_exam.ts
+# 70-table DB (enterprise_erp)
+EXAM_MODE=true npx tsx scripts/run_exam.ts
+EXAM_MODE=true npx tsx scripts/run_exam_multi.ts 3    # Multi-run
 
-# Multi-run with statistical analysis (recommended)
-npx tsx scripts/run_exam_multi.ts 3    # Run 3 times, report mean ± std dev
+# 2000-table DB (enterprise_erp_2000)
+EXAM_MODE=true OLLAMA_MODEL=qwen2.5-coder:7b SEQUENTIAL_CANDIDATES=true \
+  npx tsx scripts/run_exam_2000.ts --exam ../exam/exam_full_300.csv
+# Quick subset:
+EXAM_MODE=true OLLAMA_MODEL=qwen2.5-coder:7b SEQUENTIAL_CANDIDATES=true \
+  npx tsx scripts/run_exam_2000.ts --exam ../exam/exam_full_300.csv --max=10
 ```
 
 ### Populate Embeddings
@@ -329,7 +336,25 @@ npx tsx scripts/populate_embeddings.ts
 
 ## Performance
 
-**Latest single run (2026-02-12):** 88.3% (53/60)
+### 2,000-Table DB (enterprise_erp_2000) — 2026-02-13
+
+**300 questions, single run:** 76.0% (228/300)
+
+| Difficulty | Pass | Fail | Rate |
+|------------|------|------|------|
+| Simple (40) | 38 | 2 | 95.0% |
+| Moderate (120) | 89 | 31 | 74.2% |
+| Challenging (140) | 101 | 39 | 72.1% |
+
+**Failure breakdown:** column_miss 35 (11.7%), llm_reasoning 30 (10.0%), execution_error 7 (2.3%)
+
+**By domain:** retail 100%, assets 100%, inventory 91.3%, hr 86.5%, services 85.7%, procurement 83.3%, dirty_naming 81.5%, finance 70.4%, projects 64%, sales 51.4%, lookup 41.9%, manufacturing 20%
+
+**DB features:** 20 divisions, 4 archetypes (mfg/svc/rtl/corp), dirty naming (30% of divisions), coded status values (lookup_codes), ambiguous join paths. See `docs/EVAL_2000_TABLE_RESULTS.md` for full writeup.
+
+### 70-Table DB (enterprise_erp) — 2026-02-12
+
+**60 questions, single run:** 88.3% (53/60)
 
 | Difficulty | Pass | Fail | Rate |
 |------------|------|------|------|
@@ -337,61 +362,35 @@ npx tsx scripts/populate_embeddings.ts
 | Medium (25) | 22 | 3 | 88% |
 | Hard (15) | 11 | 4 | 73.3% |
 
-**Config:** qwen2.5-coder:7b, glosses ON, PG normalize ON, schema linker ON, join planner ON (Phase 2: subgraph cache, hub caps, cross-module, path scoring), BM25 ON, module router ON, temp=0.3, sequential candidates
+**Config (both):** qwen2.5-coder:7b, glosses ON, PG normalize ON, schema linker ON, join planner ON (Phase 2), BM25 ON, module router ON, reranker ON, temp=0.3, sequential candidates
 
-**Historical reference (multi-run, 3 runs, 2026-02-07):**
+## Current Error Analysis (2000-table, 72 failures)
 
-| Metric | Value |
-|--------|-------|
-| Mean | 78.3% ± 1.4% |
-| Range | 76.7% - 80.0% |
+| Category | Count | % | Primary Cause |
+|----------|-------|---|---------------|
+| column_miss | 35 | 11.7% | Dirty naming + archetype columns the model hasn't seen |
+| llm_reasoning | 30 | 10.0% | Validation exhaustion — correct SQL not reached in 3 attempts |
+| execution_error | 7 | 2.3% | Sidecar internal errors |
 
-Note: The 2026-02-12 run is a single run, not a multi-run average. Variance between runs is ~±2-4%.
+### Weakest Areas
 
-## Current Error Analysis (7 failures, 2026-02-12)
+- **Lookup queries (41.9%):** Model doesn't discover it needs to join `lookup_codes` to decode `sts_cd` values
+- **Manufacturing (20%):** Dirty naming (`xx_mfg_wo`) + coded statuses compound into frequent column hallucination
+- **Sales (51.4%):** `sales_regions` geography joins and column ambiguity
+- **KPI formulas (50%):** DSO, working capital, gross margin require business logic beyond column matching
 
-| Category | Count | % |
-|----------|-------|---|
-| llm_reasoning | 4 | 6.7% |
-| join_path_miss | 1 | 1.7% |
-| execution_error | 2 | 3.3% |
+### Strongest Areas
 
-### Remaining Failures
-
-| Q# | Difficulty | Module | Question | Failure Mode | Root Cause |
-|----|-----------|--------|----------|-------------|------------|
-| 26 | Medium | Sales | Total sales amount by customer for 2024 | llm_reasoning (validation exhausted) | All candidates fail EXPLAIN; repair loop exhausts 3 attempts |
-| 30 | Medium | Sales | Sales orders by sales representative | llm_reasoning (validation exhausted) | Same as Q26; initial generation has lint errors, repair budget runs out |
-| 32 | Medium | Inventory | Total inventory value by warehouse | llm_reasoning (validation exhausted) | Same pattern; `p.price` hallucinated initially (should be `list_price`) |
-| 46 | Hard | HR | Employee turnover rate by department | execution_error | No valid multi-candidate produced; sidecar returns error |
-| 49 | Hard | Sales | Month-over-month sales growth rate | llm_reasoning (validation exhausted) | Complex CTE+LAG query exceeds model capability; all candidates fail |
-| 57 | Hard | Projects | Project profitability budget vs actual | join_path_miss | **Retrieval miss** (recall=0%): retriever does not return `projects`, `project_budgets`, or `project_expenses`. Join planner produces correct skeleton in unit tests but cannot operate on tables the retriever never provides. Root cause is retrieval, not join planning. |
-| 60 | Hard | Cross-Module | Comprehensive employee cost report | execution_error | **Retrieval miss** (recall=0%): retriever does not return `employees`, `departments`, `employee_benefits`, `benefit_types`. Model produces SQL that fails with type cast error on partial schema. |
-
-### Failure Patterns
-
-**LLM reasoning / validation exhaustion (Q26, Q30, Q32, Q49):** The model generates SQL with lint errors or incorrect column references on the first attempt, then the repair loop fixes some errors but exhausts all 3 attempts. These are "almost there" failures where the correct SQL is reachable but the repair budget runs out. Q49 additionally involves complex CTE+window function patterns that exceed 7B model capability.
-
-**Execution errors (Q46, Q60):** The model either produces no valid candidates at all (Q46) or produces SQL that fails at runtime with type cast errors (Q60). Q60 is compounded by retrieval missing all required tables.
-
-**Retrieval miss → downstream failure (Q57, Q60):** Both Q57 and Q60 show recall=0% — the retriever returns none of the required tables. The join planner and scoring infrastructure are correct (verified in unit tests) but cannot help when the upstream retrieval layer fails to provide the right tables. These are **retrieval-layer problems** that will be addressed when scaling to 2000 tables with improved retrieval strategies.
-
-### Deferred to Post-Scaling
-
-The following failures are **not addressable by pipeline improvements** at 70 tables. They require retrieval upgrades that are part of the 2000-table scaling work:
-
-- **Q57:** Retrieval needs to surface `projects`, `project_budgets`, `project_expenses` for "project profitability" queries. At 2000 tables, BM25 + improved module routing should help.
-- **Q60:** Cross-module retrieval needs to surface tables from HR + Finance modules simultaneously. The Phase 2 cross-module join detection is ready but depends on retrieval providing the tables first.
+- **Retail (100%):** Well-isolated domain with consistent naming
+- **Simple queries (95%):** Retrieval + generation reliably handles 1-2 table queries
+- **Dirty naming overall (81.5%):** Schema glosses bridge most abbreviated names
+- **Join paths (0% miss):** FK-graph join planner correctly identifies paths in all cases
 
 ## Potential Fixes
 
-| Fix | Target Errors | Effort | Expected Impact |
-|-----|---------------|--------|-----------------|
-| Increase repair loop budget (4-5 attempts) | llm_reasoning (Q26, Q30, Q32) | Low | +5% |
-| Improve first-attempt lint quality | llm_reasoning (Q26, Q30, Q32) | Medium | +5% |
-| Add CTE/window function few-shot examples | llm_reasoning (Q49) | Medium | +1.7% |
-| Larger model for hard queries (14B+) | llm_reasoning + execution_error | High | +5% |
-| Retrieval improvements (2000-table scaling) | join_path_miss (Q57) + execution_error (Q60) | Part of scaling plan | +3.3% |
-| Schema description improvements for Projects/Cross-Module | execution_error (Q57, Q60) | Medium | +3% |
-
-See `/STATUS.md` for full metrics and recent changes.
+| Fix | Target | Effort | Expected Impact |
+|-----|--------|--------|-----------------|
+| Auto-include `lookup_codes` when coded columns detected | lookup failures | Medium | +8-10% |
+| Increase repair budget to 4-5 attempts | llm_reasoning | Low | +3-5% |
+| Expand schema glosses for manufacturing abbreviations | mfg column_miss | Low | +3% |
+| Larger model for hard queries (14B+) | llm_reasoning + KPI | High | +5-8% |

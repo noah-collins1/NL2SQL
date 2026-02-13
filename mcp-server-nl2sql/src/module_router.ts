@@ -23,13 +23,19 @@ export interface ModuleRouteResult {
  */
 const MODULE_KEYWORDS: Record<string, string[]> = {
 	HR: ["employee", "employees", "salary", "salaries", "leave", "leaves", "benefit", "benefits", "department", "departments", "hire", "hired", "hiring", "training", "trainings", "attendance", "payroll"],
-	Finance: ["journal", "ledger", "account", "accounts", "fiscal", "budget", "budgets", "bank", "tax", "taxes", "payment", "payments", "receivable", "payable", "financial", "revenue", "expense", "expenses"],
+	Finance: ["journal", "ledger", "account", "accounts", "fiscal", "budget", "budgets", "bank", "tax", "taxes", "payment", "payments", "receivable", "payable", "financial", "revenue", "expense", "expenses", "invoice", "invoices", "ar", "ap", "depreciation", "gl", "posting", "period"],
 	Sales: ["customer", "customers", "order", "orders", "sales", "sale", "quote", "quotes", "opportunity", "opportunities", "revenue", "territory", "territories", "representative", "representatives"],
 	Procurement: ["vendor", "vendors", "purchase", "purchases", "requisition", "requisitions", "invoice", "invoices", "supplier", "suppliers", "procurement"],
 	Inventory: ["warehouse", "warehouses", "product", "products", "stock", "inventory", "transfer", "transfers", "reorder", "item", "items"],
 	Projects: ["project", "projects", "task", "tasks", "milestone", "milestones", "timesheet", "timesheets", "resource", "resources", "phase", "phases"],
-	Assets: ["asset", "assets", "depreciation", "maintenance", "fixed"],
+	Assets: ["asset", "assets", "maintenance", "fixed"],
 	Common: ["country", "countries", "state", "states", "city", "cities", "address", "addresses", "currency", "currencies", "audit", "region", "regions"],
+	Manufacturing: ["bom", "work order", "work orders", "manufacturing", "scrap", "quality", "routing", "work center"],
+	Services: ["sow", "statement of work", "deliverable", "deliverables", "engagement", "billing milestone", "rate card", "skill matrix"],
+	Retail: ["pos", "point of sale", "loyalty", "promotion", "promotions", "store inventory", "retail"],
+	Corporate: ["intercompany", "consolidation", "elimination", "statutory", "compliance", "audit finding"],
+	Support: ["case", "cases", "ticket", "tickets", "sla", "customer service", "service request"],
+	Workflow: ["approval", "approvals", "workflow", "requisition", "requisitions"],
 }
 
 /**
@@ -65,7 +71,7 @@ export async function routeToModules(
 	try {
 		const vectorLiteral = `[${questionEmbedding.join(",")}]`
 		const result = await client.query(`
-			SELECT module, 1 - (embedding <=> $1::vector) AS similarity
+			SELECT module_name AS module, 1 - (embedding <=> $1::vector) AS similarity
 			FROM rag.module_embeddings
 			ORDER BY embedding <=> $1::vector
 			LIMIT $2
