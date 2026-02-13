@@ -3,7 +3,7 @@
 </p>
 
 
-An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that converts natural language questions into PostgreSQL queries using local LLMs via Ollama. Connect it to any MCP-compatible client — [LibreChat](https://www.librechat.ai/), [Claude Desktop](https://claude.ai/download), or your own internal applications — and let users query databases in plain English.
+A [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that converts natural language questions into PostgreSQL queries using local LLMs via Ollama. Connect it to any MCP-compatible client — [LibreChat](https://www.librechat.ai/), [Claude Desktop](https://claude.ai/download), or your own internal applications — and let users query databases in plain English.
 
 The server uses a multi-stage validation and repair pipeline, achieving **88.3% accuracy** on an 86-table enterprise database and **76% on 2,000+ tables**.
 
