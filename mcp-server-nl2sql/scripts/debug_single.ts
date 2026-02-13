@@ -5,7 +5,7 @@ import { executeNLQuery } from "../src/nl_query_tool.js"
 async function main() {
 	const pool = new Pool({
 		connectionString:
-			"postgresql://postgres:1219@localhost:5432/enterprise_erp_2000",
+			process.env.DATABASE_URL || `postgresql://postgres:${process.env.DB_PASSWORD || "1219"}@localhost:5432/enterprise_erp_2000`,
 		max: 5,
 	})
 	const origConnect = pool.connect.bind(pool)

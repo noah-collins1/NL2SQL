@@ -8,8 +8,11 @@
  */
 
 import { PoolClient } from "pg"
+import { getConfig } from "./config/loadConfig.js"
 
-export const MODULE_ROUTER_ENABLED = process.env.MODULE_ROUTER_ENABLED !== "false" // default ON
+export const MODULE_ROUTER_ENABLED = process.env.MODULE_ROUTER_ENABLED !== undefined
+	? process.env.MODULE_ROUTER_ENABLED !== "false"
+	: getConfig().features.module_router
 
 export interface ModuleRouteResult {
 	modules: string[]

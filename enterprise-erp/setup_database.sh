@@ -2,7 +2,7 @@
 # Enterprise ERP Database Setup Script
 # Creates database, schema, and loads sample data
 
-set -e
+set -euo pipefail
 
 # Configuration
 DB_NAME="${ERP_DB_NAME:-enterprise_erp}"

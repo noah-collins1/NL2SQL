@@ -1,25 +1,14 @@
 /**
  * Configuration for NL2SQL MCP Server
  *
- * Includes types, constants, and configuration for:
- * - Python sidecar connection
- * - Database constraints (allowed tables, limits)
- * - Request/response interfaces
+ * Reads from config/config.yaml → config/config.local.yaml → env vars.
+ * See config/loadConfig.ts for loading logic.
  */
 
-/**
- * Database Configuration
- *
- * Supports multiple databases:
- * - mcptest: Simple 2-table test database (hardcoded schema)
- * - enterprise_erp: 86-table ERP database (RAG-based schema retrieval)
- */
+import { getConfig } from "./config/loadConfig.js"
 
-/**
- * MCPtest Database Configuration (MVP Phase 1)
- *
- * Hardcoded for MCPtest database.
- */
+// ── Database Configuration ───────────────────────────────────────────
+
 export const MCPTEST_CONFIG = {
 	databaseId: "mcptest",
 	allowedTables: ["companies", "company_revenue_annual"],
@@ -28,46 +17,31 @@ export const MCPTEST_CONFIG = {
 	useSchemaRAG: false,
 }
 
-/**
- * Enterprise ERP Database Configuration (Phase C+)
- *
- * Uses Schema RAG for table selection from 86-table database.
- */
+const _cfg = () => getConfig()
+
 export const ENTERPRISE_ERP_CONFIG = {
-	databaseId: "enterprise_erp",
-	maxLimit: 1000,
-	requireLimit: true,
+	get databaseId() { return _cfg().database.name },
+	get maxLimit() { return _cfg().validation.max_limit },
+	get requireLimit() { return _cfg().validation.require_limit },
 	useSchemaRAG: true,
-	ragConfig: {
-		topK: 15,
-		threshold: 0.25,
-		maxTables: 10,
-		fkExpansionLimit: 3,
-		hubFKCap: 5,
+	get ragConfig() {
+		const r = _cfg().retrieval
+		return {
+			topK: r.top_k,
+			threshold: r.threshold,
+			maxTables: r.max_tables,
+			fkExpansionLimit: r.fk_expansion_limit,
+			hubFKCap: r.hub_fk_cap,
+		}
 	},
 }
 
-/**
- * Active database configuration
- *
- * Set via ACTIVE_DATABASE env var or defaults to enterprise_erp
- */
-export const ACTIVE_DATABASE = process.env.ACTIVE_DATABASE || "enterprise_erp"
-
-/**
- * Schema RAG version toggle
- *
- * Set USE_SCHEMA_RAG_V2=true to enable dual retrieval + score fusion
- * Default: false (use V1 for stability until V2 is validated)
- */
-export const USE_SCHEMA_RAG_V2 = process.env.USE_SCHEMA_RAG_V2 === "true"
+export const ACTIVE_DATABASE = process.env.ACTIVE_DATABASE || getConfig().database.name
 
 /**
  * Exam mode toggle
- *
- * Set EXAM_MODE=true to enable detailed diagnostic logging
  */
-export const EXAM_MODE = process.env.EXAM_MODE === "true"
+export const EXAM_MODE = getConfig().exam.mode || process.env.EXAM_MODE === "true"
 
 /**
  * Pipeline upgrade feature flags (Phase 1/2/3)
@@ -94,15 +68,10 @@ export { COLUMN_PRUNING_ENABLED } from "./column_pruner.js"
 
 /**
  * Join hint format toggle
- *
- * Set JOIN_HINT_FORMAT to control how join hints are rendered:
- * - "edges": FK edges only (default)
- * - "paths": Suggested join paths (e.g., A -> B -> C)
- * - "both": Both edges and paths
- * - "none": No join hints
  */
 export type JoinHintFormat = "edges" | "paths" | "both" | "none"
-export const JOIN_HINT_FORMAT: JoinHintFormat = (process.env.JOIN_HINT_FORMAT as JoinHintFormat) || "edges"
+export const JOIN_HINT_FORMAT: JoinHintFormat =
+	(process.env.JOIN_HINT_FORMAT as JoinHintFormat) || (getConfig().sidecar.join_hint_format as JoinHintFormat) || "edges"
 
 /**
  * Get database config by ID
@@ -131,8 +100,8 @@ export function usesSchemaRAG(databaseId: string): boolean {
  * Python Sidecar Configuration
  */
 export const PYTHON_SIDECAR_CONFIG = {
-	baseUrl: process.env.PYTHON_SIDECAR_URL || "http://localhost:8001",
-	timeout: 30000, // 30 seconds
+	get baseUrl() { return process.env.PYTHON_SIDECAR_URL || getConfig().sidecar.url },
+	get timeout() { return getConfig().sidecar.timeout_ms },
 	endpoints: {
 		generateSQL: "/generate_sql",
 		repairSQL: "/repair_sql",
@@ -646,9 +615,9 @@ export function getSQLSTATEHint(sqlstate: string): string {
  * Repair loop configuration
  */
 export const REPAIR_CONFIG = {
-	maxAttempts: 3,
-	explainTimeout: 2000, // 2 seconds for EXPLAIN
-	confidencePenaltyPerAttempt: 0.1,
+	get maxAttempts() { return getConfig().repair.max_attempts },
+	get explainTimeout() { return getConfig().repair.explain_timeout },
+	get confidencePenaltyPerAttempt() { return getConfig().repair.confidence_penalty },
 }
 
 /**
@@ -749,6 +718,6 @@ export const DEFAULTS = {
 	maxRows: 100,
 	timeoutSeconds: 30,
 	readOnly: true,
-	requireLimit: true,
-	maxLimit: 1000,
+	get requireLimit() { return getConfig().validation.require_limit },
+	get maxLimit() { return getConfig().validation.max_limit },
 }

@@ -7,8 +7,11 @@
 
 import { PoolClient } from "pg"
 import { RetrievedTable } from "./schema_types.js"
+import { getConfig } from "./config/loadConfig.js"
 
-export const BM25_SEARCH_ENABLED = process.env.BM25_SEARCH_ENABLED !== "false" // default ON
+export const BM25_SEARCH_ENABLED = process.env.BM25_SEARCH_ENABLED !== undefined
+	? process.env.BM25_SEARCH_ENABLED !== "false"
+	: getConfig().features.bm25
 
 export interface BM25Result {
 	table_name: string

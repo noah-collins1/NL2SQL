@@ -21,9 +21,15 @@ import type { SchemaContextPacket } from "./schema_types.js"
 // Feature Flags
 // ============================================================================
 
-export const CANDIDATE_RERANKER_ENABLED = process.env.CANDIDATE_RERANKER_ENABLED !== "false"
+import { getConfig } from "./config/loadConfig.js"
 
-export const VALUE_VERIFICATION_ENABLED = process.env.VALUE_VERIFICATION_ENABLED === "true"
+export const CANDIDATE_RERANKER_ENABLED = process.env.CANDIDATE_RERANKER_ENABLED !== undefined
+	? process.env.CANDIDATE_RERANKER_ENABLED !== "false"
+	: getConfig().features.reranker
+
+export const VALUE_VERIFICATION_ENABLED = process.env.VALUE_VERIFICATION_ENABLED !== undefined
+	? process.env.VALUE_VERIFICATION_ENABLED === "true"
+	: getConfig().features.value_verification
 
 // ============================================================================
 // Types

@@ -4,7 +4,7 @@
  * Runs the 60-question Enterprise ERP test suite through the full NL2SQL pipeline.
  *
  * Usage:
- *   USE_SCHEMA_RAG_V2=true EXAM_MODE=true npx tsx scripts/run_exam.ts
+ *   EXAM_MODE=true npx tsx scripts/run_exam.ts
  */
 
 import pg from "pg"
@@ -83,7 +83,6 @@ async function runExam() {
 	console.log("ENTERPRISE ERP SCHEMA RAG V2 EXAM")
 	console.log("=".repeat(80))
 	console.log(`\nQuestions: ${EXAM_QUESTIONS.length}`)
-	console.log(`V2 Enabled: ${process.env.USE_SCHEMA_RAG_V2 === "true"}`)
 	console.log(`Exam Mode: ${process.env.EXAM_MODE === "true"}`)
 	console.log(`Difficulty: Easy=${testData.difficulty_distribution.easy}, Medium=${testData.difficulty_distribution.medium}, Hard=${testData.difficulty_distribution.hard}`)
 	console.log("\n" + "-".repeat(80))

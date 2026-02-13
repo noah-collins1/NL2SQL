@@ -4,7 +4,7 @@
 # Run all RAG schema scripts in order
 # ============================================================================
 
-set -e  # Exit on error
+set -euo pipefail
 
 DB_HOST="${DB_HOST:-localhost}"
 DB_USER="${DB_USER:-postgres}"

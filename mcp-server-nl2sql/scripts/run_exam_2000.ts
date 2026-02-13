@@ -128,7 +128,7 @@ async function runExam() {
 
 	const connectionString =
 		process.env.DATABASE_URL ||
-		"postgresql://postgres:1219@localhost:5432/enterprise_erp_2000"
+		`postgresql://postgres:${process.env.DB_PASSWORD || "1219"}@localhost:5432/enterprise_erp_2000`
 
 	const logger = {
 		info: (msg: string, _data?: any) => {

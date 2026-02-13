@@ -1,6 +1,6 @@
 #!/bin/bash
 # Apply schema for 2000-table ERP (hybrid: deepened + replicated)
-set -e
+set -euo pipefail
 
 DB_NAME="${ERP_DB_NAME:-enterprise_erp_2000}"
 DB_USER="${ERP_DB_USER:-erp_readonly}"

@@ -21,6 +21,7 @@ import { validateSQL, ValidationResult } from "./sql_validator.js"
 import { lintSQL, LintResult, LintIssue } from "./sql_lint.js"
 import { SchemaContextPacket } from "./schema_types.js"
 import { REPAIR_CONFIG } from "./config.js"
+import { getConfig } from "./config/loadConfig.js"
 
 // ============================================================================
 // Configuration
@@ -106,16 +107,18 @@ export interface MultiCandidateConfig {
 	}
 }
 
+const _c = () => getConfig().generation.candidates
+
 export const MULTI_CANDIDATE_CONFIG: MultiCandidateConfig = {
-	enabled: process.env.MULTI_CANDIDATE_ENABLED !== "false",
-	k_default: parseInt(process.env.MULTI_CANDIDATE_K || "4", 10),
-	k_easy: parseInt(process.env.MULTI_CANDIDATE_K_EASY || "2", 10),
-	k_hard: parseInt(process.env.MULTI_CANDIDATE_K_HARD || "6", 10),
-	max_candidates_to_explain: parseInt(process.env.MULTI_CANDIDATE_MAX_EXPLAIN || "4", 10),
-	max_candidates_to_execute: parseInt(process.env.MULTI_CANDIDATE_MAX_EXECUTE || "1", 10),
+	get enabled() { return process.env.MULTI_CANDIDATE_ENABLED !== undefined ? process.env.MULTI_CANDIDATE_ENABLED !== "false" : _c().enabled },
+	get k_default() { return process.env.MULTI_CANDIDATE_K ? parseInt(process.env.MULTI_CANDIDATE_K, 10) : _c().k_default },
+	get k_easy() { return process.env.MULTI_CANDIDATE_K_EASY ? parseInt(process.env.MULTI_CANDIDATE_K_EASY, 10) : _c().k_easy },
+	get k_hard() { return process.env.MULTI_CANDIDATE_K_HARD ? parseInt(process.env.MULTI_CANDIDATE_K_HARD, 10) : _c().k_hard },
+	get max_candidates_to_explain() { return process.env.MULTI_CANDIDATE_MAX_EXPLAIN ? parseInt(process.env.MULTI_CANDIDATE_MAX_EXPLAIN, 10) : _c().max_explain },
+	get max_candidates_to_execute() { return process.env.MULTI_CANDIDATE_MAX_EXECUTE ? parseInt(process.env.MULTI_CANDIDATE_MAX_EXECUTE, 10) : _c().max_execute },
 	generation_mode: "single_call_multi_sql",
-	per_query_time_budget_ms: parseInt(process.env.MULTI_CANDIDATE_TIME_BUDGET_MS || "10000", 10),
-	explain_timeout_ms: parseInt(process.env.MULTI_CANDIDATE_EXPLAIN_TIMEOUT_MS || "2000", 10),
+	get per_query_time_budget_ms() { return process.env.MULTI_CANDIDATE_TIME_BUDGET_MS ? parseInt(process.env.MULTI_CANDIDATE_TIME_BUDGET_MS, 10) : _c().time_budget_ms },
+	get explain_timeout_ms() { return process.env.MULTI_CANDIDATE_EXPLAIN_TIMEOUT_MS ? parseInt(process.env.MULTI_CANDIDATE_EXPLAIN_TIMEOUT_MS, 10) : _c().explain_timeout_ms },
 	execute_timeout_ms: null, // Use existing statement_timeout
 	sql_delimiter: "---SQL_CANDIDATE---",
 

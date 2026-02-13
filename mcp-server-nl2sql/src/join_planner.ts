@@ -20,12 +20,21 @@ import type { SchemaLinkBundle } from "./schema_linker.js"
 // Feature Flags
 // ============================================================================
 
-export const JOIN_PLANNER_ENABLED = process.env.JOIN_PLANNER_ENABLED === "true"
-export const JOIN_PLANNER_TOP_K = parseInt(process.env.JOIN_PLANNER_TOP_K || "3", 10)
-export const FK_SUBGRAPH_CACHE_ENABLED = process.env.FK_SUBGRAPH_CACHE_ENABLED !== "false"
-export const DYNAMIC_HUB_CAP_ENABLED = process.env.DYNAMIC_HUB_CAP_ENABLED !== "false"
-export const JOIN_PATH_SCORING_ENABLED = process.env.JOIN_PATH_SCORING_ENABLED !== "false"
-export const CROSS_MODULE_JOIN_ENABLED = process.env.CROSS_MODULE_JOIN_ENABLED !== "false"
+import { getConfig } from "./config/loadConfig.js"
+
+const _f = () => getConfig().features
+export const JOIN_PLANNER_ENABLED = process.env.JOIN_PLANNER_ENABLED !== undefined
+	? process.env.JOIN_PLANNER_ENABLED === "true" : _f().join_planner
+export const JOIN_PLANNER_TOP_K = process.env.JOIN_PLANNER_TOP_K !== undefined
+	? parseInt(process.env.JOIN_PLANNER_TOP_K, 10) : _f().join_planner_top_k
+export const FK_SUBGRAPH_CACHE_ENABLED = process.env.FK_SUBGRAPH_CACHE_ENABLED !== undefined
+	? process.env.FK_SUBGRAPH_CACHE_ENABLED !== "false" : _f().fk_subgraph_cache
+export const DYNAMIC_HUB_CAP_ENABLED = process.env.DYNAMIC_HUB_CAP_ENABLED !== undefined
+	? process.env.DYNAMIC_HUB_CAP_ENABLED !== "false" : _f().dynamic_hub_cap
+export const JOIN_PATH_SCORING_ENABLED = process.env.JOIN_PATH_SCORING_ENABLED !== undefined
+	? process.env.JOIN_PATH_SCORING_ENABLED !== "false" : _f().join_path_scoring
+export const CROSS_MODULE_JOIN_ENABLED = process.env.CROSS_MODULE_JOIN_ENABLED !== undefined
+	? process.env.CROSS_MODULE_JOIN_ENABLED !== "false" : _f().cross_module_join
 
 // ============================================================================
 // Types

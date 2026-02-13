@@ -26,7 +26,11 @@ import { extractTableRefsFromSQL } from "./candidate_reranker.js"
 // Feature Flag
 // ============================================================================
 
-export const PRE_SQL_ENABLED = process.env.PRE_SQL_ENABLED === "true"
+import { getConfig } from "./config/loadConfig.js"
+
+export const PRE_SQL_ENABLED = process.env.PRE_SQL_ENABLED !== undefined
+	? process.env.PRE_SQL_ENABLED === "true"
+	: getConfig().features.pre_sql
 
 // ============================================================================
 // Types

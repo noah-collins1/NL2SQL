@@ -38,7 +38,6 @@ import {
 	isTimeoutError,
 	classifyExecutionError,
 	getSQLSTATEHint,
-	USE_SCHEMA_RAG_V2,
 	EXAM_MODE,
 	ExecutionErrorClass,
 	SCHEMA_GLOSSES_ENABLED,
@@ -54,11 +53,6 @@ import {
 	getSchemaRetriever,
 	getAllowedTables,
 } from "./schema_retriever.js"
-import {
-	SchemaRetrieverV2,
-	getSchemaRetrieverV2,
-	getAllowedTablesV2,
-} from "./schema_retriever_v2.js"
 import {
 	getColumnCandidateFinder,
 	formatCandidatesForPrompt,
@@ -190,7 +184,6 @@ export async function executeNLQuery(
 	// Schema context (for RAG-based databases)
 	let schemaContext: SchemaContextPacket | null = null
 	let allowedTables: string[] = []
-	let retrievalMetrics: RetrievalMetrics | null = null
 	let moduleRouteResult: ModuleRouteResult | undefined
 
 	// Repair loop state
@@ -203,31 +196,12 @@ export async function executeNLQuery(
 		if (useRAG) {
 			const retrievalStart = Date.now()
 
-			const useV2 = USE_SCHEMA_RAG_V2
-
 			logger.info("Using Schema RAG for table selection", {
 				query_id: queryId,
 				database_id: databaseId,
-				retriever_version: useV2 ? "V2" : "V1",
 			})
 
-			if (useV2) {
-				// V2: Dual retrieval + score fusion
-				const retrieverV2 = getSchemaRetrieverV2(pool, logger)
-				const result = await retrieverV2.retrieveSchemaContext(
-					question,
-					databaseId,
-				)
-				schemaContext = result.packet
-				retrievalMetrics = result.metrics
-				allowedTables = getAllowedTablesV2(schemaContext)
-
-				// Exam mode: log detailed retrieval metrics
-				if (EXAM_MODE) {
-					logExamRetrievalMetrics(queryId, question, retrievalMetrics, logger)
-				}
-			} else {
-				// V1: Original retrieval (with Phase 1 hybrid enhancements)
+			{
 				const retriever = getSchemaRetriever(pool, logger)
 
 				// Phase 1: Module routing (before retrieval)
@@ -303,7 +277,7 @@ export async function executeNLQuery(
 
 			logger.info("Schema retrieval complete", {
 				query_id: queryId,
-				retriever_version: useV2 ? "V2" : "V1",
+				retriever_version: "V1",
 				tables_selected: schemaContext.tables.length,
 				table_names: schemaContext.tables.map(t => t.table_name),
 				modules: schemaContext.modules,
@@ -509,8 +483,7 @@ export async function executeNLQuery(
 			let pythonResponse: PythonSidecarResponse
 
 			if (attempt === 1) {
-				// First attempt: generate fresh SQL
-				// Determine if multi-candidate generation is enabled
+				// === SQL GENERATION (multi-candidate) ===
 				const useMultiCandidate = MULTI_CANDIDATE_CONFIG.enabled
 				const difficulty = useMultiCandidate ? classifyDifficulty(question, schemaContext) : "medium"
 				const kValue = useMultiCandidate ? getKForDifficulty(difficulty) : 1
@@ -1902,7 +1875,7 @@ interface FullExamLogEntry {
 	timestamp: string
 	query_id: string
 	question: string
-	retriever_version: "V1" | "V2"
+	retriever_version: "V1"
 
 	// Retrieval results
 	tables_retrieved: string[]

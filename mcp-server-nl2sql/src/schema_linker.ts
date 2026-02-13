@@ -19,7 +19,11 @@ import { generateGlosses, type SchemaGlosses, type ColumnGloss } from "./schema_
 // Feature Flag
 // ============================================================================
 
-export const SCHEMA_LINKER_ENABLED = process.env.SCHEMA_LINKER_ENABLED === "true"
+import { getConfig } from "./config/loadConfig.js"
+
+export const SCHEMA_LINKER_ENABLED = process.env.SCHEMA_LINKER_ENABLED !== undefined
+	? process.env.SCHEMA_LINKER_ENABLED === "true"
+	: getConfig().features.schema_linker
 
 // ============================================================================
 // Types

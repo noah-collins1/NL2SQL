@@ -1,0 +1,109 @@
+# NL2SQL Configuration
+# Override any value with config/config.local.yaml (gitignored) or env vars.
+# Env var names match existing conventions: DB_PASSWORD, OLLAMA_MODEL, etc.
+
+database:
+  host: localhost
+  port: 5432
+  name: enterprise_erp
+  user: postgres
+  password: ""              # Set via DB_PASSWORD env var or config.local.yaml
+
+model:
+  llm: "qwen2.5-coder:7b"  # Ollama model tag
+  embedding: "nomic-embed-text"
+  provider: ollama
+  ollama_url: "http://localhost:11434"
+  timeout: 90               # seconds (covers multi-candidate generation)
+  num_ctx: 0                # 0 = model default context window
+  sql_system_prompt: >-
+    You are an expert PostgreSQL query generator. Given a database schema
+    and a question, output ONLY a single SELECT query. No explanations,
+    no markdown, no commentary.
+
+generation:
+  temperature: 0.3          # Must be >0 for multi-candidate diversity
+  max_tokens: 512
+  sequential: false         # Set true for 8GB GPU (SEQUENTIAL_CANDIDATES)
+  candidates:
+    enabled: true
+    k_default: 4
+    k_easy: 2
+    k_hard: 6
+    max_explain: 4          # Max parallel EXPLAIN runs
+    max_execute: 1
+    time_budget_ms: 10000   # Total time budget per query
+    explain_timeout_ms: 2000
+
+retrieval:
+  top_k: 15
+  threshold: 0.25
+  max_tables: 10
+  fk_expansion_limit: 3
+  hub_fk_cap: 5
+
+features:
+  glosses: true             # Schema glosses (SCHEMA_GLOSSES_ENABLED)
+  pg_normalize: true        # PG dialect normalization (PG_NORMALIZE_ENABLED)
+  schema_linker: false      # Keyphrase extraction + column matching (SCHEMA_LINKER_ENABLED)
+  join_planner: false       # FK graph BFS + join skeleton (JOIN_PLANNER_ENABLED)
+  join_planner_top_k: 3
+  fk_subgraph_cache: true   # FK_SUBGRAPH_CACHE_ENABLED
+  dynamic_hub_cap: true     # DYNAMIC_HUB_CAP_ENABLED
+  join_path_scoring: true   # JOIN_PATH_SCORING_ENABLED
+  cross_module_join: true   # CROSS_MODULE_JOIN_ENABLED
+  bm25: true                # BM25 tsvector search + RRF fusion (BM25_SEARCH_ENABLED)
+  module_router: true       # Module routing before retrieval (MODULE_ROUTER_ENABLED)
+  column_pruning: false     # Column pruning per table (COLUMN_PRUNING_ENABLED) — OFF, causes regression
+  reranker: true            # Candidate reranker (CANDIDATE_RERANKER_ENABLED)
+  pre_sql: false            # Sketch SQL → re-retrieve missing (PRE_SQL_ENABLED)
+  value_verification: false # Value verification in reranker (VALUE_VERIFICATION_ENABLED)
+
+repair:
+  max_attempts: 3
+  confidence_penalty: 0.1   # Per-attempt confidence penalty
+  explain_timeout: 2000     # ms
+  surgical_whitelist:
+    enabled: true
+    mode: observe            # "observe" | "active"
+    observe_in_exam_only: true
+    include_fk_neighbors: true
+    max_neighbor_tables: 3
+    max_tables_total: 4
+    max_columns_per_table: 60
+    rewrite_min_confidence: 0.75
+    rewrite_ambiguity_delta: 0.1
+    active_rewrite_gate:
+      min_score: 0.80
+      min_dominance: 0.60
+      require_containment_or_exact: true
+      require_score_separation: true
+      min_score_delta: 0.10
+      min_score_ratio: 1.15
+    risk_blacklist:
+      enabled: true
+      pairs:
+        - ["name", "number"]
+        - ["name", "id"]
+        - ["amount", "total"]
+        - ["date", "id"]
+        - ["vendor", "customer"]
+      action: block
+      apply_to_observe: false
+
+validation:
+  max_limit: 1000
+  require_limit: true
+  max_joins: 10
+
+sidecar:
+  url: "http://localhost:8001"
+  timeout_ms: 30000
+  join_hint_format: edges   # "edges" | "paths" | "both" | "none"
+
+exam:
+  mode: false
+  log_dir: exam_logs
+
+logging:
+  level: INFO

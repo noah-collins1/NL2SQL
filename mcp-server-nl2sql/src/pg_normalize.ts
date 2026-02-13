@@ -28,7 +28,11 @@ interface Transform {
 // Feature Flag
 // ============================================================================
 
-export const PG_NORMALIZE_ENABLED = process.env.PG_NORMALIZE_ENABLED !== "false"
+import { getConfig } from "./config/loadConfig.js"
+
+export const PG_NORMALIZE_ENABLED = process.env.PG_NORMALIZE_ENABLED !== undefined
+	? process.env.PG_NORMALIZE_ENABLED !== "false"
+	: getConfig().features.pg_normalize
 
 // ============================================================================
 // Transform Definitions

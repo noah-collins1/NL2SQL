@@ -196,4 +196,5 @@ chmod +x setup_database_2000.sh
 ./setup_database_2000.sh
 ```
 
-Login details are documented in `LOGIN_2000.md`.
+This wraps `schema_gen/apply_schema.sh` and builds the 20-division, 2000-table database.
+See `ARCHITECTURE.md` for the scaling plan and `LOGIN_2000.md` for connection details.

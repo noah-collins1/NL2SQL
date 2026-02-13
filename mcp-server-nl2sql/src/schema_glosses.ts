@@ -11,7 +11,11 @@ import type { SchemaContextPacket } from "./schema_types.js"
 // Feature Flag
 // ============================================================================
 
-export const SCHEMA_GLOSSES_ENABLED = process.env.SCHEMA_GLOSSES_ENABLED !== "false"
+import { getConfig } from "./config/loadConfig.js"
+
+export const SCHEMA_GLOSSES_ENABLED = process.env.SCHEMA_GLOSSES_ENABLED !== undefined
+	? process.env.SCHEMA_GLOSSES_ENABLED !== "false"
+	: getConfig().features.glosses
 
 // ============================================================================
 // Types

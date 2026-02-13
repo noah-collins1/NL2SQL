@@ -7,8 +7,11 @@
 
 import { TableMeta, ColumnMeta } from "./schema_types.js"
 import { SchemaLinkBundle } from "./schema_linker.js"
+import { getConfig } from "./config/loadConfig.js"
 
-export const COLUMN_PRUNING_ENABLED = process.env.COLUMN_PRUNING_ENABLED === "true" // default OFF — too aggressive at maxNonStructural=5, caused 88.3%→81.7% regression
+export const COLUMN_PRUNING_ENABLED = process.env.COLUMN_PRUNING_ENABLED !== undefined
+	? process.env.COLUMN_PRUNING_ENABLED === "true"
+	: getConfig().features.column_pruning
 
 /**
  * Prune columns per table to reduce prompt size.

@@ -1,33 +1,42 @@
 """
 Configuration for Python AI Sidecar
 
-Hardcoded schema and prompts for MCPtest database (MVP Phase 1).
-Phase 2 will receive schema dynamically from TypeScript.
+Reads from config/config.yaml → config/config.local.yaml → env vars.
+Prompt templates are kept here (too large for YAML).
 """
 
 import os
+from config_loader import get_config
 
-# Ollama Configuration
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "HridaAI/hrida-t2sql:latest")
-OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "90"))  # seconds (increased for multi-candidate generation)
-OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "0"))  # 0 = use model default
-SEQUENTIAL_CANDIDATES = os.getenv("SEQUENTIAL_CANDIDATES", "false").lower() == "true"
-SQL_SYSTEM_PROMPT = os.getenv("SQL_SYSTEM_PROMPT",
+def _m():
+    return get_config().get("model", {})
+
+def _g():
+    return get_config().get("generation", {})
+
+def _s():
+    return get_config().get("sidecar", {})
+
+def _l():
+    return get_config().get("logging", {})
+
+# Ollama Configuration (env vars still work via config_loader overlay)
+OLLAMA_BASE_URL = _m().get("ollama_url", "http://localhost:11434")
+OLLAMA_MODEL = _m().get("llm", "HridaAI/hrida-t2sql:latest")
+OLLAMA_TIMEOUT = int(_m().get("timeout", 90))
+OLLAMA_NUM_CTX = int(_m().get("num_ctx", 0))
+SEQUENTIAL_CANDIDATES = _g().get("sequential", False)
+SQL_SYSTEM_PROMPT = _m().get("sql_system_prompt",
     "You are an expert PostgreSQL query generator. Given a database schema and a question, "
     "output ONLY a single SELECT query. No explanations, no markdown, no commentary."
 )
 
 # Server Configuration
-PORT = int(os.getenv("PORT", "8001"))
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+PORT = int(_s().get("port", os.getenv("PORT", "8001")))
+LOG_LEVEL = _l().get("level", "INFO")
 
-# Join Hint Format: "edges" | "paths" | "both" | "none"
-# - edges: FK edges only (default)
-# - paths: Suggested join paths only
-# - both: Both edges and paths
-# - none: No join hints
-JOIN_HINT_FORMAT = os.getenv("JOIN_HINT_FORMAT", "edges")
+# Join Hint Format
+JOIN_HINT_FORMAT = _s().get("join_hint_format", "edges")
 
 # MCPtest Database Schema (Hardcoded for MVP)
 MCPTEST_SCHEMA = {
