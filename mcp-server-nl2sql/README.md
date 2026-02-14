@@ -1,91 +1,72 @@
 # MCP Server NL2SQL
 
-TypeScript MCP server (forked from Smithery Postgres) extended with natural language query capability.
+TypeScript MCP server that converts natural language questions into PostgreSQL queries using local LLMs via Ollama.
 
 ## Architecture
 
 ```
-Chat Interface
-    ↓
+MCP Client (LibreChat, Claude Desktop, custom app)
+     |  (MCP protocol over stdio)
+     v
 TypeScript MCP Server (this)
-    ├─ nl_query tool: Natural language → SQL
-    ├─ SQL validation: Security checks
-    └─ Postgres execution: Results
-    ↓ HTTP
-Python Sidecar
-    ├─ Keyword filtering: Stage 1 table selection
-    ├─ Ollama client: Hrida NL2SQL model
-    └─ SQL generation: Returns validated SQL
-    ↓
-Ollama (Hrida)
-    └─ HridaAI/hrida-t2sql:v1.2.3
+    ├─ Module routing + Schema RAG retrieval
+    ├─ Prompt construction (glosses, linker, join planner)
+    ├─ Multi-candidate evaluation + reranking
+    ├─ Repair loop (surgical whitelist)
+    └─ PostgreSQL execution
+     | HTTP
+     v
+Python Sidecar (FastAPI :8001)
+    ├─ K-candidate SQL generation via Ollama
+    └─ Repair prompts
 ```
 
 ## Tools
 
-### Original Tools (from Smithery)
-- `query` - Execute SQL queries
-- `checkpoint` - Create database checkpoint
-
-### New Tools (NL2SQL)
-- `nl_query` - Natural language queries (routes to Python sidecar)
-
-## Configuration
-
-```json
-{
-  "postgresConnectionString": "postgresql://user:pass@host:5432/db",
-  "role": "read",
-  "pythonSidecarUrl": "http://localhost:8001"
-}
-```
-
-## Development Status
-
-See the root [README](../README.md) for architecture and current performance.
-
-## Installation
-
-```bash
-npm install
-```
-
-## Running
-
-```bash
-# Development mode
-npm run dev
-
-# Build
-npm run build
-```
-
-## Testing
-
-```bash
-# Run Test 3 question suite
-# Target: 85%+ success rate
-# Questions: 27 from MCPtest database
-```
+| Tool | Purpose |
+|------|---------|
+| `nl_query` | Natural language to SQL — the main pipeline |
+| `query` | Execute raw SQL (role-gated: read/insert/write/admin) |
+| `checkpoint` | Database checkpoint management (undo/redo) |
 
 ## Project Structure
 
 ```
 src/
-├── index.ts              # Main MCP server (original + extensions)
-├── nl_query_tool.ts      # nl_query tool implementation (new)
-├── sql_validator.ts      # SQL validation rules (new)
-├── python_client.ts      # HTTP client to Python sidecar (new)
-└── config.ts             # Configuration types (new)
+├── index.ts              # MCP server entry (tools, resources, transport)
+├── stdio.ts              # Stdio transport entry point
+├── nl_query_tool.ts      # Main pipeline orchestration
+├── schema_retriever.ts   # Schema RAG (cosine + BM25 + RRF + module routing)
+├── schema_grounding.ts   # Schema glosses + schema linker
+├── sql_validation.ts     # SQL validator + linter + autocorrect + PG normalize
+├── multi_candidate.ts    # K-candidate generation + scoring
+├── candidate_reranker.ts # Reranker (schema adherence, join match, result shape)
+├── join_planner.ts       # FK graph BFS + join skeleton generation
+├── surgical_whitelist.ts # Two-tier column error (42703) repair
+├── python_client.ts      # HTTP client to Python sidecar
+├── schema_types.ts       # Shared types (SchemaContextPacket, etc.)
+├── config.ts             # Configuration types + feature flag re-exports
+└── config/
+    └── loadConfig.ts     # YAML + env var config loader
+
+scripts/
+├── schema_embedder.ts    # Generate table embeddings (setup-only)
+├── schema_introspector.ts # Database introspection (setup-only)
+└── populate_embeddings.ts # Orchestrate embedding population
 ```
 
-## Dependencies
+## Configuration
 
-- `@modelcontextprotocol/sdk` - MCP SDK
-- `pg` - Postgres client
-- `zod` - Schema validation
+All settings live in `config/config.yaml`. See [docs/CONFIG.md](../docs/CONFIG.md).
+
+## Development
+
+```bash
+npm install
+npm run build    # Build with smithery
+```
 
 ## Related
 
 - Python Sidecar: `../python-sidecar/`
-- Original Repo: https://github.com/smithery-ai/mcp-servers
+- Root README: `../README.md`

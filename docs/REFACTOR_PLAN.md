@@ -83,6 +83,7 @@ Current logging is ad-hoc console output. Add structured telemetry with:
 | Refactor | Files | Risk | Impact |
 |----------|-------|------|--------|
 | Remove dead V2 code | ~~schema_retriever_v2.ts~~ (DONE) | None | Cleaner imports |
+| Consolidate src/ modules | ~~24 → 14 files~~ (DONE) | None | Merged sql_validation, schema_grounding; absorbed BM25+router into retriever |
 | Consolidate prompt templates | config.py | Low | Easier prompt tuning |
 | Extract exam instrumentation | nl_query_tool.ts | Low | Cleaner main function |
 | Type-safe config | config/loadConfig.ts | Low | Better IDE support |

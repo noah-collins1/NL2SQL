@@ -23,9 +23,9 @@ The prompt templates are hardcoded for PostgreSQL:
 
 **To change:** Parameterize the prompt template with a dialect variable. Create per-dialect rule sets (e.g., MySQL uses `YEAR(date)` instead of `EXTRACT(YEAR FROM date)`, `GROUP_CONCAT` instead of `STRING_AGG`). The model would need to be told which dialect to generate.
 
-### 2. PG Normalize (`pg_normalize.ts`) (High Impact)
+### 2. PG Normalize (High Impact)
 
-**File:** `mcp-server-nl2sql/src/pg_normalize.ts`
+**File:** `mcp-server-nl2sql/src/sql_validation.ts` (`pgNormalize` function)
 
 This module converts non-PG patterns INTO PostgreSQL:
 - `YEAR(date)` → `EXTRACT(YEAR FROM date)`
@@ -36,7 +36,7 @@ This module converts non-PG patterns INTO PostgreSQL:
 - MySQL-style `LIMIT offset, count` → PG-style `LIMIT count OFFSET offset`
 - Backtick removal
 
-**To change:** For a MySQL target, you'd write the reverse — a `mysql_normalize.ts` that converts PG patterns to MySQL. Or disable normalization entirely and tune the LLM prompt to generate the right dialect directly.
+**To change:** For a MySQL target, you'd write the reverse — a MySQL normalizer that converts PG patterns to MySQL. Or disable normalization entirely and tune the LLM prompt to generate the right dialect directly.
 
 ### 3. EXPLAIN Validation (Medium Impact)
 
@@ -51,7 +51,7 @@ Uses `EXPLAIN (FORMAT JSON) <sql>` to validate candidates before execution. This
 
 ### 4. pgvector Embedding Store (High Impact)
 
-**Files:** `mcp-server-nl2sql/src/schema_retriever.ts`, `bm25_search.ts`
+**File:** `mcp-server-nl2sql/src/schema_retriever.ts`
 
 Schema embeddings are stored in `rag.table_embeddings` using the pgvector extension (`vector(768)` type, `<=>` cosine operator). BM25 search uses PostgreSQL tsvector/tsquery.
 
@@ -69,7 +69,7 @@ Schema embeddings are stored in `rag.table_embeddings` using the pgvector extens
 
 ### 5. Dangerous Function Blocklist (Low Impact)
 
-**File:** `mcp-server-nl2sql/src/sql_validator.ts`
+**File:** `mcp-server-nl2sql/src/sql_validation.ts`
 
 The validator blocks PostgreSQL-specific dangerous functions: `pg_read_file`, `pg_terminate_backend`, `dblink`, `postgres_fdw`, etc.
 
@@ -77,7 +77,7 @@ The validator blocks PostgreSQL-specific dangerous functions: `pg_read_file`, `p
 
 ### 6. SQL Validator (Low Impact)
 
-**File:** `mcp-server-nl2sql/src/sql_validator.ts`
+**File:** `mcp-server-nl2sql/src/sql_validation.ts`
 
 The token parser, dangerous keyword detection (`DROP`, `DELETE`, etc.), and table extraction are dialect-agnostic. The `EXTRACT(... FROM ...)` lookbehind regex has PG-specific date parts but would work similarly for other dialects.
 
