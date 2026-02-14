@@ -17,8 +17,7 @@
  */
 
 import { Pool, PoolClient } from "pg"
-import { validateSQL, ValidationResult } from "./sql_validator.js"
-import { lintSQL, LintResult, LintIssue } from "./sql_lint.js"
+import { validateSQL, ValidationResult, lintSQL, LintResult, LintIssue } from "./sql_validation.js"
 import { SchemaContextPacket } from "./schema_types.js"
 import { REPAIR_CONFIG } from "./config.js"
 import { getConfig } from "./config/loadConfig.js"
