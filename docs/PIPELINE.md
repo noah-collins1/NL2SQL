@@ -17,8 +17,7 @@ Question
 [3. Prompt Construction]
   |  3a. Schema Glosses ──> enriched column descriptions
   |  3b. Schema Linker  ──> SchemaLinkBundle (grounded columns)
-  |  3c. Column Pruner   ──> trimmed columns per table
-  |  3d. Join Planner   ──> JoinPlan (skeleton, paths)
+  |  3c. Join Planner   ──> JoinPlan (skeleton, paths)
   |
   v
 [4. SQL Generation]
@@ -49,7 +48,7 @@ Question
 
 ### 1. Module Routing
 
-**File:** `module_router.ts`
+**File:** `schema_retriever.ts` (inline `routeToModules`)
 **Flag:** `MODULE_ROUTER_ENABLED` (default ON)
 
 Classifies the question into 1-3 ERP modules (HR, Finance, Sales, etc.) using keyword rules and embedding similarity against `rag.module_embeddings`. The module filter narrows the table universe before retrieval.
@@ -59,7 +58,7 @@ Classifies the question into 1-3 ERP modules (HR, Finance, Sales, etc.) using ke
 
 ### 2. Schema Retrieval
 
-**File:** `schema_retriever.ts`, `bm25_search.ts`
+**File:** `schema_retriever.ts` (includes BM25 + RRF)
 **Flags:** `BM25_SEARCH_ENABLED` (ON), module filter from Stage 1
 
 1. Embed question via Python sidecar `/embed`
@@ -75,21 +74,16 @@ Classifies the question into 1-3 ERP modules (HR, Finance, Sales, etc.) using ke
 ### 3. Prompt Construction
 
 #### 3a. Schema Glosses
-**File:** `schema_glosses.ts` | **Flag:** `SCHEMA_GLOSSES_ENABLED` (ON)
+**File:** `schema_grounding.ts` | **Flag:** `SCHEMA_GLOSSES_ENABLED` (ON)
 
 Generates rich column descriptions using deterministic heuristics — synonym expansion, type hints (`[AMT]`, `[DATE]`, `[FK→target]`). No LLM call.
 
 #### 3b. Schema Linker
-**File:** `schema_linker.ts` | **Flag:** `SCHEMA_LINKER_ENABLED` (OFF by default, ON for qwen2.5-coder)
+**File:** `schema_grounding.ts` | **Flag:** `SCHEMA_LINKER_ENABLED` (OFF by default, ON for qwen2.5-coder)
 
 Extracts keyphrases from the question, matches them to columns using gloss synonyms + fuzzy matching. Produces a `SchemaLinkBundle` that forces the LLM to only use grounded columns.
 
-#### 3c. Column Pruner
-**File:** `column_pruner.ts` | **Flag:** `COLUMN_PRUNING_ENABLED` (OFF — causes regression at 86 tables; intended for 2,000+ table scale)
-
-Trims non-PK/FK/linked columns per table to reduce prompt size. Keeps top-5 by ordinal.
-
-#### 3d. Join Planner
+#### 3c. Join Planner
 **File:** `join_planner.ts` | **Flag:** `JOIN_PLANNER_ENABLED` (OFF by default, ON for qwen2.5-coder)
 
 Builds FK graph, finds shortest paths between required tables using BFS/Yen's algorithm. Produces join skeletons the LLM can copy.
@@ -104,7 +98,7 @@ K value is adaptive: `k_easy=2`, `k_default=4`, `k_hard=6`.
 
 ### 5. Candidate Evaluation
 
-**File:** `multi_candidate.ts`, `sql_validator.ts`, `sql_lint.ts`, `candidate_reranker.ts`
+**File:** `multi_candidate.ts`, `sql_validation.ts`, `candidate_reranker.ts`
 
 Each candidate is scored deterministically:
 
@@ -123,7 +117,7 @@ The candidate reranker (`CANDIDATE_RERANKER_ENABLED`, default ON) adds orthogona
 
 ### 6. Repair Loop
 
-**File:** `nl_query_tool.ts`, `surgical_whitelist.ts`, `pg_normalize.ts`, `sql_autocorrect.ts`
+**File:** `nl_query_tool.ts`, `surgical_whitelist.ts`, `sql_validation.ts`
 
 If the best candidate fails EXPLAIN or execution:
 1. Apply PG dialect normalization (YEAR→EXTRACT, IFNULL→COALESCE, etc.)
@@ -146,7 +140,5 @@ Execute the validated SQL on PostgreSQL with `statement_timeout`. Return rows, m
 | join_planner | OFF | `JOIN_PLANNER_ENABLED` | FK graph join planning |
 | bm25 | ON | `BM25_SEARCH_ENABLED` | BM25 tsvector search |
 | module_router | ON | `MODULE_ROUTER_ENABLED` | Module routing |
-| column_pruning | OFF | `COLUMN_PRUNING_ENABLED` | Column trimming |
 | reranker | ON | `CANDIDATE_RERANKER_ENABLED` | Candidate reranking |
-| pre_sql | OFF | `PRE_SQL_ENABLED` | Sketch SQL for re-retrieval |
 | value_verification | OFF | `VALUE_VERIFICATION_ENABLED` | DB value checks in reranker |

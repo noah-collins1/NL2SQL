@@ -86,9 +86,7 @@ All feature flags. See [PIPELINE.md](PIPELINE.md) for what each does.
 | `cross_module_join` | bool | `true` | `CROSS_MODULE_JOIN_ENABLED` | Cross-module join detection |
 | `bm25` | bool | `true` | `BM25_SEARCH_ENABLED` | BM25 tsvector search |
 | `module_router` | bool | `true` | `MODULE_ROUTER_ENABLED` | Module routing |
-| `column_pruning` | bool | `false` | `COLUMN_PRUNING_ENABLED` | Column pruning |
 | `reranker` | bool | `true` | `CANDIDATE_RERANKER_ENABLED` | Candidate reranker |
-| `pre_sql` | bool | `false` | `PRE_SQL_ENABLED` | Pre-SQL sketch generation |
 | `value_verification` | bool | `false` | `VALUE_VERIFICATION_ENABLED` | DB value verification |
 
 ### repair
@@ -148,7 +146,6 @@ database:
 features:
   schema_linker: true   # Helps narrow column usage
   join_planner: true    # Required for complex joins
-  column_pruning: true  # Consider enabling to fit prompt budget
 ```
 
 ### Production Tuning

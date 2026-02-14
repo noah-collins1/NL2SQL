@@ -179,10 +179,10 @@ The pipeline is currently **PostgreSQL-specific**. Key PG-coupled components:
 | Component | PG-Specific? | What would change for MySQL/SQLite |
 |-----------|-------------|-------------------------------------|
 | LLM prompts | Yes — "Generate PostgreSQL SELECT" | Parameterize dialect in prompt templates |
-| `pg_normalize.ts` | Yes — converts MySQL/Oracle syntax TO PG | Write reverse normalizer per dialect |
+| `sql_validation.ts` (PG normalize) | Yes — converts MySQL/Oracle syntax TO PG | Write reverse normalizer per dialect |
 | EXPLAIN validation | Yes — uses `EXPLAIN (FORMAT JSON)` | Use dialect-native EXPLAIN |
 | pgvector (embedding store) | Yes — PG extension | Use external vector DB (Pinecone, etc.) |
-| `sql_validator.ts` | Mostly portable | Swap PG-specific dangerous function list |
+| `sql_validation.ts` (validator) | Mostly portable | Swap PG-specific dangerous function list |
 | Schema introspection | Mostly portable | Uses standard `information_schema` |
 
 **If your target database is MySQL but you're fine running PostgreSQL for the RAG/embedding layer**, the main work is swapping the prompt templates and normalizer. The pgvector embedding store and the target query database are on the same PostgreSQL instance today, but architecturally they could be separated — the RAG layer only needs vector similarity search, while query execution needs the target database.
