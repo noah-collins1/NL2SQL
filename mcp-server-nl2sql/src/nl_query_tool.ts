@@ -13,8 +13,7 @@
 
 import { Pool, PoolClient } from "pg"
 import { v4 as uuidv4 } from "uuid"
-import { validateSQL, ValidationResult } from "./sql_validator.js"
-import { lintSQL, LintResult, lintIssuesToValidatorIssues, formatLintIssuesForRepair } from "./sql_lint.js"
+import { validateSQL, ValidationResult, lintSQL, LintResult, lintIssuesToValidatorIssues, formatLintIssuesForRepair, attemptAutocorrect, AutocorrectResult, pgNormalize, type PgNormalizeResult, parseUndefinedColumn } from "./sql_validation.js"
 import { getPythonClient, PythonClient } from "./python_client.js"
 import {
 	MCPTEST_CONFIG,
@@ -46,26 +45,14 @@ import {
 	PG_NORMALIZE_ENABLED,
 	MODULE_ROUTER_ENABLED,
 	BM25_SEARCH_ENABLED,
-	COLUMN_PRUNING_ENABLED,
 } from "./config.js"
 import {
 	SchemaRetriever,
 	getSchemaRetriever,
 	getAllowedTables,
+	routeToModules,
+	type ModuleRouteResult,
 } from "./schema_retriever.js"
-import {
-	getColumnCandidateFinder,
-	formatCandidatesForPrompt,
-	extractUndefinedColumn,
-	generateColumnWhitelistBlock,
-	buildColumnWhitelist,
-	buildMinimalWhitelist,
-	formatMinimalWhitelistForRepair,
-	validateSQLColumns,
-	formatColumnValidationErrors,
-	ColumnValidationResult,
-	MinimalWhitelistResult,
-} from "./column_candidates.js"
 import {
 	SURGICAL_WHITELIST_CONFIG,
 	processSurgicalWhitelist,
@@ -75,8 +62,7 @@ import {
 	WhitelistShadowObservation,
 	ActiveGatingResult,
 } from "./surgical_whitelist.js"
-import { SchemaContextPacket, RetrievalMetrics, renderSchemaBlock, renderMSchema, TableMeta, ColumnMeta } from "./schema_types.js"
-import { attemptAutocorrect, AutocorrectResult } from "./sql_autocorrect.js"
+import { SchemaContextPacket, RetrievalMetrics } from "./schema_types.js"
 import {
 	MULTI_CANDIDATE_CONFIG,
 	evaluateCandidates,
@@ -86,19 +72,14 @@ import {
 	MultiCandidateResult,
 	CandidateExamLog,
 } from "./multi_candidate.js"
-import { generateGlosses, type SchemaGlosses } from "./schema_glosses.js"
-import { linkSchema, formatSchemaLinkForPrompt, type SchemaLinkBundle } from "./schema_linker.js"
+import { generateGlosses, type SchemaGlosses, linkSchema, formatSchemaLinkForPrompt, type SchemaLinkBundle } from "./schema_grounding.js"
 import { planJoins, formatJoinPlanForPrompt, type JoinPlan } from "./join_planner.js"
-import { pgNormalize, type PgNormalizeResult } from "./pg_normalize.js"
-import { routeToModules, type ModuleRouteResult } from "./module_router.js"
-import { COLUMN_PRUNING_ENABLED, pruneColumns } from "./column_pruner.js"
 import {
 	CANDIDATE_RERANKER_ENABLED,
 	getReranker,
 	type RerankerResult,
 	type RerankerDetail,
 } from "./candidate_reranker.js"
-import { PRE_SQL_ENABLED, runPreSQL, type PreSQLResult } from "./pre_sql.js"
 import fs from "fs"
 import path from "path"
 
@@ -307,50 +288,6 @@ export async function executeNLQuery(
 				})
 			}
 
-			// Phase 3.1: Pre-SQL sketch generation (before linker)
-			if (PRE_SQL_ENABLED) {
-				const preSqlStart = Date.now()
-				const useMultiCandidate = MULTI_CANDIDATE_CONFIG.enabled
-				const preSqlDifficulty = useMultiCandidate ? classifyDifficulty(question, schemaContext) : "medium"
-				try {
-					const preSqlResult = await runPreSQL(
-						question,
-						schemaContext,
-						glosses || null,
-						pythonClient,
-						pool,
-						preSqlDifficulty,
-					)
-
-					if (preSqlResult && preSqlResult.additionalTablesRetrieved.length > 0) {
-						logger.info("Pre-SQL: additional tables retrieved", {
-							query_id: queryId,
-							sketch_tables: preSqlResult.referencedTables,
-							missing: preSqlResult.missingTables,
-							retrieved: preSqlResult.additionalTablesRetrieved,
-							latency_ms: preSqlResult.latencyMs,
-						})
-						// schemaContext is mutated in-place by runPreSQL
-						allowedTables = getAllowedTables(schemaContext)
-					}
-
-					if (EXAM_MODE && currentExamEntry) {
-						currentExamEntry.pre_sql = preSqlResult ? {
-							sketch_sql: preSqlResult.sketchSQL,
-							referenced_tables: preSqlResult.referencedTables,
-							missing_tables: preSqlResult.missingTables,
-							additional_tables: preSqlResult.additionalTablesRetrieved,
-							latency_ms: preSqlResult.latencyMs,
-						} : undefined
-						if (currentExamEntry.stage_latencies) {
-							currentExamEntry.stage_latencies.pre_sql_ms = Date.now() - preSqlStart
-						}
-					}
-				} catch (preSqlErr) {
-					logger.warn("Pre-SQL failed, continuing without", { error: String(preSqlErr) })
-				}
-			}
-
 			// Phase 1B: Schema linking
 			if (SCHEMA_LINKER_ENABLED) {
 				const linkerStart = Date.now()
@@ -371,74 +308,6 @@ export async function executeNLQuery(
 				if (EXAM_MODE) {
 					recordExamSchemaLink(schemaLinkBundle)
 				}
-			}
-
-			// Phase 1C: Column pruning (after linker so we can keep linked columns)
-			if (COLUMN_PRUNING_ENABLED && schemaContext) {
-				const pruneStart = Date.now()
-				let columnsPruned = 0
-				try {
-					const pruneClient = await pool.connect()
-					try {
-						const tableNames = schemaContext.tables.map(t => t.table_name)
-						const colResult = await pruneClient.query(`
-							SELECT table_name, column_name, data_type, is_pk, is_fk,
-								fk_target_table, fk_target_column, inferred_gloss, ordinal_pos
-							FROM rag.schema_columns
-							WHERE table_name = ANY($1)
-							ORDER BY table_name, ordinal_pos
-						`, [tableNames])
-
-						// Build TableMeta map from DB columns
-						const metaMap = new Map<string, TableMeta>()
-						for (const t of schemaContext.tables) {
-							const cols: ColumnMeta[] = colResult.rows
-								.filter((r: any) => r.table_name === t.table_name)
-								.map((r: any) => ({
-									column_name: r.column_name,
-									data_type: r.data_type,
-									is_pk: r.is_pk,
-									is_fk: r.is_fk,
-									fk_target_table: r.fk_target_table,
-									fk_target_column: r.fk_target_column,
-									inferred_gloss: r.inferred_gloss,
-									ordinal_pos: r.ordinal_pos,
-								}))
-							metaMap.set(t.table_name, {
-								table_schema: t.table_schema,
-								table_name: t.table_name,
-								module: t.module,
-								table_gloss: t.gloss,
-								fk_degree: 0,
-								is_hub: t.is_hub || false,
-								columns: cols,
-							})
-						}
-
-						const pruneResult = pruneColumns(metaMap, schemaLinkBundle)
-						columnsPruned = pruneResult.totalPruned
-
-						if (columnsPruned > 0) {
-							// Re-render M-Schema with pruned columns
-							for (let i = 0; i < schemaContext.tables.length; i++) {
-								const prunedMeta = pruneResult.pruned.get(schemaContext.tables[i].table_name)
-								if (prunedMeta) {
-									schemaContext.tables[i].m_schema = renderMSchema(prunedMeta)
-								}
-							}
-							logger.info("Column pruning applied", {
-								query_id: queryId,
-								columns_pruned: columnsPruned,
-							})
-						}
-					} finally {
-						pruneClient.release()
-					}
-				} catch (pruneErr) {
-					logger.warn("Column pruning failed, proceeding without", { error: String(pruneErr) })
-				}
-				if (EXAM_MODE && currentExamEntry?.stage_latencies) currentExamEntry.stage_latencies.pruning_ms = Date.now() - pruneStart
-				if (EXAM_MODE && currentExamEntry) currentExamEntry.columns_pruned = columnsPruned
 			}
 
 			// Phase 2: Join planning
@@ -830,80 +699,6 @@ export async function executeNLQuery(
 				.map(i => `LINT: ${i.message}`)
 			validationWarnings.push(...lintWarnings)
 
-			// --- Step 2.6: Pre-Execution Column Validation (DISABLED) ---
-			// Pre-execution validation was too aggressive and caused false positives.
-			// We now rely solely on post-EXPLAIN 42703 error repair with minimal whitelist.
-			// This preserves baseline behavior while still providing targeted repair guidance.
-			let columnWhitelist: Record<string, string[]> | undefined
-			const PRE_EXECUTION_VALIDATION_ENABLED = false  // Disabled due to false positives
-			if (schemaContext && PRE_EXECUTION_VALIDATION_ENABLED) {
-				columnWhitelist = buildColumnWhitelist(schemaContext)
-				const columnValidation = validateSQLColumns(finalSQL, columnWhitelist)
-
-				if (!columnValidation.valid) {
-					logger.warn("Column validation failed (pre-execution)", {
-						query_id: queryId,
-						attempt,
-						missing_columns: columnValidation.missingColumns.map(
-							m => `${m.alias}.${m.column} (table: ${m.resolvedTable})`
-						),
-					})
-
-					// Record for exam logging
-					recordExamColumnValidation(columnValidation)
-
-					// Skip EXPLAIN and trigger repair with column validation errors
-					if (attempt < maxAttempts) {
-						// Create validator issues from column validation
-						const columnIssues: ValidatorIssue[] = columnValidation.missingColumns.map(m => ({
-							code: "COLUMN_NOT_EXISTS",
-							severity: "error" as const,
-							message: `Column '${m.column}' does not exist in table '${m.resolvedTable}'`,
-							suggestion: m.availableColumns.length > 0
-								? `Available columns: ${m.availableColumns.slice(0, 5).join(", ")}`
-								: undefined,
-						}))
-
-						lastValidatorIssues = [...lastValidatorIssues, ...columnIssues]
-
-						// Build minimal whitelist for the first missing column
-						const firstMissing = columnValidation.missingColumns[0]
-						const minimalWhitelistText = firstMissing && firstMissing.resolvedTable
-							? formatMinimalWhitelistForRepair({
-								alias: firstMissing.alias,
-								resolvedTable: firstMissing.resolvedTable,
-								failingColumn: firstMissing.column,
-								whitelist: columnWhitelist, // This is already built above
-								neighborTables: [],
-							})
-							: ""
-
-						// Set as postgres-like error to trigger minimal whitelist in repair
-						lastPostgresError = {
-							sqlstate: "42703",
-							message: `Pre-execution check: Column '${firstMissing?.column || "unknown"}' does not exist in table '${firstMissing?.resolvedTable || "unknown"}'`,
-							minimal_whitelist: firstMissing && firstMissing.resolvedTable ? {
-								alias: firstMissing.alias,
-								resolved_table: firstMissing.resolvedTable,
-								failing_column: firstMissing.column,
-								whitelist: { [firstMissing.resolvedTable]: firstMissing.availableColumns },
-								formatted_text: minimalWhitelistText,
-							} : undefined,
-						}
-
-						logger.info("Column validation failed, skipping EXPLAIN and triggering repair", {
-							query_id: queryId,
-							attempt,
-							missing_count: columnValidation.missingColumns.length,
-							first_missing: firstMissing ? `${firstMissing.alias}.${firstMissing.column} -> ${firstMissing.resolvedTable}` : null,
-						})
-
-						currentSQL = finalSQL
-						continue
-					}
-				}
-			}
-
 			// --- Step 3: EXPLAIN-First Safety Check ---
 			const explainStart = Date.now()
 			let client: PoolClient | null = null
@@ -931,58 +726,6 @@ export async function executeNLQuery(
 
 				// Parse PostgreSQL error
 				let pgError = parsePostgresError(explainError)
-
-				// Enrich 42703 (undefined column) errors with column candidates and MINIMAL whitelist
-				// Note: Works with both V1 and V2 retrievers - only needs schemaContext
-				if (pgError.sqlstate === "42703" && schemaContext) {
-					try {
-						const candidateFinder = getColumnCandidateFinder(pool, logger)
-						const enrichedError = await candidateFinder.enrichErrorWithCandidates(
-							pgError,
-							databaseId,
-							schemaContext,
-							finalSQL, // Pass the failed SQL for table context extraction
-						)
-
-						// Build MINIMAL whitelist (only the relevant table + FK neighbors)
-						const minimalResult = buildMinimalWhitelist(
-							pgError.message,
-							finalSQL,
-							schemaContext,
-							true, // Include 1-hop FK neighbors
-						)
-
-						// Format the minimal whitelist for the repair prompt
-						const minimalWhitelistText = formatMinimalWhitelistForRepair(minimalResult)
-
-						pgError = {
-							...enrichedError,
-							// Include minimal whitelist data for Python sidecar
-							minimal_whitelist: {
-								alias: minimalResult.alias,
-								resolved_table: minimalResult.resolvedTable,
-								failing_column: minimalResult.failingColumn,
-								whitelist: minimalResult.whitelist,
-								neighbor_tables: minimalResult.neighborTables,
-								formatted_text: minimalWhitelistText,
-							},
-						}
-
-						logger.debug("Enriched 42703 error with minimal whitelist", {
-							query_id: queryId,
-							undefined_column: enrichedError.undefined_column,
-							resolved_table: minimalResult.resolvedTable,
-							alias: minimalResult.alias,
-							whitelist_tables: Object.keys(minimalResult.whitelist),
-							neighbor_tables: minimalResult.neighborTables,
-						})
-					} catch (candidateError) {
-						logger.warn("Failed to enrich error with column candidates", {
-							query_id: queryId,
-							error: String(candidateError),
-						})
-					}
-				}
 
 				logger.warn("EXPLAIN check failed", {
 					query_id: queryId,
@@ -1815,7 +1558,7 @@ function buildErrorResponse(params: ErrorResponseParams, logger: any): NLQueryRe
 			failureDetails = `Validation blocked: ${errorMessage}`
 		} else if (sqlstate === "42703") {
 			failureType = "column_miss"
-			failureDetails = `Undefined column: ${extractUndefinedColumn(errorMessage) || errorMessage}`
+			failureDetails = `Undefined column: ${parseUndefinedColumn(errorMessage)?.column || errorMessage}`
 		} else if (sqlstate === "42P01") {
 			failureType = "join_path_miss"
 		} else if (errorMessage.includes("MISSING_ENTITY") || errorMessage.includes("HALLUCINATED_VALUE")) {
@@ -2264,24 +2007,6 @@ function finalizeShadowObservations(pipelineOutcome: "success" | "failure"): voi
 }
 
 /**
- * Record pre-execution column validation result to exam entry
- */
-function recordExamColumnValidation(result: ColumnValidationResult): void {
-	if (!EXAM_MODE || !currentExamEntry) return
-
-	currentExamEntry.pre_exec_column_validation = {
-		valid: result.valid,
-		missing_columns: result.missingColumns.map(m => ({
-			alias: m.alias,
-			column: m.column,
-			resolved_table: m.resolvedTable,
-			suggested_columns: m.availableColumns.slice(0, 3),
-		})),
-		unresolved_aliases: result.unresolvedAliases,
-	}
-}
-
-/**
  * Record multi-candidate evaluation result to exam entry
  */
 function recordExamMultiCandidate(result: MultiCandidateResult): void {
@@ -2507,8 +2232,8 @@ export function classifyExamFailure(
 	// Check for column miss (42703)
 	if (error.sqlstate === "42703") {
 		result.failure_type = "column_miss"
-		const col = extractUndefinedColumn(error.message)
-		result.failure_details = `Undefined column: ${col}`
+		const col = parseUndefinedColumn(error.message)?.column
+		result.failure_details = `Undefined column: ${col || error.message}`
 		return result
 	}
 

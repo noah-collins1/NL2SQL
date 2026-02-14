@@ -14,7 +14,7 @@
  */
 
 import type { SchemaContextPacket } from "./schema_types.js"
-import type { SchemaLinkBundle } from "./schema_linker.js"
+import type { SchemaLinkBundle } from "./schema_grounding.js"
 
 // ============================================================================
 // Feature Flags

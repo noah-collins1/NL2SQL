@@ -49,8 +49,7 @@ export const EXAM_MODE = getConfig().exam.mode || process.env.EXAM_MODE === "tru
  * Schema glosses, schema linker, join planner, PG normalization, and candidate reranker
  * are all enabled by default (except reranker which is opt-in).
  */
-export { SCHEMA_GLOSSES_ENABLED } from "./schema_glosses.js"
-export { SCHEMA_LINKER_ENABLED } from "./schema_linker.js"
+export { SCHEMA_GLOSSES_ENABLED, SCHEMA_LINKER_ENABLED } from "./schema_grounding.js"
 export {
 	JOIN_PLANNER_ENABLED,
 	JOIN_PLANNER_TOP_K,
@@ -59,12 +58,9 @@ export {
 	JOIN_PATH_SCORING_ENABLED,
 	CROSS_MODULE_JOIN_ENABLED,
 } from "./join_planner.js"
-export { PG_NORMALIZE_ENABLED } from "./pg_normalize.js"
+export { PG_NORMALIZE_ENABLED } from "./sql_validation.js"
 export { CANDIDATE_RERANKER_ENABLED, VALUE_VERIFICATION_ENABLED } from "./candidate_reranker.js"
-export { PRE_SQL_ENABLED } from "./pre_sql.js"
-export { BM25_SEARCH_ENABLED } from "./bm25_search.js"
-export { MODULE_ROUTER_ENABLED } from "./module_router.js"
-export { COLUMN_PRUNING_ENABLED } from "./column_pruner.js"
+export { BM25_SEARCH_ENABLED, MODULE_ROUTER_ENABLED } from "./schema_retriever.js"
 
 /**
  * Join hint format toggle

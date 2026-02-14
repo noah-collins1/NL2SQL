@@ -10,7 +10,7 @@
  */
 
 import { Pool, PoolClient } from "pg"
-import { getPythonClient, PythonClient } from "./python_client.js"
+import { getPythonClient, PythonClient } from "../src/python_client.js"
 import {
 	SchemaIntrospector,
 	IntrospectedTable,

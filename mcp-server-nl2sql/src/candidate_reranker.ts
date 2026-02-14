@@ -13,7 +13,7 @@
 
 import type { Pool } from "pg"
 import type { SQLCandidate } from "./multi_candidate.js"
-import type { SchemaLinkBundle } from "./schema_linker.js"
+import type { SchemaLinkBundle } from "./schema_grounding.js"
 import type { JoinPlan, JoinSkeleton } from "./join_planner.js"
 import type { SchemaContextPacket } from "./schema_types.js"
 

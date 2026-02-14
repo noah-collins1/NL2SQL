@@ -24,7 +24,7 @@
 import { Pool } from "pg"
 import fs from "fs"
 import path from "path"
-import { getSchemaEmbedder, EmbeddingRecord } from "../src/schema_embedder.js"
+import { getSchemaEmbedder, EmbeddingRecord } from "./schema_embedder.js"
 
 // ============================================================================
 // Configuration
