@@ -642,12 +642,76 @@ export function linkSchema(
 }
 
 // ============================================================================
+// Column Redirect Detection (parent-child warnings)
+// ============================================================================
+
+export interface ColumnRedirect {
+	childTable: string
+	parentTable: string
+	column: string
+	columnType: string
+	joinKey: string
+}
+
+export function detectColumnRedirects(
+	schemaContext: SchemaContextPacket,
+): ColumnRedirect[] {
+	const redirects: ColumnRedirect[] = []
+	const tableColMap = new Map<string, Set<string>>()
+
+	// Build column map from m_schema
+	for (const table of schemaContext.tables) {
+		const cols = new Set<string>()
+		const match = table.m_schema.match(/\(([^)]+)\)/)
+		if (match) {
+			for (const part of match[1].split(/,\s*/)) {
+				const colMatch = part.trim().match(/^([a-zA-Z_]\w*)/)
+				if (colMatch) cols.add(colMatch[1].toLowerCase())
+			}
+		}
+		tableColMap.set(table.table_name.toLowerCase(), cols)
+	}
+
+	const IMPORTANT_PATTERNS = [
+		{ pattern: /date|_at$/i, category: "date" },
+		{ pattern: /employee_id|emp_id|worker_id/i, category: "employee" },
+		{ pattern: /^status$|status_code/i, category: "status" },
+	]
+
+	for (const edge of schemaContext.fk_edges) {
+		const childName = edge.from_table.toLowerCase()
+		const parentName = edge.to_table.toLowerCase()
+		const childCols = tableColMap.get(childName)
+		const parentCols = tableColMap.get(parentName)
+		if (!childCols || !parentCols) continue
+
+		for (const pCol of parentCols) {
+			if (childCols.has(pCol)) continue
+			for (const { pattern, category } of IMPORTANT_PATTERNS) {
+				if (pattern.test(pCol)) {
+					redirects.push({
+						childTable: edge.from_table,
+						parentTable: edge.to_table,
+						column: pCol,
+						columnType: category,
+						joinKey: `${edge.from_column} → ${edge.to_table}.${edge.to_column}`,
+					})
+				}
+			}
+		}
+	}
+
+	return redirects
+}
+
+// ============================================================================
 // Linker: Prompt Formatting
 // ============================================================================
 
 export function formatSchemaLinkForPrompt(
 	bundle: SchemaLinkBundle,
 	glosses: SchemaGlosses,
+	schemaContext?: SchemaContextPacket,
 ): string {
 	const lines: string[] = []
 
@@ -696,6 +760,27 @@ export function formatSchemaLinkForPrompt(
 		}
 	}
 	lines.push("")
+
+	// Column redirect warnings (parent-child mismatches)
+	if (schemaContext) {
+		const redirects = detectColumnRedirects(schemaContext)
+		if (redirects.length > 0) {
+			lines.push("### Column Warnings (READ CAREFULLY)")
+			const byChild = new Map<string, ColumnRedirect[]>()
+			for (const r of redirects) {
+				const list = byChild.get(r.childTable) || []
+				list.push(r)
+				byChild.set(r.childTable, list)
+			}
+			for (const [child, reds] of byChild) {
+				const colList = reds.map(r => r.column).join(", ")
+				const parent = reds[0].parentTable
+				const joinKey = reds[0].joinKey
+				lines.push(`- **${child}** has NO ${colList}. JOIN to ${parent} via ${joinKey}`)
+			}
+			lines.push("")
+		}
+	}
 
 	if (bundle.joinHints.length > 0) {
 		lines.push("### Join Plan")
