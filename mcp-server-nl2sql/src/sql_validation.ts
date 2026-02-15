@@ -1788,6 +1788,30 @@ function transformDateIntervalComparison(sql: string): { sql: string; applied: s
 	return { sql, applied }
 }
 
+function transformDatePartDaySubtract(sql: string): { sql: string; applied: string[] } {
+	const applied: string[] = []
+	const regex = /\bDATE_PART\s*\(\s*'day'\s*,\s*/gi
+	let match: RegExpExecArray | null
+	regex.lastIndex = 0
+	while ((match = regex.exec(sql)) !== null) {
+		// Find the full DATE_PART(...) using existing extractParenExpr helper
+		const funcNameStart = sql.lastIndexOf("DATE_PART", match.index)
+		const openParen = sql.indexOf("(", funcNameStart)
+		const paren = extractParenExpr(sql, openParen)
+		if (!paren) continue
+		// Extract the expression after 'day',
+		const content = paren.content.replace(/^\s*'day'\s*,\s*/, "").trim()
+		// Only transform simple column subtractions: identifier - identifier
+		if (/^[a-zA-Z_][a-zA-Z0-9_.]*\s*-\s*[a-zA-Z_][a-zA-Z0-9_.]*$/.test(content)) {
+			const fullMatch = sql.substring(funcNameStart, paren.endIdx)
+			sql = sql.replace(fullMatch, `(${content})`)
+			applied.push("DATE_PART_DAY_SUBTRACT")
+			regex.lastIndex = 0
+		}
+	}
+	return { sql, applied }
+}
+
 function transformDateTruncCast(sql: string): { sql: string; applied: string[] } {
 	const applied: string[] = []
 
@@ -1834,6 +1858,7 @@ export function pgNormalize(sql: string): PgNormalizeResult {
 		transformBackticks,
 		transformDateTruncCast,
 		transformDateIntervalComparison,
+		transformDatePartDaySubtract,
 		transformDivisionSafety,
 	]
 

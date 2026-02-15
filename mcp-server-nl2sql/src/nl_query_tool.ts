@@ -227,6 +227,14 @@ export async function executeNLQuery(
 				)
 				allowedTables = getAllowedTables(schemaContext)
 
+				// Always allow common utility tables (present in every division schema)
+				const UTILITY_TABLES = ["lookup_codes", "audit_log", "document_attachments"]
+				for (const ut of UTILITY_TABLES) {
+					if (!allowedTables.includes(ut)) {
+						allowedTables.push(ut)
+					}
+				}
+
 				// V1: Record retrieval tables for exam logging
 				if (EXAM_MODE && currentExamEntry && schemaContext) {
 					currentExamEntry.retriever_version = "V1"
