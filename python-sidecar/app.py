@@ -457,7 +457,7 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
                     previous_sql=sql,
                     schema=filtered_schema,
                     semantic_issues=semantic_issues,
-                    allowed_tables=list(schema.keys())
+                    allowed_tables=list(filtered_schema.keys())
                 )
 
                 try:

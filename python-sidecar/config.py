@@ -356,6 +356,21 @@ Use these FK relationships for JOINs:
    Common mistakes: `name` vs `first_name`/`last_name`, `price` vs `list_price`/`unit_cost`,
    `posted` vs `status = 'Posted'`, `amount` vs `planned_amount`/`total_amount`
 6. **For boolean-like filters** (posted, active, approved), check if the table uses a `status` column instead
+7. **Lookup codes:** When joining to `lookup_codes`, use `lc.meaning` for the decoded text
+   and `lc.code` for the code value. Filter with `lc.domain = 'DOMAIN_NAME'`.
+   Do NOT use `description` — the column is called `meaning`.
+8. **Header/Line tables:** Date and status columns live on the header (parent) table,
+   not the line (child) table. Common patterns:
+   - `order_date` is on `sales_orders`, NOT on `order_lines`
+   - `run_date`/`pay_period_start` is on `payroll_run_hdr`, NOT on `payroll_run_line`
+   - `employee_id`/`week_start_date` is on `timesheets`, NOT on `timesheet_entries`
+   JOIN to the header table first, then filter by date/employee there.
+9. **Division scoping:** Tables are already scoped to the correct division via PostgreSQL
+   search_path. Do NOT add `WHERE division = 'X'` — there is no `division` column.
+10. **Geographic grouping:** When asked for data "by region" or "by sales region",
+    group by state/province via the address chain:
+    table → customers → addresses → cities → states_provinces.
+    Do NOT join to `sales_regions` unless asked about region targets or managers.
 
 ## PostgreSQL Rules
 
