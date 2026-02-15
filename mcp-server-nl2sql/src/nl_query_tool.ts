@@ -301,7 +301,7 @@ export async function executeNLQuery(
 				const linkerStart = Date.now()
 				schemaLinkBundle = linkSchema(question, schemaContext, glosses)
 				schemaLinkText = glosses
-					? formatSchemaLinkForPrompt(schemaLinkBundle, glosses)
+					? formatSchemaLinkForPrompt(schemaLinkBundle, glosses, schemaContext ?? undefined)
 					: undefined
 				if (EXAM_MODE && currentExamEntry?.stage_latencies) currentExamEntry.stage_latencies.linker_ms = Date.now() - linkerStart
 

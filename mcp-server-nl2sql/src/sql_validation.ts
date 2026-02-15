@@ -1325,6 +1325,13 @@ export function buildColumnCandidates(
 				}
 			}
 
+			// Containment bonus: if search term is fully contained in column name or vice versa
+			if (matchType && searchLower.length >= 3) {
+				if (colLower.includes(searchLower) || searchLower.includes(colLower)) {
+					score = Math.min(1.0, score + 0.10)
+				}
+			}
+
 			if (isHintedTable && matchType) {
 				score = Math.min(1.0, score + 0.15)
 			}
@@ -1812,6 +1819,39 @@ function transformDatePartDaySubtract(sql: string): { sql: string; applied: stri
 	return { sql, applied }
 }
 
+function transformIntegerIntervalBetween(sql: string): { sql: string; applied: string[] } {
+	const applied: string[] = []
+
+	// Pattern: (date_expr - date_expr) BETWEEN INTERVAL 'N days' AND INTERVAL 'M days'
+	// In PG, date - date = integer (days), so comparing to INTERVAL fails
+	// Replace INTERVAL 'N days' with just N
+	const betweenRegex = /\(([a-zA-Z_][\w.]*\s*-\s*[a-zA-Z_][\w.]*)\)\s*BETWEEN\s+INTERVAL\s+'(\d+)\s*days?'\s+AND\s+INTERVAL\s+'(\d+)\s*days?'/gi
+	let match: RegExpExecArray | null
+
+	betweenRegex.lastIndex = 0
+	while ((match = betweenRegex.exec(sql)) !== null) {
+		const fullMatch = match[0]
+		const subtraction = match[1]
+		sql = sql.replace(fullMatch, `(${subtraction}) BETWEEN ${match[2]} AND ${match[3]}`)
+		applied.push("INTEGER_INTERVAL_COMPARISON")
+		betweenRegex.lastIndex = 0
+	}
+
+	// Pattern: (date_expr - date_expr) >= INTERVAL 'N days'
+	const compRegex = /\(([a-zA-Z_][\w.]*\s*-\s*[a-zA-Z_][\w.]*)\)\s*(>=?|<=?)\s*INTERVAL\s+'(\d+)\s*days?'/gi
+	compRegex.lastIndex = 0
+	while ((match = compRegex.exec(sql)) !== null) {
+		const fullMatch = match[0]
+		const subtraction = match[1]
+		const op = match[2]
+		sql = sql.replace(fullMatch, `(${subtraction}) ${op} ${match[3]}`)
+		applied.push("INTEGER_INTERVAL_COMPARISON")
+		compRegex.lastIndex = 0
+	}
+
+	return { sql, applied }
+}
+
 function transformDateTruncCast(sql: string): { sql: string; applied: string[] } {
 	const applied: string[] = []
 
@@ -1859,6 +1899,7 @@ export function pgNormalize(sql: string): PgNormalizeResult {
 		transformDateTruncCast,
 		transformDateIntervalComparison,
 		transformDatePartDaySubtract,
+		transformIntegerIntervalBetween,
 		transformDivisionSafety,
 	]
 
