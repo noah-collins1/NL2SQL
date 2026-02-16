@@ -1,4 +1,4 @@
-# ERP 2000+-Table Architecture
+
 
 ## Overview
 This build scales the existing 85-table ERP schema to a realistic ~2000-table enterprise schema using a hybrid strategy:
