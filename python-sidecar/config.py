@@ -226,6 +226,21 @@ You referenced `{alias}.{column}` but the table aliased as `{alias}` does not ha
 3. Check your FROM/JOIN clause to ensure you have the right tables
 """
 
+REPAIR_DELTA_CROSS_TABLE = """
+**CROSS-TABLE COLUMN FIX (MANDATORY):**
+Column `{column}` is on table `{parent_table}`, NOT on the table you referenced.
+You MUST:
+1. ADD `JOIN {parent_table} ON {fk_join}` to your FROM/JOIN clause
+2. USE `{parent_table}.{column}` instead of the incorrect reference
+"""
+
+REPAIR_DELTA_PHANTOM_COLUMN = """
+**PHANTOM COLUMN FIX (MANDATORY):**
+{phantom_hint}
+Do NOT try to find this column in another table -- it does not exist anywhere.
+Simply REMOVE the reference from your SQL.
+"""
+
 REPAIR_DELTA_SEMANTIC = """
 ## Semantic Mismatch Detected
 
@@ -675,6 +690,21 @@ def build_rag_repair_prompt(
             column_candidates_section = REPAIR_DELTA_COLUMN_CANDIDATES.format(
                 undefined_column=undefined_col,
                 candidates_by_table=candidates_by_table
+            )
+
+        # Cross-table FK hint: column found on FK-parent table
+        if postgres_error.get("cross_table_hint"):
+            hint = postgres_error["cross_table_hint"]
+            column_candidates_section += REPAIR_DELTA_CROSS_TABLE.format(
+                column=hint["column"],
+                parent_table=hint["parent_table"],
+                fk_join=hint["fk_join"]
+            )
+
+        # Phantom column hint: column doesn't exist anywhere
+        if postgres_error.get("phantom_column_hint"):
+            column_candidates_section += REPAIR_DELTA_PHANTOM_COLUMN.format(
+                phantom_hint=postgres_error["phantom_column_hint"]
             )
 
         delta_blocks.append(

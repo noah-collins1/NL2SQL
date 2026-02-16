@@ -642,6 +642,22 @@ export function linkSchema(
 }
 
 // ============================================================================
+// Confusable Tables (commonly mis-joined by LLM)
+// ============================================================================
+
+const CONFUSABLE_TABLES: Record<string, {
+	confusesWith: string
+	triggerKeywords: string[]
+	hint: string
+}> = {
+	sales_regions: {
+		confusesWith: "states_provinces",
+		triggerKeywords: ["region", "regions", "by region", "sales region"],
+		hint: "For geographic 'by region' grouping, use states_provinces via address chain (customers → addresses → cities → states_provinces). sales_regions has NO FK to sales_orders.",
+	},
+}
+
+// ============================================================================
 // Column Redirect Detection (parent-child warnings)
 // ============================================================================
 
@@ -778,6 +794,23 @@ export function formatSchemaLinkForPrompt(
 				const joinKey = reds[0].joinKey
 				lines.push(`- **${child}** has NO ${colList}. JOIN to ${parent} via ${joinKey}`)
 			}
+			lines.push("")
+		}
+	}
+
+	// Table confusion warnings (e.g., sales_regions vs states_provinces)
+	if (schemaContext) {
+		const tableNames = new Set(bundle.linkedTables.map(t => t.table.toLowerCase()))
+		const question = schemaContext.question.toLowerCase()
+		const tableWarnings: string[] = []
+		for (const [tableName, config] of Object.entries(CONFUSABLE_TABLES)) {
+			if (!tableNames.has(tableName)) continue
+			if (!config.triggerKeywords.some(kw => question.includes(kw))) continue
+			tableWarnings.push(`- **${tableName}**: ${config.hint}`)
+		}
+		if (tableWarnings.length > 0) {
+			lines.push("### Table Warnings (READ CAREFULLY)")
+			lines.push(...tableWarnings)
 			lines.push("")
 		}
 	}

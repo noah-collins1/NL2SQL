@@ -126,6 +126,13 @@ export interface LintResult {
 // Autocorrect Types
 // ============================================================================
 
+export interface CrossTableHint {
+	parent_table: string
+	column: string
+	fk_join: string        // "order_lines.order_id = sales_orders.order_id"
+	instruction: string    // Human-readable for repair prompt
+}
+
 export interface AutocorrectResult {
 	/** Whether autocorrect was attempted */
 	attempted: boolean
@@ -147,6 +154,12 @@ export interface AutocorrectResult {
 
 	/** Why autocorrect failed (if attempted but unsuccessful) */
 	failure_reason?: string
+
+	/** Cross-table hint when column found on FK-parent table */
+	cross_table_hint?: CrossTableHint
+
+	/** Phantom column hint when column doesn't exist anywhere */
+	phantom_column_hint?: string
 }
 
 export interface ColumnCandidate {
@@ -1408,6 +1421,26 @@ function levenshteinDistance(s1: string, s2: string): number {
 }
 
 // ============================================================================
+// Autocorrect: FK Join Helper
+// ============================================================================
+
+function findFKJoin(
+	schemaContext: SchemaContextPacket,
+	fromTable: string,
+	toTable: string,
+): { from_column: string; to_column: string } | null {
+	const fromLower = fromTable.toLowerCase()
+	const toLower = toTable.toLowerCase()
+	for (const edge of schemaContext.fk_edges) {
+		if (edge.from_table.toLowerCase() === fromLower && edge.to_table.toLowerCase() === toLower)
+			return { from_column: edge.from_column, to_column: edge.to_column }
+		if (edge.from_table.toLowerCase() === toLower && edge.to_table.toLowerCase() === fromLower)
+			return { from_column: edge.to_column, to_column: edge.from_column }
+	}
+	return null
+}
+
+// ============================================================================
 // Autocorrect: Main Functions
 // ============================================================================
 
@@ -1440,12 +1473,24 @@ export function autocorrectUndefinedColumn(
 	const candidates = buildColumnCandidates(schemaContext, undefinedColumn, resolvedTableHint)
 
 	if (candidates.length === 0) {
+		// Check if column exists ANYWHERE in schema — if not, it's a phantom column
+		let phantom_column_hint: string | undefined
+		const searchLower = undefinedColumn.toLowerCase()
+		let foundAnywhere = false
+		for (const table of schemaContext.tables) {
+			const columns = parseColumnsFromMSchema(table.m_schema)
+			if (columns.some(c => c.name.toLowerCase() === searchLower)) { foundAnywhere = true; break }
+		}
+		if (!foundAnywhere) {
+			phantom_column_hint = `Column '${undefinedColumn}' does not exist in ANY table. Remove the WHERE/reference to '${undefinedColumn}' — if this is a division scope, it is handled automatically by PostgreSQL search_path.`
+		}
 		return {
 			attempted: true,
 			success: false,
 			sql,
 			candidates: [],
-			failure_reason: `No candidates found for column '${undefinedColumn}'`,
+			phantom_column_hint,
+			failure_reason: phantom_column_hint ? `Phantom column: '${undefinedColumn}'` : `No candidates found for column '${undefinedColumn}'`,
 		}
 	}
 
@@ -1483,13 +1528,33 @@ export function autocorrectUndefinedColumn(
 	}
 
 	if (correctedSQL === sql) {
+		// Check if best candidate is on a different (FK-reachable) table → cross-table hint
+		let cross_table_hint: CrossTableHint | undefined
+		if (bestCandidate && resolvedTableHint) {
+			const candidateTable = bestCandidate.table_name.toLowerCase()
+			const resolved = resolvedTableHint.toLowerCase()
+			if (candidateTable !== resolved) {
+				const fk = findFKJoin(schemaContext, resolved, candidateTable)
+				if (fk) {
+					cross_table_hint = {
+						parent_table: bestCandidate.table_name,
+						column: bestCandidate.column_name,
+						fk_join: `${resolvedTableHint}.${fk.from_column} = ${bestCandidate.table_name}.${fk.to_column}`,
+						instruction: `Column '${undefinedColumn}' is on '${bestCandidate.table_name}', not '${resolvedTableHint}'. JOIN ${bestCandidate.table_name} ON ${resolvedTableHint}.${fk.from_column} = ${bestCandidate.table_name}.${fk.to_column} and use ${bestCandidate.table_name}.${bestCandidate.column_name}`,
+					}
+				}
+			}
+		}
 		return {
 			attempted: true,
 			success: false,
 			sql,
 			candidates,
 			selected_candidate: bestCandidate,
-			failure_reason: "Replacement pattern not found in SQL",
+			cross_table_hint,
+			failure_reason: cross_table_hint
+				? `Cross-table: found on '${cross_table_hint.parent_table}'`
+				: "Replacement pattern not found in SQL",
 		}
 	}
 

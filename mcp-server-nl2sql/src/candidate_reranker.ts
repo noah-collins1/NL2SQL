@@ -772,8 +772,18 @@ export class HeuristicReranker implements CandidateReranker {
 			}
 		}
 
-		// Sort by score descending
-		reranked.sort((a, b) => b.score - a.score)
+		// Sort by score descending (deterministic tie-breaking)
+		reranked.sort((a, b) => {
+			if (b.score !== a.score) return b.score - a.score
+			// Tie-breakers: prefer non-rejected
+			if (a.rejected !== b.rejected) return a.rejected ? 1 : -1
+			// Prefer EXPLAIN-passed
+			const aExplain = a.explainPassed === true ? 1 : 0
+			const bExplain = b.explainPassed === true ? 1 : 0
+			if (bExplain !== aExplain) return bExplain - aExplain
+			// Stable: lower index first
+			return a.index - b.index
+		})
 
 		return {
 			candidates: reranked,

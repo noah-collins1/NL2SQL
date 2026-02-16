@@ -873,6 +873,23 @@ export async function executeNLQuery(
 							reason: autocorrectResult.failure_reason,
 							candidates: autocorrectResult.candidates?.length || 0,
 						})
+
+						// Enrich pgError with cross-table or phantom column hints for repair prompt
+						if (autocorrectResult.cross_table_hint) {
+							pgError = { ...pgError, cross_table_hint: autocorrectResult.cross_table_hint }
+							logger.info("Cross-table hint added to pgError", {
+								query_id: queryId,
+								parent_table: autocorrectResult.cross_table_hint.parent_table,
+								column: autocorrectResult.cross_table_hint.column,
+							})
+						}
+						if (autocorrectResult.phantom_column_hint) {
+							pgError = { ...pgError, phantom_column_hint: autocorrectResult.phantom_column_hint }
+							logger.info("Phantom column hint added to pgError", {
+								query_id: queryId,
+								hint: autocorrectResult.phantom_column_hint,
+							})
+						}
 					}
 				}
 
