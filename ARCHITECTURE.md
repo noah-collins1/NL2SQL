@@ -133,11 +133,4 @@ These simulate a corporate analytics layer and provide global lookup for cross-d
 - Controlled naming drift to simulate acquisitions and legacy systems.
 - Analytics layer tables and event streams to mimic reporting/telemetry loads.
 
-## Connection Details
-Default read-only user (set in `demo/schema_gen/apply_schema.sh`):
-- user: `erp_readonly`
-- password: `treyco`
-- db: `enterprise_erp_2000`
 
-Connection string:
-`postgresql://erp_readonly:treyco@localhost:5432/enterprise_erp_2000`
