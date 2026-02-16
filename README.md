@@ -210,7 +210,7 @@ This is complementary to benchmarks like **[BIRD](https://bird-bench.github.io/)
 | Doc | Description |
 |-----|-------------|
 | [MCP_INTEGRATION.md](docs/MCP_INTEGRATION.md) | Connecting to LibreChat, Claude Desktop, and custom apps |
-| [PIPELINE.md](docs/PIPELINE.md) | Stage-by-stage pipeline walkthrough |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Stage-by-stage pipeline walkthrough + research origins |
 | [CONFIG.md](docs/CONFIG.md) | Full YAML config reference |
 | [MODELS.md](docs/MODELS.md) | Tested models and how to swap |
 | [EXAMS.md](docs/EXAMS.md) | Running and creating exams |

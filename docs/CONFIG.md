@@ -71,7 +71,7 @@ vi config/config.local.yaml   # Set database.password, etc.
 
 ### features
 
-All feature flags. See [PIPELINE.md](PIPELINE.md) for what each does.
+All feature flags. See [ARCHITECTURE.md](ARCHITECTURE.md) for what each does.
 
 | Key | Type | Default | Env Var | Description |
 |-----|------|---------|---------|-------------|

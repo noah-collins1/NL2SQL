@@ -200,4 +200,4 @@ pyyaml      # Config loader
 
 ## Current Performance
 
-See `../STATUS.md` for current metrics and `../docs/PIPELINE.md` for the full pipeline walkthrough.
+See `../STATUS.md` for current metrics and `../docs/ARCHITECTURE.md` for the full pipeline walkthrough.

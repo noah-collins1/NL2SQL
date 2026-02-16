@@ -839,12 +839,22 @@ export async function evaluateCandidates(
 		}
 	}
 
-	// Step 4: Sort by score and select best
+	// Step 4: Sort by score and select best (deterministic tie-breaking)
 	candidates.sort((a, b) => {
 		// Non-rejected first
 		if (a.rejected !== b.rejected) return a.rejected ? 1 : -1
 		// Then by score
-		return b.score - a.score
+		if (b.score !== a.score) return b.score - a.score
+		// Tie-breakers: prefer EXPLAIN-passed
+		const aExplain = a.explainPassed === true ? 1 : 0
+		const bExplain = b.explainPassed === true ? 1 : 0
+		if (bExplain !== aExplain) return bExplain - aExplain
+		// Fewer lint errors is better
+		const aLint = a.scoreBreakdown?.lintErrors ?? 0
+		const bLint = b.scoreBreakdown?.lintErrors ?? 0
+		if (aLint !== bLint) return aLint - bLint
+		// Stable: lower index first
+		return a.index - b.index
 	})
 
 	// Select best candidate

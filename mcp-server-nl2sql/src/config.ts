@@ -367,6 +367,17 @@ export interface PostgresErrorContext {
 
 	// Minimal whitelist for 42703 repairs (only relevant table + FK neighbors)
 	minimal_whitelist?: MinimalWhitelistInfo
+
+	// Cross-table FK hint: column found on FK-parent, needs JOIN change
+	cross_table_hint?: {
+		parent_table: string
+		column: string
+		fk_join: string
+		instruction: string
+	}
+
+	// Phantom column hint: column doesn't exist in ANY table
+	phantom_column_hint?: string
 }
 
 /**
