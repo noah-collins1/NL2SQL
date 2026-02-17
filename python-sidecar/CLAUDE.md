@@ -1,13 +1,13 @@
 # Python Sidecar - NL2SQL AI Layer
 
-**Last Updated:** 2026-02-13
+**Last Updated:** 2026-02-17
 
 ## Overview
 
 This Python sidecar handles AI-powered SQL generation for the NL2SQL MCP server. It communicates with Ollama to generate SQL from natural language questions.
 
 **Database:** Enterprise ERP (86 tables / 2,377 tables)
-**Current Success Rate:** 88.3% (86-table) / 76.0% (2,377-table) with qwen2.5-coder:7b
+**Current Success Rate:** 88.3% (86-table) / 90.7% (2,377-table) with qwen2.5-coder:7b
 
 ## Components
 
@@ -15,7 +15,7 @@ This Python sidecar handles AI-powered SQL generation for the NL2SQL MCP server.
 |------|---------|
 | `app.py` | FastAPI server with `/generate_sql`, `/repair_sql`, `/embed` endpoints |
 | `config.py` | Prompts, schema configuration, repair delta templates |
-| `hrida_client.py` | Ollama API client - sync + **async parallel generation** |
+| `ollama_client.py` | Ollama API client — sync, async, parallel + sequential multi-candidate generation |
 | `keyword_filter.py` | Stage 1 table filtering by keywords |
 | `semantic_validator.py` | Semantic validation (entity extraction, hallucination detection) |
 
@@ -87,7 +87,7 @@ Request (k=4) → generate_candidates_parallel()
               Return sql_candidates[]
 ```
 
-**Key Implementation (`hrida_client.py`):**
+**Key Implementation (`ollama_client.py`):**
 
 ```python
 async def generate_candidates_parallel(

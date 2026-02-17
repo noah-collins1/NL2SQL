@@ -1,8 +1,8 @@
 # NL2SQL Evaluation: 2,000-Table Enterprise ERP Database
 
-**Date:** February 13, 2026
+**Date:** February 17, 2026
 **Model:** qwen2.5-coder:7b (4.7 GB, 32K context)
-**Result:** 76.0% (228/300) on a 300-question exam
+**Result:** 90.7% (272/300) on a 300-question exam
 
 ---
 
@@ -162,7 +162,7 @@ LLM Generation ----> 4 parallel SQL candidates (qwen2.5-coder:7b, temp=0.3)
 Validation --------> Structural checks + PostgreSQL EXPLAIN + candidate scoring
   |
   v
-PG Normalize ------> Dialect normalization (YEAR() -> EXTRACT, IFNULL -> COALESCE)
+PG Normalize ------> Dialect normalization (YEAR() -> EXTRACT, IFNULL -> COALESCE) + division scope stripping
   |
   v
 Reranker ----------> Schema adherence + join match + result shape scoring
@@ -185,10 +185,10 @@ All inference runs locally on a single 8 GB GPU. No cloud API calls. Average lat
 | Metric | Value |
 |--------|-------|
 | **Total Questions** | 300 |
-| **Pass Rate** | **76.0% (228/300)** |
+| **Pass Rate** | **90.7% (272/300)** |
 | **Simple** | 95.0% (38/40) |
-| **Moderate** | 74.2% (89/120) |
-| **Challenging** | 72.1% (101/140) |
+| **Moderate** | 88.3% (106/120) |
+| **Challenging** | 91.4% (128/140) |
 | **Avg Latency (pass)** | 9.8s |
 | **Avg Latency (fail)** | 16.0s |
 | **Total Runtime** | 56.5 minutes |
@@ -197,13 +197,13 @@ All inference runs locally on a single 8 GB GPU. No cloud API calls. Average lat
 
 | Failure Type | Count | % of Total | Description |
 |-------------|-------|------------|-------------|
-| **Column miss** | 35 | 11.7% | Generated SQL references a column that doesn't exist in the target table |
-| **LLM reasoning** | 30 | 10.0% | Model exhausted 3 repair attempts without producing valid SQL |
-| **Execution error** | 7 | 2.3% | Internal pipeline errors (sidecar issues) |
+| **LLM reasoning** | 16 | 5.3% | Model exhausted 3 repair attempts without producing valid SQL |
+| **Column miss** | 12 | 4.0% | Generated SQL references a column that doesn't exist in the target table |
+| **Execution error** | 0 | 0.0% | No internal pipeline errors |
 | **Join path miss** | 0 | 0.0% | No failures from incorrect join paths |
 | **Value miss** | 0 | 0.0% | No hallucinated entity values |
 
-The dominant failure mode is **column miss** — the model generates SQL referencing columns that don't exist on the target table. This is particularly acute with dirty-named tables where the model must infer that `tot_amt` means "total amount" or `sts_cd` means "status code."
+The remaining failures are split between **LLM reasoning** (16) and **column miss** (12). Column miss was reduced dramatically from 35 to 12 through autocorrect with containment bonuses, cross-table FK hints that guide repair prompts toward the correct JOIN, and PG normalize transforms that fix dialect issues before validation. The remaining column misses are harder cases without FK reachability. LLM reasoning failures concentrate in sales (geography/confusable tables) and projects (wrong join paths).
 
 ### Performance by Domain
 
@@ -212,43 +212,55 @@ The dominant failure mode is **column miss** — the model generates SQL referen
 | **Retail** | **100%** | 29 | POS, loyalty, promotions — well-isolated domain |
 | **Assets** | **100%** | 11 | Depreciation, maintenance — consistent table structure |
 | **Support** | **100%** | 10 | Customer service cases — simple query patterns |
+| **Procurement** | **100%** | 30 | PO, vendor invoices, RFQs — fully solved |
+| **Services** | **100%** | 28 | SOW, deliverables, billing milestones — fully solved |
+| **Dirty Naming** | **100%** | 27 | Abbreviated columns/tables across archetypes — fully solved |
+| **Lookup** | **100%** | 31 | Coded status values requiring lookup_codes join — fully solved |
+| **Manufacturing** | **100%** | 20 | BOM/work order tables with coded statuses — fully solved |
+| **HR** | **94.6%** | 37 | Employee queries, payroll, benefits |
+| **Finance** | **94.4%** | 54 | AP/AR, GL, journal entries — large module, complex queries |
 | **Inventory** | **91.3%** | 23 | Warehouse, stock, transfers |
+| **KPI** | **87.5%** | 16 | Business metric formulas (DSO, working capital, margins) |
 | **Temporal** | **86.7%** | 15 | YoY growth, tenure distribution, quarterly comparisons |
-| **HR** | **86.5%** | 37 | Employee queries, payroll, benefits |
-| **Services** | **85.7%** | 28 | SOW, deliverables, billing milestones |
-| **Procurement** | **83.3%** | 30 | PO, vendor invoices, RFQs |
-| **Dirty Naming** | **81.5%** | 27 | Abbreviated columns/tables across archetypes |
-| **Finance** | **70.4%** | 54 | AP/AR, GL, journal entries — large module, complex queries |
-| **Projects** | **64.0%** | 25 | Multi-table project profitability, resource allocation |
-| **KPI** | **50.0%** | 16 | Business metric formulas (DSO, working capital, margins) |
-| **Multi-Join** | **50.0%** | 12 | 4-7 table join chains (order-to-cash, procure-to-pay) |
-| **Sales** | **51.4%** | 37 | Sales orders + geography + pipeline |
-| **Lookup** | **41.9%** | 31 | Coded status values requiring lookup_codes join |
-| **Manufacturing** | **20.0%** | 20 | Dirty-named BOM/work order tables with coded statuses |
+| **Multi-Join** | **75.0%** | 12 | 4-7 table join chains (order-to-cash, procure-to-pay) |
+| **Projects** | **60.0%** | 25 | Multi-table project profitability, resource allocation |
+| **Sales** | **59.5%** | 37 | Sales orders + geography + pipeline |
+| **Corporate** | **53.8%** | 13 | Intercompany, consolidation, tax — division scoping issues |
 
 ### Key Observations
 
 **What works well:**
 - **Simple queries are nearly solved** (95%) — the retrieval and generation pipeline reliably handles single and dual-table queries across all modules.
-- **Dirty naming is manageable** (81.5%) — the schema glossing stage successfully bridges most abbreviated column names to their natural language equivalents.
-- **No join path failures** — the FK-graph join planner correctly identifies join paths in every case where the required tables are retrieved.
-- **Retail and isolated domains excel** (100%) — when the table universe is clearly delineated and naming is consistent, the model performs perfectly.
+- **Dirty naming is fully solved** (100%) — schema glossing with synonym expansion completely bridges abbreviated column names to their natural language equivalents. Up from 81.5% at baseline.
+- **Lookup codes are fully solved** (100%) — the pipeline now reliably discovers and joins to `lookup_codes` for coded status values. Up from 41.9% at baseline.
+- **Manufacturing is fully solved** (100%) — the combination of dirty naming + coded statuses that was the worst domain (20%) is now completely handled.
+- **No join path failures and no execution errors** — the FK-graph join planner and sidecar are fully reliable.
+- **Eight domains at 100%** — Retail, Assets, Support, Procurement, Services, Dirty Naming, Lookup, and Manufacturing.
 
 **What needs improvement:**
-- **Lookup/coded values are the hardest challenge** (41.9%) — the model struggles to discover that it needs to join to `lookup_codes` to decode `sts_cd` values. This is a prompt engineering and retrieval problem: the lookup table must be surfaced even when the question doesn't explicitly mention codes.
-- **Manufacturing + dirty naming is the worst combination** (20%) — when abbreviated table names (`xx_mfg_wo`) combine with coded status columns (`sts_cd`), the model frequently hallucinates column names that don't exist.
-- **Complex KPIs and multi-table joins plateau at ~50%** — formulas like Days Sales Outstanding or order-to-cash cycles require both correct table identification and business logic reasoning, which exceeds the 7B model's reliable capabilities.
+- **Sales + geography is the hardest remaining challenge** (59.5%) — confusable tables (`sales_regions` vs `states_provinces`) cause the model to pick the wrong geographic entity table. The `CONFUSABLE_TABLES` warnings help but don't fully solve this.
+- **Projects have wrong join paths** (60%) — multi-table project profitability queries select incorrect intermediate tables despite correct FK graph availability.
+- **Corporate division scoping** (53.8%) — intercompany and consolidation queries require correct division scoping that the model struggles with.
 
 ### Comparison to 70-Table Baseline
 
 | Metric | 70-Table (60 Q) | 2000-Table (300 Q) | Delta |
 |--------|-----------------|---------------------|-------|
-| Overall | 88.3% | 76.0% | -12.3% |
+| Overall | 88.3% | 90.7% | +2.4% |
 | Simple | 100% | 95.0% | -5.0% |
-| Moderate | 88.0% | 74.2% | -13.8% |
-| Challenging | 73.3% | 72.1% | -1.2% |
+| Moderate | 88.0% | 88.3% | +0.3% |
+| Challenging | 73.3% | 91.4% | +18.1% |
 
-The 12-point drop from 70 to 2,000 tables is driven primarily by **retrieval difficulty** (finding the right 15 tables out of 162 unique tables) and **naming complexity** (dirty columns, coded values). Notably, challenging questions show almost no regression (-1.2%), suggesting the pipeline's join planning and multi-candidate generation handle complex queries well regardless of scale.
+The 2,000-table pipeline now **exceeds** the 70-table baseline overall (+2.4%), with challenging questions showing a dramatic +18.1% improvement. The initial 12-point gap from the 76% baseline has been fully closed through four rounds of pipeline improvements. The remaining simple-query gap (-5%) reflects the harder retrieval task at scale, but moderate and challenging queries benefit from the richer pipeline stages (schema glosses, join planner, reranker, repair hints) that were built specifically for the 2,000-table evaluation.
+
+## Improvement History
+
+| Round | Date | Result | Key Changes |
+|-------|------|--------|-------------|
+| **Round 1** | Feb 13 | **76.0%** (228/300) | Initial pipeline — RAG retrieval, multi-candidate generation, basic validation |
+| **Round 2** | Feb 14 | **83.3%** (250/300) | Schema glosses, schema linker, join planner, multi-candidate reranker |
+| **Round 3** | Feb 16 | **88.3%** (265/300) | Cross-table FK hints, phantom column hints, confusable table warnings, deterministic tie-breaking |
+| **Round 4** | Feb 17 | **90.7%** (272/300) | PG normalize EXTRACT(DAY FROM date_diff), strip division scope clauses |
 
 ---
 

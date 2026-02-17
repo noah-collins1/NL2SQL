@@ -90,7 +90,7 @@ export class PythonClient {
 			if (!data.trace) {
 				data.trace = {
 					stage1_tables: [],
-					hrida_latency_ms: 0,
+					ollama_latency_ms: 0,
 					total_latency_ms: Date.now() - startTime,
 				}
 			}
@@ -188,7 +188,7 @@ export class PythonClient {
 			if (!data.trace) {
 				data.trace = {
 					stage1_tables: [],
-					hrida_latency_ms: 0,
+					ollama_latency_ms: 0,
 					total_latency_ms: Date.now() - startTime,
 				}
 			}

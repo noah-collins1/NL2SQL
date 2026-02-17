@@ -4,7 +4,7 @@
 
 | Model | Size | Context | 86-Table | 2,377-Table | Notes |
 |-------|------|---------|----------|-------------|-------|
-| `qwen2.5-coder:7b` | 4.7 GB | 32K | **88.3%** | **76.0%** | Best overall. Needs `sequential: true` on 8GB GPU |
+| `qwen2.5-coder:7b` | 4.7 GB | 32K | **88.3%** | **90.7%** | Best overall. Needs `sequential: true` on 8GB GPU |
 | `llama3.1:8b` | 4.9 GB | 128K | 81.7% | — | Good context length, lower accuracy |
 | `HridaAI/hrida-t2sql:latest` | 2.3 GB | 4K | 74.4% | — | Baseline. Has baked-in system prompt |
 

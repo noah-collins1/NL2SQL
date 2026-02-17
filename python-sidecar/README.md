@@ -1,6 +1,6 @@
 # Python AI Sidecar for NL2SQL
 
-FastAPI service that handles natural language to SQL generation via Ollama/Hrida.
+FastAPI service that handles natural language to SQL generation via Ollama.
 
 ## Architecture
 
@@ -9,7 +9,7 @@ This service receives natural language questions from the TypeScript MCP server 
 **Flow:**
 1. Receive NL question + database schema context
 2. Stage 1: Keyword filtering (extract entities, match table/column names)
-3. Call Ollama with Hrida model (temperature=0.0)
+3. Call Ollama to generate SQL (temperature=0.0 single, 0.3 multi-candidate)
 4. Return: SQL + confidence score + tables used
 
 ## Endpoints
@@ -58,7 +58,7 @@ Health check endpoint.
 
 Environment variables:
 - `OLLAMA_BASE_URL` - Default: http://localhost:11434
-- `OLLAMA_MODEL` - Default: HridaAI/hrida-t2sql:v1.2.3
+- `OLLAMA_MODEL` - Default: qwen2.5-coder:7b
 - `LOG_LEVEL` - Default: INFO
 - `PORT` - Default: 8001
 
@@ -108,7 +108,7 @@ curl -X POST http://localhost:8001/generate_sql \
 ```
 python-sidecar/
 ├── app.py                # FastAPI application
-├── hrida_client.py       # Ollama API client
+├── ollama_client.py      # Ollama API client
 ├── keyword_filter.py     # Stage 1 table selection
 ├── config.py             # Hardcoded schema + prompts
 ├── requirements.txt      # Python dependencies
