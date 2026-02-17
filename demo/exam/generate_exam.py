@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Generate exam CSVs from templates without external deps."""
+"""Generate exam CSVs from templates without external deps.
+
+v1: 92 templates, 300 questions, with evidence hints
+v2: 152 templates (39 families), 500 questions, NO evidence, includes ambiguity
+"""
 from __future__ import annotations
 
 import argparse
@@ -97,8 +101,14 @@ def pick_schema_for_template(t, archetype_divisions, dirty_divisions_by_arch, cl
     return rng.choice(all_divisions)
 
 
-def generate_exam(templates, count, seed, output_path, ensure_coverage=False):
-    """Generate an exam with `count` questions."""
+def generate_exam(templates, count, seed, output_path, ensure_coverage=False,
+                  no_evidence=False, include_ambiguous=True):
+    """Generate an exam with `count` questions.
+
+    Args:
+        no_evidence: If True, omit evidence column from output CSV
+        include_ambiguous: If True, include templates with difficulty='ambiguous'
+    """
     rng = random.Random(seed)
 
     years = [2021, 2022, 2023, 2024]
@@ -106,6 +116,14 @@ def generate_exam(templates, count, seed, output_path, ensure_coverage=False):
     probs = [0.6, 0.7, 0.8, 0.9]
     capacities = [50, 100, 250, 500]
     payment_terms_vals = [15, 30, 45, 60]
+
+    # Filter out ambiguous templates if not requested
+    if not include_ambiguous:
+        templates = [t for t in templates if t.get("difficulty") != "ambiguous"]
+
+    # Separate ambiguous from non-ambiguous for distribution control
+    ambiguous_templates = [t for t in templates if t.get("difficulty") == "ambiguous"]
+    non_ambiguous_templates = [t for t in templates if t.get("difficulty") != "ambiguous"]
 
     # Build archetype→divisions mappings
     archetype_divisions = {}
@@ -120,18 +138,18 @@ def generate_exam(templates, count, seed, output_path, ensure_coverage=False):
         else:
             clean_divisions_by_arch.setdefault(archetype, []).append(div_schema)
 
-    # Split templates
+    # Split non-ambiguous templates
     generic_templates = []
-    archetype_templates = []
+    archetype_templates_list = []
     dirty_templates = []
-    for t in templates:
+    for t in non_ambiguous_templates:
         tags = t.get("tags", [])
         if isinstance(tags, str):
             tags = [x.strip() for x in tags.split(",")]
         if "dirty_naming" in tags:
             dirty_templates.append(t)
         elif "archetype" in t:
-            archetype_templates.append(t)
+            archetype_templates_list.append(t)
         else:
             generic_templates.append(t)
 
@@ -150,18 +168,31 @@ def generate_exam(templates, count, seed, output_path, ensure_coverage=False):
             capacity = rng.choice(capacities)
             payment_terms = rng.choice(payment_terms_vals)
 
-            rows.append(_make_row(t, schema, year, amount, prob, capacity, payment_terms, len(rows)))
+            rows.append(_make_row(t, schema, year, amount, prob, capacity, payment_terms, len(rows),
+                                  no_evidence=no_evidence))
+
+    # Target: ~7% ambiguous if include_ambiguous
+    ambiguous_target = int(count * 0.07) if ambiguous_templates else 0
+    ambiguous_count = sum(1 for r in rows if r["difficulty"] == "ambiguous")
 
     # Fill remaining slots
     while len(rows) < count:
-        # Distribution: 65% generic, 20% archetype, 15% dirty
-        r = rng.random()
-        if dirty_templates and r < 0.15:
-            t = rng.choice(dirty_templates)
-        elif archetype_templates and r < 0.35:
-            t = rng.choice(archetype_templates)
+        # Reserve slots for ambiguous questions
+        if ambiguous_templates and ambiguous_count < ambiguous_target and len(rows) >= count - (ambiguous_target - ambiguous_count):
+            t = rng.choice(ambiguous_templates)
+            ambiguous_count += 1
+        elif ambiguous_templates and ambiguous_count < ambiguous_target and rng.random() < 0.07:
+            t = rng.choice(ambiguous_templates)
+            ambiguous_count += 1
         else:
-            t = rng.choice(generic_templates)
+            # Distribution: 60% generic, 20% archetype, 12% dirty
+            r = rng.random()
+            if dirty_templates and r < 0.12:
+                t = rng.choice(dirty_templates)
+            elif archetype_templates_list and r < 0.32:
+                t = rng.choice(archetype_templates_list)
+            else:
+                t = rng.choice(generic_templates)
 
         schema = pick_schema_for_template(
             t, archetype_divisions, dirty_divisions_by_arch,
@@ -173,7 +204,8 @@ def generate_exam(templates, count, seed, output_path, ensure_coverage=False):
         capacity = rng.choice(capacities)
         payment_terms = rng.choice(payment_terms_vals)
 
-        rows.append(_make_row(t, schema, year, amount, prob, capacity, payment_terms, len(rows)))
+        rows.append(_make_row(t, schema, year, amount, prob, capacity, payment_terms, len(rows),
+                              no_evidence=no_evidence))
 
     # Shuffle (but keep stable seed)
     rng.shuffle(rows)
@@ -181,18 +213,28 @@ def generate_exam(templates, count, seed, output_path, ensure_coverage=False):
     for i, row in enumerate(rows):
         row["qid"] = f"Q{i+1:04d}"
 
+    # Determine CSV fields
+    if no_evidence:
+        fieldnames = [
+            "qid", "difficulty", "question", "gold_sql",
+            "expected_tables", "expected_columns", "tags", "template_id", "family"
+        ]
+    else:
+        fieldnames = [
+            "qid", "difficulty", "question", "evidence", "gold_sql",
+            "expected_tables", "expected_columns", "tags", "template_id", "family"
+        ]
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=[
-            "qid", "difficulty", "question", "evidence", "gold_sql",
-            "expected_tables", "expected_columns", "tags", "template_id"
-        ])
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction='ignore')
         writer.writeheader()
         writer.writerows(rows)
 
     # Stats
     diff_counts = {}
     tag_counts = {}
+    family_counts = {}
     arch_counts = {"generic": 0}
     for row in rows:
         diff_counts[row["difficulty"]] = diff_counts.get(row["difficulty"], 0) + 1
@@ -200,6 +242,8 @@ def generate_exam(templates, count, seed, output_path, ensure_coverage=False):
             tag = tag.strip()
             if tag:
                 tag_counts[tag] = tag_counts.get(tag, 0) + 1
+        fam = row.get("family", "?")
+        family_counts[fam] = family_counts.get(fam, 0) + 1
         tid = row["template_id"]
         # Find template
         matching = [t for t in templates if t["id"] == tid]
@@ -214,9 +258,14 @@ def generate_exam(templates, count, seed, output_path, ensure_coverage=False):
     print(f"  Archetypes: {arch_counts}")
     unique_templates = len(set(r["template_id"] for r in rows))
     print(f"  Unique templates used: {unique_templates}/{len(templates)}")
+    print(f"  Families: {len(family_counts)} unique")
+    if ambiguous_templates:
+        amb_count = diff_counts.get("ambiguous", 0)
+        print(f"  Ambiguous questions: {amb_count} ({100*amb_count/len(rows):.1f}%)")
 
 
-def _make_row(t, schema, year, amount, prob, capacity, payment_terms, idx):
+def _make_row(t, schema, year, amount, prob, capacity, payment_terms, idx,
+              no_evidence=False):
     """Create a single exam row from a template."""
     fmt_kwargs = dict(
         schema=schema, year=year, amount=amount, prob=prob,
@@ -243,36 +292,66 @@ def _make_row(t, schema, year, amount, prob, capacity, payment_terms, idx):
     if isinstance(tags, str):
         tags = [x.strip() for x in tags.split(",")]
 
-    return {
+    row = {
         "qid": f"Q{idx+1:04d}",
         "difficulty": t["difficulty"],
         "question": question,
-        "evidence": evidence,
         "gold_sql": gold_sql,
         "expected_tables": ",".join(tables),
         "expected_columns": ",".join(columns),
         "tags": ",".join(tags),
         "template_id": t["id"],
+        "family": t.get("family", ""),
     }
+    if not no_evidence:
+        row["evidence"] = evidence
+    return row
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Generate exam CSVs from templates")
     parser.add_argument("--templates", type=Path, default=Path("exam/templates.yaml"))
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--count", type=int, default=300)
     parser.add_argument("--seed", type=int, default=20240213)
     parser.add_argument("--ensure-coverage", action="store_true",
                         help="Include every template at least once")
+    # v2 flags
+    parser.add_argument("--v2", action="store_true",
+                        help="Use v2 templates (templates_v2.yaml, 500 questions, no evidence)")
+    parser.add_argument("--no-evidence", action="store_true",
+                        help="Omit evidence column from output CSV")
+    parser.add_argument("--include-ambiguous", action="store_true",
+                        help="Include ambiguity family templates (A1-A4)")
+    parser.add_argument("--target-count", type=int, default=None,
+                        help="Override question count (alias for --count)")
     args = parser.parse_args()
+
+    # v2 mode sets defaults
+    if args.v2:
+        if args.templates == Path("exam/templates.yaml"):
+            args.templates = Path("exam/templates_v2.yaml")
+        if args.count == 300:
+            args.count = 500
+        args.no_evidence = True
+        args.include_ambiguous = True
+        args.ensure_coverage = True
+        if args.output is None:
+            args.output = Path("exam/exam_v2_500.csv")
+
+    if args.target_count is not None:
+        args.count = args.target_count
 
     if args.output is None:
         args.output = Path(f"exam/exam_{args.count}.csv")
 
     templates = parse_simple_yaml(args.templates)
-    print(f"Loaded {len(templates)} templates")
+    print(f"Loaded {len(templates)} templates from {args.templates}")
 
-    generate_exam(templates, args.count, args.seed, args.output, args.ensure_coverage)
+    generate_exam(templates, args.count, args.seed, args.output,
+                  ensure_coverage=args.ensure_coverage,
+                  no_evidence=args.no_evidence,
+                  include_ambiguous=args.include_ambiguous)
     return 0
 
 

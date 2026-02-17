@@ -1,0 +1,2566 @@
+# Exam v2 question templates — NO evidence hints
+# 39 families (35 SQL + 4 ambiguity), 160+ templates
+# Difficulty levels: easy, medium, hard, extra_hard, ambiguous
+
+# ============================================
+# Family 1: Single-table lookup (easy)
+# ============================================
+
+- id: v2_lookup_vendor_terms
+  family: 1
+  difficulty: easy
+  question: "Which vendors have payment terms longer than {payment_terms} days?"
+  tables: [vendors]
+  columns: [vendors.payment_terms]
+  tags: [procurement, lookup]
+  gold_sql: |
+    SELECT vendor_id, name, payment_terms
+    FROM {schema}.vendors
+    WHERE payment_terms > {payment_terms};
+
+- id: v2_lookup_inactive_vendors
+  family: 1
+  difficulty: easy
+  question: "List all inactive vendors."
+  tables: [vendors]
+  columns: [vendors.is_active]
+  tags: [procurement, lookup]
+  gold_sql: |
+    SELECT vendor_id, name
+    FROM {schema}.vendors
+    WHERE is_active = FALSE;
+
+- id: v2_lookup_high_credit_customers
+  family: 1
+  difficulty: easy
+  question: "Show customers with a credit limit above {amount}."
+  tables: [customers]
+  columns: [customers.credit_limit]
+  tags: [sales, lookup]
+  gold_sql: |
+    SELECT customer_id, name, credit_limit
+    FROM {schema}.customers
+    WHERE credit_limit > {amount};
+
+- id: v2_lookup_open_opportunities
+  family: 1
+  difficulty: easy
+  question: "List open sales opportunities with probability over {prob}."
+  tables: [sales_opportunities]
+  columns: [sales_opportunities.probability]
+  tags: [sales, lookup]
+  gold_sql: |
+    SELECT opportunity_id, name, amount, probability
+    FROM {schema}.sales_opportunities
+    WHERE probability > {prob};
+
+- id: v2_lookup_overdue_onboarding
+  family: 1
+  difficulty: easy
+  question: "Show onboarding tasks that are overdue."
+  tables: [hr_onboarding_tasks]
+  columns: [hr_onboarding_tasks.status, hr_onboarding_tasks.due_date]
+  tags: [hr, lookup]
+  gold_sql: |
+    SELECT task_id, employee_id, task_name, due_date, status
+    FROM {schema}.hr_onboarding_tasks
+    WHERE status <> 'done'
+      AND due_date < CURRENT_DATE;
+
+# ============================================
+# Family 2: Single-table aggregation (easy)
+# ============================================
+
+- id: v2_agg_orders_by_month
+  family: 2
+  difficulty: easy
+  question: "How many sales orders were placed each month in {year}?"
+  tables: [sales_orders]
+  columns: [sales_orders.order_date]
+  tags: [sales, aggregation]
+  gold_sql: |
+    SELECT DATE_TRUNC('month', order_date) AS month, COUNT(*) AS order_count
+    FROM {schema}.sales_orders
+    WHERE EXTRACT(YEAR FROM order_date) = {year}
+    GROUP BY month
+    ORDER BY month;
+
+- id: v2_agg_journal_entries_monthly
+  family: 2
+  difficulty: easy
+  question: "Number of journal entries by month in {year}?"
+  tables: [journal_entries]
+  columns: [journal_entries.entry_date]
+  tags: [finance, aggregation]
+  gold_sql: |
+    SELECT DATE_TRUNC('month', entry_date) AS month, COUNT(*) AS entry_count
+    FROM {schema}.journal_entries
+    WHERE EXTRACT(YEAR FROM entry_date) = {year}
+    GROUP BY month
+    ORDER BY month;
+
+- id: v2_agg_orders_by_status
+  family: 2
+  difficulty: easy
+  question: "Sales order counts by status for {year}?"
+  tables: [sales_orders]
+  columns: [sales_orders.status, sales_orders.order_date]
+  tags: [sales, aggregation]
+  gold_sql: |
+    SELECT status, COUNT(*) AS order_count
+    FROM {schema}.sales_orders
+    WHERE EXTRACT(YEAR FROM order_date) = {year}
+    GROUP BY status;
+
+- id: v2_agg_adjustments_by_reason
+  family: 2
+  difficulty: easy
+  question: "Count of inventory adjustments by reason in {year}?"
+  tables: [inventory_adjustments]
+  columns: [inventory_adjustments.reason, inventory_adjustments.adjustment_date]
+  tags: [inventory, aggregation]
+  gold_sql: |
+    SELECT reason, COUNT(*) AS adjustment_count
+    FROM {schema}.inventory_adjustments
+    WHERE EXTRACT(YEAR FROM adjustment_date) = {year}
+    GROUP BY reason;
+
+- id: v2_agg_bank_tx_by_type
+  family: 2
+  difficulty: easy
+  question: "What are the bank transaction totals by type for {year}?"
+  tables: [bank_transactions]
+  columns: [bank_transactions.transaction_type, bank_transactions.amount, bank_transactions.transaction_date]
+  tags: [finance, aggregation]
+  gold_sql: |
+    SELECT transaction_type, SUM(amount) AS total_amount
+    FROM {schema}.bank_transactions
+    WHERE EXTRACT(YEAR FROM transaction_date) = {year}
+    GROUP BY transaction_type;
+
+# ============================================
+# Family 3: Two-table JOIN + value grounding (medium)
+# ============================================
+
+- id: v2_join_val_dept_manager
+  family: 3
+  difficulty: medium
+  question: "Who is the manager of the Engineering department?"
+  tables: [employees, departments]
+  columns: [employees.first_name, employees.last_name, departments.name]
+  tags: [hr, value_grounding]
+  gold_sql: |
+    SELECT e.first_name, e.last_name, e.email
+    FROM {schema}.departments d
+    JOIN {schema}.employees e ON e.employee_id = d.manager_id
+    WHERE d.name = 'Engineering';
+
+- id: v2_join_val_primary_contacts
+  family: 3
+  difficulty: medium
+  question: "Who are the primary contacts for all customers?"
+  tables: [customers, customer_contacts]
+  columns: [customer_contacts.is_primary, customer_contacts.first_name, customer_contacts.last_name]
+  tags: [sales, value_grounding]
+  gold_sql: |
+    SELECT c.name AS customer, cc.first_name || ' ' || cc.last_name AS contact, cc.email
+    FROM {schema}.customers c
+    JOIN {schema}.customer_contacts cc ON cc.customer_id = c.customer_id
+    WHERE cc.is_primary = TRUE
+    ORDER BY c.name;
+
+- id: v2_join_val_benefit_elections
+  family: 3
+  difficulty: medium
+  question: "How many benefit elections by coverage level in {year}?"
+  tables: [hr_benefit_elections]
+  columns: [hr_benefit_elections.coverage_level, hr_benefit_elections.election_date]
+  tags: [hr, value_grounding]
+  gold_sql: |
+    SELECT coverage_level, COUNT(*) AS elections
+    FROM {schema}.hr_benefit_elections
+    WHERE EXTRACT(YEAR FROM election_date) = {year}
+    GROUP BY coverage_level;
+
+- id: v2_join_val_training_completion
+  family: 3
+  difficulty: medium
+  question: "Training completions by course for {year}?"
+  tables: [training_courses, employee_training]
+  columns: [employee_training.completion_date]
+  tags: [hr, training, value_grounding]
+  gold_sql: |
+    SELECT c.name, COUNT(*) AS completions
+    FROM {schema}.employee_training et
+    JOIN {schema}.training_courses c ON c.course_id = et.course_id
+    WHERE EXTRACT(YEAR FROM et.completion_date) = {year}
+    GROUP BY c.name
+    ORDER BY completions DESC;
+
+# ============================================
+# Family 4: Two-table TOP-N (medium)
+# ============================================
+
+- id: v2_topn_customers_by_sales
+  family: 4
+  difficulty: medium
+  question: "Top 10 customers by total sales amount in {year}?"
+  tables: [sales_orders, order_lines, customers]
+  columns: [sales_orders.order_date, order_lines.quantity, order_lines.unit_price, customers.name]
+  tags: [sales, top_n]
+  gold_sql: |
+    SELECT c.name, SUM(ol.quantity * ol.unit_price) AS total_sales
+    FROM {schema}.sales_orders so
+    JOIN {schema}.order_lines ol ON ol.order_id = so.order_id
+    JOIN {schema}.customers c ON c.customer_id = so.customer_id
+    WHERE EXTRACT(YEAR FROM so.order_date) = {year}
+    GROUP BY c.name
+    ORDER BY total_sales DESC
+    LIMIT 10;
+
+- id: v2_topn_vendors_by_spend
+  family: 4
+  difficulty: medium
+  question: "Top 5 vendors by total purchase order spend in {year}?"
+  tables: [purchase_orders, vendors]
+  columns: [purchase_orders.total, purchase_orders.order_date, vendors.name]
+  tags: [procurement, top_n]
+  gold_sql: |
+    SELECT v.name, SUM(po.total) AS total_spend
+    FROM {schema}.purchase_orders po
+    JOIN {schema}.vendors v ON v.vendor_id = po.vendor_id
+    WHERE EXTRACT(YEAR FROM po.order_date) = {year}
+    GROUP BY v.name
+    ORDER BY total_spend DESC
+    LIMIT 5;
+
+- id: v2_topn_products_by_revenue
+  family: 4
+  difficulty: medium
+  question: "Top 20 products by revenue in {year}?"
+  tables: [order_lines, sales_orders, products]
+  columns: [order_lines.quantity, order_lines.unit_price, products.name]
+  tags: [sales, top_n]
+  gold_sql: |
+    SELECT p.name, SUM(ol.quantity * ol.unit_price) AS revenue
+    FROM {schema}.order_lines ol
+    JOIN {schema}.sales_orders so ON so.order_id = ol.order_id
+    JOIN {schema}.products p ON p.product_id = ol.product_id
+    WHERE EXTRACT(YEAR FROM so.order_date) = {year}
+    GROUP BY p.name
+    ORDER BY revenue DESC
+    LIMIT 20;
+
+# ============================================
+# Family 5: Header-line drill (medium)
+# ============================================
+
+- id: v2_hdr_avg_line_price
+  family: 5
+  difficulty: medium
+  question: "What is the average unit price on purchase order lines in Q1 {year}?"
+  tables: [purchase_orders, po_lines]
+  columns: [po_lines.unit_price, purchase_orders.order_date]
+  tags: [procurement, header_line]
+  gold_sql: |
+    SELECT ROUND(AVG(pl.unit_price), 2) AS avg_unit_price
+    FROM {schema}.purchase_orders po
+    JOIN {schema}.po_lines pl ON pl.po_id = po.po_id
+    WHERE po.order_date >= DATE '{year}-01-01'
+      AND po.order_date < DATE '{year}-04-01';
+
+- id: v2_hdr_order_discount
+  family: 5
+  difficulty: medium
+  question: "Average discount percentage on sales order lines in {year}?"
+  tables: [order_lines, sales_orders]
+  columns: [order_lines.discount_percent, sales_orders.order_date]
+  tags: [sales, header_line]
+  gold_sql: |
+    SELECT ROUND(AVG(ol.discount_percent), 2) AS avg_discount
+    FROM {schema}.order_lines ol
+    JOIN {schema}.sales_orders so ON so.order_id = ol.order_id
+    WHERE EXTRACT(YEAR FROM so.order_date) = {year};
+
+- id: v2_hdr_quarterly_revenue
+  family: 5
+  difficulty: medium
+  question: "Quarterly revenue breakdown for {year}?"
+  tables: [order_lines, sales_orders]
+  columns: [order_lines.quantity, order_lines.unit_price, sales_orders.order_date]
+  tags: [sales, header_line]
+  gold_sql: |
+    SELECT
+      EXTRACT(QUARTER FROM so.order_date) AS quarter,
+      SUM(ol.quantity * ol.unit_price) AS revenue
+    FROM {schema}.order_lines ol
+    JOIN {schema}.sales_orders so ON so.order_id = ol.order_id
+    WHERE EXTRACT(YEAR FROM so.order_date) = {year}
+    GROUP BY quarter
+    ORDER BY quarter;
+
+- id: v2_hdr_comment_volume
+  family: 5
+  difficulty: medium
+  question: "How many comments per support case in {year}?"
+  tables: [support_ticket_comments]
+  columns: [support_ticket_comments.comment_ts]
+  tags: [support, header_line]
+  gold_sql: |
+    SELECT case_id, COUNT(*) AS comment_count
+    FROM {schema}.support_ticket_comments
+    WHERE EXTRACT(YEAR FROM comment_ts) = {year}
+    GROUP BY case_id;
+
+# ============================================
+# Family 6: Three-table chain (hard)
+# ============================================
+
+- id: v2_chain3_revenue_by_category
+  family: 6
+  difficulty: hard
+  question: "Revenue by product category for {year}?"
+  tables: [order_lines, sales_orders, products, product_categories]
+  columns: [order_lines.quantity, order_lines.unit_price, product_categories.name]
+  tags: [sales, multi_join]
+  gold_sql: |
+    SELECT pc.name AS category, SUM(ol.quantity * ol.unit_price) AS revenue
+    FROM {schema}.order_lines ol
+    JOIN {schema}.sales_orders so ON so.order_id = ol.order_id
+    JOIN {schema}.products p ON p.product_id = ol.product_id
+    JOIN {schema}.product_categories pc ON pc.category_id = p.category_id
+    WHERE EXTRACT(YEAR FROM so.order_date) = {year}
+    GROUP BY pc.name
+    ORDER BY revenue DESC;
+
+- id: v2_chain3_inventory_by_category
+  family: 6
+  difficulty: hard
+  question: "Total inventory units moved by product category in {year}?"
+  tables: [inventory_transactions, products, product_categories]
+  columns: [inventory_transactions.quantity, inventory_transactions.transaction_date, product_categories.name]
+  tags: [inventory, multi_join]
+  gold_sql: |
+    SELECT pc.name, SUM(it.quantity) AS total_moved
+    FROM {schema}.inventory_transactions it
+    JOIN {schema}.products p ON p.product_id = it.product_id
+    JOIN {schema}.product_categories pc ON pc.category_id = p.category_id
+    WHERE EXTRACT(YEAR FROM it.transaction_date) = {year}
+    GROUP BY pc.name
+    ORDER BY total_moved DESC;
+
+- id: v2_chain3_maintenance_by_category
+  family: 6
+  difficulty: hard
+  question: "Total maintenance cost by asset category in {year}?"
+  tables: [asset_maintenance, fixed_assets, asset_categories]
+  columns: [asset_maintenance.cost, asset_categories.name]
+  tags: [assets, multi_join]
+  gold_sql: |
+    SELECT ac.name, SUM(am.cost) AS total_cost
+    FROM {schema}.asset_maintenance am
+    JOIN {schema}.fixed_assets fa ON fa.asset_id = am.asset_id
+    JOIN {schema}.asset_categories ac ON ac.category_id = fa.category_id
+    WHERE EXTRACT(YEAR FROM am.scheduled_date) = {year}
+    GROUP BY ac.name;
+
+- id: v2_chain3_cost_center_spend
+  family: 6
+  difficulty: hard
+  question: "Net journal amounts by cost center for {year}?"
+  tables: [journal_lines, cost_centers, journal_entries]
+  columns: [journal_lines.debit, journal_lines.credit, journal_entries.entry_date]
+  tags: [finance, multi_join]
+  gold_sql: |
+    SELECT cc.name, SUM(jl.debit - jl.credit) AS net_amount
+    FROM {schema}.journal_lines jl
+    JOIN {schema}.journal_entries je ON je.entry_id = jl.entry_id
+    JOIN {schema}.cost_centers cc ON cc.cost_center_id = jl.cost_center_id
+    WHERE EXTRACT(YEAR FROM je.entry_date) = {year}
+    GROUP BY cc.name;
+
+# ============================================
+# Family 7: Coded lookup decode (medium)
+# ============================================
+
+- id: v2_coded_wo_status
+  family: 7
+  difficulty: medium
+  question: "How many work orders are there by status?"
+  tables: [mfg_work_orders, lookup_codes]
+  columns: [mfg_work_orders.status_code, lookup_codes.meaning]
+  tags: [manufacturing, lookup]
+  archetype: manufacturing
+  gold_sql: |
+    SELECT lc.meaning AS status, COUNT(*) AS wo_count
+    FROM {schema}.mfg_work_orders wo
+    JOIN {schema}.lookup_codes lc ON lc.code = wo.status_code AND lc.domain = 'WO_STATUS'
+    GROUP BY lc.meaning
+    ORDER BY wo_count DESC;
+
+- id: v2_coded_priority_filter
+  family: 7
+  difficulty: medium
+  question: "Show all high and critical priority work orders."
+  tables: [mfg_work_orders, lookup_codes]
+  columns: [mfg_work_orders.priority_code, lookup_codes.meaning]
+  tags: [manufacturing, lookup]
+  archetype: manufacturing
+  gold_sql: |
+    SELECT wo.work_order_id, wo.work_order_number, lc.meaning AS priority
+    FROM {schema}.mfg_work_orders wo
+    JOIN {schema}.lookup_codes lc ON lc.code = wo.priority_code AND lc.domain = 'PRIORITY'
+    WHERE lc.meaning IN ('High', 'Critical');
+
+- id: v2_coded_sow_status
+  family: 7
+  difficulty: medium
+  question: "Count of statements of work by status?"
+  tables: [svc_statements_of_work, lookup_codes]
+  columns: [svc_statements_of_work.status_code, lookup_codes.meaning]
+  tags: [services, lookup]
+  archetype: services
+  gold_sql: |
+    SELECT lc.meaning AS status, COUNT(*) AS sow_count
+    FROM {schema}.svc_statements_of_work sow
+    JOIN {schema}.lookup_codes lc ON lc.code = sow.status_code AND lc.domain = 'PROJECT_STATUS'
+    GROUP BY lc.meaning
+    ORDER BY sow_count DESC;
+
+- id: v2_coded_scrap_reason
+  family: 7
+  difficulty: medium
+  question: "Total scrap quantity by reason code in manufacturing?"
+  tables: [mfg_scrap_log]
+  columns: [mfg_scrap_log.reason_code, mfg_scrap_log.scrap_quantity]
+  tags: [manufacturing, lookup]
+  archetype: manufacturing
+  gold_sql: |
+    SELECT reason_code, SUM(scrap_quantity) AS total_scrap
+    FROM {schema}.mfg_scrap_log
+    GROUP BY reason_code
+    ORDER BY total_scrap DESC;
+
+# ============================================
+# Family 8: SCD2 point-in-time (hard)
+# ============================================
+
+- id: v2_scd2_salary_at_date
+  family: 8
+  difficulty: hard
+  question: "What was each employee's salary as of June 30, {year}?"
+  tables: [employee_salaries, employees]
+  columns: [employee_salaries.amount, employee_salaries.effective_date, employees.first_name]
+  tags: [hr, temporal, scd2]
+  gold_sql: |
+    SELECT e.first_name, e.last_name, es.amount AS salary
+    FROM {schema}.employees e
+    JOIN {schema}.employee_salaries es ON es.employee_id = e.employee_id
+    WHERE es.effective_date = (
+      SELECT MAX(es2.effective_date)
+      FROM {schema}.employee_salaries es2
+      WHERE es2.employee_id = e.employee_id
+        AND es2.effective_date <= DATE '{year}-06-30'
+    );
+
+- id: v2_scd2_active_employees_at_date
+  family: 8
+  difficulty: hard
+  question: "How many employees were active on January 1, {year}?"
+  tables: [employees]
+  columns: [employees.hire_date, employees.termination_date]
+  tags: [hr, temporal, scd2]
+  gold_sql: |
+    SELECT COUNT(*) AS active_count
+    FROM {schema}.employees
+    WHERE hire_date <= DATE '{year}-01-01'
+      AND (termination_date IS NULL OR termination_date > DATE '{year}-01-01');
+
+- id: v2_scd2_tenure_distribution
+  family: 8
+  difficulty: hard
+  question: "Employee tenure distribution (0-1yr, 1-3yr, 3-5yr, 5+yr) as of end of {year}?"
+  tables: [employees]
+  columns: [employees.hire_date]
+  tags: [hr, temporal, scd2]
+  gold_sql: |
+    SELECT
+      CASE
+        WHEN EXTRACT(YEAR FROM AGE(DATE '{year}-12-31', hire_date)) < 1 THEN '0-1 yr'
+        WHEN EXTRACT(YEAR FROM AGE(DATE '{year}-12-31', hire_date)) < 3 THEN '1-3 yr'
+        WHEN EXTRACT(YEAR FROM AGE(DATE '{year}-12-31', hire_date)) < 5 THEN '3-5 yr'
+        ELSE '5+ yr'
+      END AS tenure_bucket,
+      COUNT(*) AS employee_count
+    FROM {schema}.employees
+    WHERE hire_date <= DATE '{year}-12-31'
+      AND (termination_date IS NULL OR termination_date > DATE '{year}-12-31')
+    GROUP BY tenure_bucket
+    ORDER BY tenure_bucket;
+
+# ============================================
+# Family 9: Anti-join NOT EXISTS (hard)
+# ============================================
+
+- id: v2_antijoin_customers_no_orders
+  family: 9
+  difficulty: hard
+  question: "Which customers have never placed a sales order?"
+  tables: [customers, sales_orders]
+  columns: [customers.customer_id, customers.name]
+  tags: [sales, anti_join]
+  gold_sql: |
+    SELECT c.customer_id, c.name
+    FROM {schema}.customers c
+    WHERE NOT EXISTS (
+      SELECT 1 FROM {schema}.sales_orders so
+      WHERE so.customer_id = c.customer_id
+    );
+
+- id: v2_antijoin_vendors_no_po
+  family: 9
+  difficulty: hard
+  question: "Which vendors have never received a purchase order?"
+  tables: [vendors, purchase_orders]
+  columns: [vendors.vendor_id, vendors.name]
+  tags: [procurement, anti_join]
+  gold_sql: |
+    SELECT v.vendor_id, v.name
+    FROM {schema}.vendors v
+    WHERE NOT EXISTS (
+      SELECT 1 FROM {schema}.purchase_orders po
+      WHERE po.vendor_id = v.vendor_id
+    );
+
+- id: v2_antijoin_employees_no_training
+  family: 9
+  difficulty: hard
+  question: "Which employees have not completed any training?"
+  tables: [employees, employee_training]
+  columns: [employees.employee_id, employees.first_name, employees.last_name]
+  tags: [hr, anti_join]
+  gold_sql: |
+    SELECT e.employee_id, e.first_name, e.last_name
+    FROM {schema}.employees e
+    WHERE NOT EXISTS (
+      SELECT 1 FROM {schema}.employee_training et
+      WHERE et.employee_id = e.employee_id
+    );
+
+- id: v2_antijoin_products_never_sold
+  family: 9
+  difficulty: hard
+  question: "Products that have never been sold?"
+  tables: [products, order_lines]
+  columns: [products.product_id, products.name]
+  tags: [inventory, anti_join]
+  gold_sql: |
+    SELECT p.product_id, p.name, p.sku
+    FROM {schema}.products p
+    WHERE NOT EXISTS (
+      SELECT 1 FROM {schema}.order_lines ol
+      WHERE ol.product_id = p.product_id
+    );
+
+# ============================================
+# Family 10: Anti-join + temporal (hard)
+# ============================================
+
+- id: v2_antijoin_temp_no_recent_txns
+  family: 10
+  difficulty: hard
+  question: "Products with no inventory transactions in the last 90 days?"
+  tables: [products, inventory_transactions]
+  columns: [products.product_id, products.name]
+  tags: [inventory, anti_join, temporal]
+  gold_sql: |
+    SELECT p.product_id, p.name
+    FROM {schema}.products p
+    WHERE NOT EXISTS (
+      SELECT 1 FROM {schema}.inventory_transactions it
+      WHERE it.product_id = p.product_id
+        AND it.transaction_date >= CURRENT_DATE - INTERVAL '90 days'
+    );
+
+- id: v2_antijoin_temp_no_recent_orders
+  family: 10
+  difficulty: hard
+  question: "Customers who have not placed any orders in {year}?"
+  tables: [customers, sales_orders]
+  columns: [customers.customer_id, customers.name]
+  tags: [sales, anti_join, temporal]
+  gold_sql: |
+    SELECT c.customer_id, c.name
+    FROM {schema}.customers c
+    WHERE NOT EXISTS (
+      SELECT 1 FROM {schema}.sales_orders so
+      WHERE so.customer_id = c.customer_id
+        AND EXTRACT(YEAR FROM so.order_date) = {year}
+    );
+
+- id: v2_antijoin_temp_vendors_no_recent_invoice
+  family: 10
+  difficulty: hard
+  question: "Vendors with no invoices in the last 6 months?"
+  tables: [vendors, vendor_invoices]
+  columns: [vendors.vendor_id, vendors.name]
+  tags: [procurement, anti_join, temporal]
+  gold_sql: |
+    SELECT v.vendor_id, v.name
+    FROM {schema}.vendors v
+    WHERE NOT EXISTS (
+      SELECT 1 FROM {schema}.vendor_invoices vi
+      WHERE vi.vendor_id = v.vendor_id
+        AND vi.invoice_date >= CURRENT_DATE - INTERVAL '6 months'
+    );
+
+# ============================================
+# Family 11: LEFT JOIN + NULL (easy)
+# ============================================
+
+- id: v2_leftjoin_employees_no_certs
+  family: 11
+  difficulty: easy
+  question: "Employees without any certifications?"
+  tables: [employees, employee_certifications]
+  columns: [employees.employee_id, employees.first_name]
+  tags: [hr, left_join]
+  gold_sql: |
+    SELECT e.employee_id, e.first_name, e.last_name
+    FROM {schema}.employees e
+    LEFT JOIN {schema}.employee_certifications ec ON ec.employee_id = e.employee_id
+    WHERE ec.certification_id IS NULL;
+
+- id: v2_leftjoin_products_no_supplier
+  family: 11
+  difficulty: easy
+  question: "Products that have no assigned supplier?"
+  tables: [products, product_suppliers]
+  columns: [products.product_id, products.name]
+  tags: [inventory, left_join]
+  gold_sql: |
+    SELECT p.product_id, p.name, p.sku
+    FROM {schema}.products p
+    LEFT JOIN {schema}.product_suppliers ps ON ps.product_id = p.product_id
+    WHERE ps.supplier_id IS NULL;
+
+- id: v2_leftjoin_depts_no_budget
+  family: 11
+  difficulty: easy
+  question: "Departments that have no budget allocated?"
+  tables: [departments, budgets]
+  columns: [departments.department_id, departments.name]
+  tags: [finance, left_join]
+  gold_sql: |
+    SELECT d.department_id, d.name
+    FROM {schema}.departments d
+    LEFT JOIN {schema}.budgets b ON b.department_id = d.department_id
+    WHERE b.budget_id IS NULL;
+
+# ============================================
+# Family 12: Window - running total (hard)
+# ============================================
+
+- id: v2_window_running_ar
+  family: 12
+  difficulty: hard
+  question: "Monthly AR invoice amounts with running total for {year}?"
+  tables: [finance_ar_invoices]
+  columns: [finance_ar_invoices.invoice_date, finance_ar_invoices.amount]
+  tags: [finance, window]
+  gold_sql: |
+    SELECT
+      DATE_TRUNC('month', invoice_date) AS month,
+      SUM(amount) AS monthly_amount,
+      SUM(SUM(amount)) OVER (ORDER BY DATE_TRUNC('month', invoice_date)) AS running_total
+    FROM {schema}.finance_ar_invoices
+    WHERE EXTRACT(YEAR FROM invoice_date) = {year}
+    GROUP BY month
+    ORDER BY month;
+
+- id: v2_window_running_sales
+  family: 12
+  difficulty: hard
+  question: "Monthly sales revenue with cumulative total for {year}?"
+  tables: [order_lines, sales_orders]
+  columns: [order_lines.quantity, order_lines.unit_price, sales_orders.order_date]
+  tags: [sales, window]
+  gold_sql: |
+    SELECT
+      DATE_TRUNC('month', so.order_date) AS month,
+      SUM(ol.quantity * ol.unit_price) AS monthly_revenue,
+      SUM(SUM(ol.quantity * ol.unit_price)) OVER (ORDER BY DATE_TRUNC('month', so.order_date)) AS cumulative_revenue
+    FROM {schema}.order_lines ol
+    JOIN {schema}.sales_orders so ON so.order_id = ol.order_id
+    WHERE EXTRACT(YEAR FROM so.order_date) = {year}
+    GROUP BY month
+    ORDER BY month;
+
+- id: v2_window_running_expenses
+  family: 12
+  difficulty: hard
+  question: "Monthly project expenses with running total for {year}?"
+  tables: [project_expenses]
+  columns: [project_expenses.expense_date, project_expenses.amount]
+  tags: [projects, window]
+  gold_sql: |
+    SELECT
+      DATE_TRUNC('month', expense_date) AS month,
+      SUM(amount) AS monthly_expense,
+      SUM(SUM(amount)) OVER (ORDER BY DATE_TRUNC('month', expense_date)) AS running_total
+    FROM {schema}.project_expenses
+    WHERE EXTRACT(YEAR FROM expense_date) = {year}
+    GROUP BY month
+    ORDER BY month;
+
+# ============================================
+# Family 13: Window - RANK (hard)
+# ============================================
+
+- id: v2_window_rank_sales_reps
+  family: 13
+  difficulty: hard
+  question: "Top 3 sales reps by revenue per department in {year}?"
+  tables: [order_lines, sales_orders, employees, departments]
+  columns: [order_lines.quantity, order_lines.unit_price, employees.first_name]
+  tags: [sales, hr, window]
+  gold_sql: |
+    WITH rep_revenue AS (
+      SELECT e.employee_id, e.first_name, e.last_name, d.name AS department,
+             SUM(ol.quantity * ol.unit_price) AS revenue,
+             RANK() OVER (PARTITION BY e.department_id ORDER BY SUM(ol.quantity * ol.unit_price) DESC) AS rnk
+      FROM {schema}.order_lines ol
+      JOIN {schema}.sales_orders so ON so.order_id = ol.order_id
+      JOIN {schema}.employees e ON e.employee_id = so.sales_rep_id
+      JOIN {schema}.departments d ON d.department_id = e.department_id
+      WHERE EXTRACT(YEAR FROM so.order_date) = {year}
+      GROUP BY e.employee_id, e.first_name, e.last_name, d.name, e.department_id
+    )
+    SELECT first_name, last_name, department, revenue, rnk
+    FROM rep_revenue
+    WHERE rnk <= 3
+    ORDER BY department, rnk;
+
+- id: v2_window_rank_customers
+  family: 13
+  difficulty: hard
+  question: "Rank customers by total order value in {year}?"
+  tables: [sales_orders, order_lines, customers]
+  columns: [sales_orders.order_date, order_lines.quantity, order_lines.unit_price, customers.name]
+  tags: [sales, window]
+  gold_sql: |
+    SELECT c.name,
+           SUM(ol.quantity * ol.unit_price) AS total_value,
+           RANK() OVER (ORDER BY SUM(ol.quantity * ol.unit_price) DESC) AS rnk
+    FROM {schema}.sales_orders so
+    JOIN {schema}.order_lines ol ON ol.order_id = so.order_id
+    JOIN {schema}.customers c ON c.customer_id = so.customer_id
+    WHERE EXTRACT(YEAR FROM so.order_date) = {year}
+    GROUP BY c.name
+    ORDER BY rnk;
+
+# ============================================
+# Family 14: Window - LAG/LEAD (extra_hard)
+# ============================================
+
+- id: v2_window_lag_headcount
+  family: 14
+  difficulty: extra_hard
+  question: "Month-over-month headcount change for {year}?"
+  tables: [employees]
+  columns: [employees.hire_date, employees.termination_date]
+  tags: [hr, window, temporal]
+  gold_sql: |
+    WITH months AS (
+      SELECT generate_series(1, 12) AS month_num
+    ),
+    headcount AS (
+      SELECT m.month_num,
+             COUNT(*) AS hc
+      FROM months m
+      JOIN {schema}.employees e ON e.hire_date <= DATE '{year}-12-31'
+        AND (DATE '{year}-01-01' + (m.month_num - 1) * INTERVAL '1 month') >= e.hire_date
+        AND (e.termination_date IS NULL
+             OR e.termination_date > DATE '{year}-01-01' + (m.month_num - 1) * INTERVAL '1 month')
+      GROUP BY m.month_num
+    )
+    SELECT month_num, hc,
+           hc - LAG(hc) OVER (ORDER BY month_num) AS change
+    FROM headcount
+    ORDER BY month_num;
+
+- id: v2_window_lag_monthly_revenue
+  family: 14
+  difficulty: extra_hard
+  question: "Month-over-month revenue change for {year}?"
+  tables: [order_lines, sales_orders]
+  columns: [order_lines.quantity, order_lines.unit_price, sales_orders.order_date]
+  tags: [sales, window, temporal]
+  gold_sql: |
+    WITH monthly AS (
+      SELECT DATE_TRUNC('month', so.order_date) AS month,
+             SUM(ol.quantity * ol.unit_price) AS revenue
+      FROM {schema}.order_lines ol
+      JOIN {schema}.sales_orders so ON so.order_id = ol.order_id
+      WHERE EXTRACT(YEAR FROM so.order_date) = {year}
+      GROUP BY month
+    )
+    SELECT month, revenue,
+           revenue - LAG(revenue) OVER (ORDER BY month) AS change,
+           ROUND(100.0 * (revenue - LAG(revenue) OVER (ORDER BY month)) / NULLIF(LAG(revenue) OVER (ORDER BY month), 0), 2) AS pct_change
+    FROM monthly
+    ORDER BY month;
+
+- id: v2_window_lag_ap_volume
+  family: 14
+  difficulty: extra_hard
+  question: "Month-over-month AP invoice volume change for {year}?"
+  tables: [finance_ap_invoices]
+  columns: [finance_ap_invoices.invoice_date, finance_ap_invoices.amount]
+  tags: [finance, window, temporal]
+  gold_sql: |
+    WITH monthly AS (
+      SELECT DATE_TRUNC('month', invoice_date) AS month,
+             SUM(amount) AS total_amount
+      FROM {schema}.finance_ap_invoices
+      WHERE EXTRACT(YEAR FROM invoice_date) = {year}
+      GROUP BY month
+    )
+    SELECT month, total_amount,
+           total_amount - LAG(total_amount) OVER (ORDER BY month) AS change
+    FROM monthly
+    ORDER BY month;
+
+# ============================================
+# Family 15: UNION ALL (extra_hard)
+# ============================================
+
+- id: v2_union_all_documents
+  family: 15
+  difficulty: extra_hard
+  question: "All documents issued in January {year} — purchase orders, sales orders, and vendor invoices?"
+  tables: [purchase_orders, sales_orders, vendor_invoices]
+  columns: [purchase_orders.order_date, sales_orders.order_date, vendor_invoices.invoice_date]
+  tags: [multi_module, union]
+  gold_sql: |
+    SELECT 'Purchase Order' AS doc_type, po_id AS doc_id, order_date AS doc_date, total AS amount
+    FROM {schema}.purchase_orders
+    WHERE order_date >= DATE '{year}-01-01' AND order_date < DATE '{year}-02-01'
+    UNION ALL
+    SELECT 'Sales Order', order_id, order_date, NULL
+    FROM {schema}.sales_orders
+    WHERE order_date >= DATE '{year}-01-01' AND order_date < DATE '{year}-02-01'
+    UNION ALL
+    SELECT 'Vendor Invoice', invoice_id, invoice_date, total
+    FROM {schema}.vendor_invoices
+    WHERE invoice_date >= DATE '{year}-01-01' AND invoice_date < DATE '{year}-02-01'
+    ORDER BY doc_date;
+
+- id: v2_union_all_financial_txns
+  family: 15
+  difficulty: extra_hard
+  question: "All financial transactions (AR payments, AP invoices, bank transactions) for {year}?"
+  tables: [finance_ar_payments, finance_ap_invoices, bank_transactions]
+  columns: [finance_ar_payments.payment_date, finance_ap_invoices.invoice_date, bank_transactions.transaction_date]
+  tags: [finance, union]
+  gold_sql: |
+    SELECT 'AR Payment' AS txn_type, payment_id AS txn_id, payment_date AS txn_date, amount
+    FROM {schema}.finance_ar_payments
+    WHERE EXTRACT(YEAR FROM payment_date) = {year}
+    UNION ALL
+    SELECT 'AP Invoice', ap_invoice_id, invoice_date, amount
+    FROM {schema}.finance_ap_invoices
+    WHERE EXTRACT(YEAR FROM invoice_date) = {year}
+    UNION ALL
+    SELECT 'Bank Transaction', transaction_id, transaction_date, amount
+    FROM {schema}.bank_transactions
+    WHERE EXTRACT(YEAR FROM transaction_date) = {year}
+    ORDER BY txn_date;
+
+# ============================================
+# Family 16: EXCEPT (extra_hard)
+# ============================================
+
+- id: v2_except_products_not_in_year
+  family: 16
+  difficulty: extra_hard
+  question: "Products sold in {year} but not in the prior year?"
+  tables: [order_lines, sales_orders, products]
+  columns: [order_lines.product_id, sales_orders.order_date]
+  tags: [sales, except]
+  gold_sql: |
+    SELECT DISTINCT p.product_id, p.name
+    FROM {schema}.order_lines ol
+    JOIN {schema}.sales_orders so ON so.order_id = ol.order_id
+    JOIN {schema}.products p ON p.product_id = ol.product_id
+    WHERE EXTRACT(YEAR FROM so.order_date) = {year}
+    EXCEPT
+    SELECT DISTINCT p.product_id, p.name
+    FROM {schema}.order_lines ol
+    JOIN {schema}.sales_orders so ON so.order_id = ol.order_id
+    JOIN {schema}.products p ON p.product_id = ol.product_id
+    WHERE EXTRACT(YEAR FROM so.order_date) = {year} - 1;
+
+- id: v2_except_vendors_lost
+  family: 16
+  difficulty: extra_hard
+  question: "Vendors who had purchase orders last year but not in {year}?"
+  tables: [purchase_orders, vendors]
+  columns: [purchase_orders.vendor_id, purchase_orders.order_date]
+  tags: [procurement, except]
+  gold_sql: |
+    SELECT DISTINCT v.vendor_id, v.name
+    FROM {schema}.purchase_orders po
+    JOIN {schema}.vendors v ON v.vendor_id = po.vendor_id
+    WHERE EXTRACT(YEAR FROM po.order_date) = {year} - 1
+    EXCEPT
+    SELECT DISTINCT v.vendor_id, v.name
+    FROM {schema}.purchase_orders po
+    JOIN {schema}.vendors v ON v.vendor_id = po.vendor_id
+    WHERE EXTRACT(YEAR FROM po.order_date) = {year};
+
+# ============================================
+# Family 17: Correlated subquery (hard)
+# ============================================
+
+- id: v2_corr_salary_above_dept_avg
+  family: 17
+  difficulty: hard
+  question: "Employees whose salary exceeds their department average?"
+  tables: [employees, employee_salaries]
+  columns: [employee_salaries.amount, employees.department_id]
+  tags: [hr, correlated_subquery]
+  gold_sql: |
+    SELECT e.first_name, e.last_name, es.amount AS salary, e.department_id
+    FROM {schema}.employees e
+    JOIN {schema}.employee_salaries es ON es.employee_id = e.employee_id
+    WHERE es.amount > (
+      SELECT AVG(es2.amount)
+      FROM {schema}.employee_salaries es2
+      JOIN {schema}.employees e2 ON e2.employee_id = es2.employee_id
+      WHERE e2.department_id = e.department_id
+    );
+
+- id: v2_corr_projects_above_avg_budget
+  family: 17
+  difficulty: hard
+  question: "Projects with total expenses exceeding the average project budget?"
+  tables: [projects, project_expenses, project_budgets]
+  columns: [project_expenses.amount, project_budgets.planned_amount]
+  tags: [projects, correlated_subquery]
+  gold_sql: |
+    SELECT p.project_id, p.name, SUM(pe.amount) AS total_expenses
+    FROM {schema}.projects p
+    JOIN {schema}.project_expenses pe ON pe.project_id = p.project_id
+    GROUP BY p.project_id, p.name
+    HAVING SUM(pe.amount) > (
+      SELECT AVG(pb.planned_amount)
+      FROM {schema}.project_budgets pb
+    );
+
+# ============================================
+# Family 18: Self-join hierarchy (extra_hard)
+# ============================================
+
+- id: v2_selfjoin_dept_parent
+  family: 18
+  difficulty: extra_hard
+  question: "List all departments with their parent department names."
+  tables: [departments]
+  columns: [departments.department_id, departments.name, departments.parent_department_id]
+  tags: [hr, self_join, hierarchy]
+  gold_sql: |
+    SELECT d.name AS department, pd.name AS parent_department
+    FROM {schema}.departments d
+    LEFT JOIN {schema}.departments pd ON pd.department_id = d.parent_department_id
+    ORDER BY d.name;
+
+- id: v2_selfjoin_bu_hierarchy
+  family: 18
+  difficulty: extra_hard
+  question: "Business units and their parent unit names?"
+  tables: [business_units]
+  columns: [business_units.unit_id, business_units.name, business_units.parent_unit_id]
+  tags: [admin, self_join, hierarchy]
+  gold_sql: |
+    SELECT bu.name AS unit, pbu.name AS parent_unit
+    FROM {schema}.business_units bu
+    LEFT JOIN {schema}.business_units pbu ON pbu.unit_id = bu.parent_unit_id
+    ORDER BY bu.name;
+
+- id: v2_selfjoin_dept_children_count
+  family: 18
+  difficulty: extra_hard
+  question: "How many sub-departments does each department have?"
+  tables: [departments]
+  columns: [departments.department_id, departments.name, departments.parent_department_id]
+  tags: [hr, self_join, hierarchy]
+  gold_sql: |
+    SELECT p.name AS department, COUNT(c.department_id) AS sub_department_count
+    FROM {schema}.departments p
+    LEFT JOIN {schema}.departments c ON c.parent_department_id = p.department_id
+    GROUP BY p.name
+    ORDER BY sub_department_count DESC;
+
+# ============================================
+# Family 19: Multi-CTE business logic (hard)
+# ============================================
+
+- id: v2_cte_vendor_delivery_perf
+  family: 19
+  difficulty: hard
+  question: "Vendor delivery performance: on-time vs late for {year}?"
+  tables: [purchase_orders, goods_receipts, vendors]
+  columns: [purchase_orders.order_date, goods_receipts.receipt_date, vendors.name]
+  tags: [procurement, cte]
+  gold_sql: |
+    WITH delivery AS (
+      SELECT v.name AS vendor,
+             CASE WHEN gr.receipt_date <= po.order_date + 14 THEN 'on_time' ELSE 'late' END AS status
+      FROM {schema}.purchase_orders po
+      JOIN {schema}.goods_receipts gr ON gr.po_id = po.po_id
+      JOIN {schema}.vendors v ON v.vendor_id = po.vendor_id
+      WHERE EXTRACT(YEAR FROM po.order_date) = {year}
+    )
+    SELECT vendor,
+           COUNT(*) FILTER (WHERE status = 'on_time') AS on_time,
+           COUNT(*) FILTER (WHERE status = 'late') AS late,
+           ROUND(100.0 * COUNT(*) FILTER (WHERE status = 'on_time') / COUNT(*), 2) AS on_time_pct
+    FROM delivery
+    GROUP BY vendor
+    ORDER BY on_time_pct DESC;
+
+- id: v2_cte_employee_turnover
+  family: 19
+  difficulty: hard
+  question: "Employee turnover rate for {year}?"
+  tables: [employees]
+  columns: [employees.termination_date, employees.hire_date]
+  tags: [hr, cte]
+  gold_sql: |
+    WITH terminations AS (
+      SELECT COUNT(*) AS term_count
+      FROM {schema}.employees
+      WHERE EXTRACT(YEAR FROM termination_date) = {year}
+    ),
+    headcount AS (
+      SELECT COUNT(*) AS headcount
+      FROM {schema}.employees
+      WHERE hire_date <= DATE '{year}-12-31'
+        AND (termination_date IS NULL OR termination_date > DATE '{year}-01-01')
+    )
+    SELECT ROUND(100.0 * t.term_count / NULLIF(h.headcount,0), 2) AS turnover_pct
+    FROM terminations t, headcount h;
+
+- id: v2_cte_working_capital
+  family: 19
+  difficulty: hard
+  question: "Working capital ratio (AR vs AP) for {year}?"
+  tables: [finance_ar_invoices, finance_ap_invoices]
+  columns: [finance_ar_invoices.amount, finance_ap_invoices.amount]
+  tags: [finance, cte]
+  gold_sql: |
+    WITH ar AS (
+      SELECT SUM(amount) AS total_ar
+      FROM {schema}.finance_ar_invoices
+      WHERE status = 'open' AND EXTRACT(YEAR FROM invoice_date) = {year}
+    ),
+    ap AS (
+      SELECT SUM(amount) AS total_ap
+      FROM {schema}.finance_ap_invoices
+      WHERE status = 'open' AND EXTRACT(YEAR FROM invoice_date) = {year}
+    )
+    SELECT ar.total_ar, ap.total_ap,
+           ROUND(ar.total_ar / NULLIF(ap.total_ap, 0), 2) AS working_capital_ratio
+    FROM ar, ap;
+
+- id: v2_cte_revenue_per_fte
+  family: 19
+  difficulty: hard
+  question: "Revenue per full-time employee by department for {year}?"
+  tables: [order_lines, sales_orders, employees, departments]
+  columns: [order_lines.quantity, order_lines.unit_price, employees.department_id]
+  tags: [sales, hr, cte]
+  gold_sql: |
+    WITH dept_revenue AS (
+      SELECT e.department_id,
+             SUM(ol.quantity * ol.unit_price) AS revenue
+      FROM {schema}.order_lines ol
+      JOIN {schema}.sales_orders so ON so.order_id = ol.order_id
+      JOIN {schema}.employees e ON e.employee_id = so.sales_rep_id
+      WHERE EXTRACT(YEAR FROM so.order_date) = {year}
+      GROUP BY e.department_id
+    ),
+    dept_fte AS (
+      SELECT department_id, COUNT(*) AS fte
+      FROM {schema}.employees
+      WHERE hire_date <= DATE '{year}-12-31'
+        AND (termination_date IS NULL OR termination_date > DATE '{year}-01-01')
+      GROUP BY department_id
+    )
+    SELECT d.name,
+           dr.revenue,
+           df.fte,
+           ROUND(dr.revenue / NULLIF(df.fte, 0), 2) AS revenue_per_fte
+    FROM dept_revenue dr
+    JOIN dept_fte df ON df.department_id = dr.department_id
+    JOIN {schema}.departments d ON d.department_id = dr.department_id
+    ORDER BY revenue_per_fte DESC;
+
+# ============================================
+# Family 20: Composite key JOIN (extra_hard)
+# ============================================
+
+- id: v2_composite_inventory_reorder
+  family: 20
+  difficulty: extra_hard
+  question: "Inventory levels with reorder status by warehouse and product?"
+  tables: [inventory_levels, reorder_rules, products, warehouses]
+  columns: [inventory_levels.quantity_on_hand, reorder_rules.min_quantity]
+  tags: [inventory, composite_key]
+  gold_sql: |
+    SELECT w.name AS warehouse, p.name AS product,
+           il.quantity_on_hand, rr.min_quantity,
+           CASE WHEN il.quantity_on_hand < rr.min_quantity THEN 'REORDER' ELSE 'OK' END AS status
+    FROM {schema}.inventory_levels il
+    JOIN {schema}.reorder_rules rr ON rr.product_id = il.product_id AND rr.warehouse_id = il.warehouse_id
+    JOIN {schema}.products p ON p.product_id = il.product_id
+    JOIN {schema}.warehouses w ON w.warehouse_id = il.warehouse_id
+    WHERE il.quantity_on_hand < rr.min_quantity;
+
+- id: v2_composite_depreciation_by_period
+  family: 20
+  difficulty: extra_hard
+  question: "Total depreciation by fiscal period for {year}?"
+  tables: [depreciation_entries, fiscal_periods]
+  columns: [depreciation_entries.amount, fiscal_periods.start_date]
+  tags: [assets, finance, composite_key]
+  gold_sql: |
+    SELECT fp.start_date, fp.end_date, SUM(de.amount) AS total_depreciation
+    FROM {schema}.depreciation_entries de
+    JOIN {schema}.fiscal_periods fp ON fp.period_id = de.period_id
+    WHERE EXTRACT(YEAR FROM fp.start_date) = {year}
+    GROUP BY fp.start_date, fp.end_date
+    ORDER BY fp.start_date;
+
+# ============================================
+# Family 21: View-like query (extra_hard)
+# ============================================
+
+- id: v2_viewlike_active_employees
+  family: 21
+  difficulty: extra_hard
+  question: "Show the current active employee roster with department and position."
+  tables: [employees, departments, positions]
+  columns: [employees.first_name, employees.last_name, departments.name, positions.title]
+  tags: [hr, view_query]
+  gold_sql: |
+    SELECT e.first_name, e.last_name, d.name AS department, p.title AS position
+    FROM {schema}.employees e
+    JOIN {schema}.departments d ON d.department_id = e.department_id
+    LEFT JOIN {schema}.positions p ON p.position_id = e.position_id
+    WHERE e.termination_date IS NULL
+    ORDER BY d.name, e.last_name;
+
+- id: v2_viewlike_open_ar_aging
+  family: 21
+  difficulty: extra_hard
+  question: "Show the open AR aging summary with customer names."
+  tables: [finance_ar_invoices, customers]
+  columns: [finance_ar_invoices.due_date, finance_ar_invoices.amount, customers.name]
+  tags: [finance, view_query]
+  gold_sql: |
+    SELECT c.name AS customer,
+      CASE
+        WHEN CURRENT_DATE - i.due_date <= 30 THEN '0-30'
+        WHEN CURRENT_DATE - i.due_date <= 60 THEN '31-60'
+        WHEN CURRENT_DATE - i.due_date <= 90 THEN '61-90'
+        ELSE '90+'
+      END AS aging_bucket,
+      SUM(i.amount) AS total_amount
+    FROM {schema}.finance_ar_invoices i
+    JOIN {schema}.customers c ON c.customer_id = i.customer_id
+    WHERE i.status = 'open'
+    GROUP BY c.name, aging_bucket
+    ORDER BY c.name, aging_bucket;
+
+# ============================================
+# Family 22: Ambiguous entity (medium)
+# ============================================
+
+- id: v2_ambig_entity_orders_quarterly
+  family: 22
+  difficulty: medium
+  question: "How many orders were placed last quarter?"
+  tables: [sales_orders]
+  columns: [sales_orders.order_date]
+  tags: [sales, ambiguous_entity]
+  gold_sql: |
+    SELECT COUNT(*) AS order_count
+    FROM {schema}.sales_orders
+    WHERE order_date >= DATE_TRUNC('quarter', CURRENT_DATE - INTERVAL '3 months')
+      AND order_date < DATE_TRUNC('quarter', CURRENT_DATE);
+
+- id: v2_ambig_entity_total_invoices
+  family: 22
+  difficulty: medium
+  question: "What is the total invoice amount for {year}?"
+  tables: [finance_ar_invoices]
+  columns: [finance_ar_invoices.amount, finance_ar_invoices.invoice_date]
+  tags: [finance, ambiguous_entity]
+  gold_sql: |
+    SELECT SUM(amount) AS total_amount
+    FROM {schema}.finance_ar_invoices
+    WHERE EXTRACT(YEAR FROM invoice_date) = {year};
+
+- id: v2_ambig_entity_employee_count
+  family: 22
+  difficulty: medium
+  question: "How many employees do we have?"
+  tables: [employees]
+  columns: [employees.employee_id]
+  tags: [hr, ambiguous_entity]
+  gold_sql: |
+    SELECT COUNT(*) AS employee_count
+    FROM {schema}.employees
+    WHERE termination_date IS NULL;
+
+- id: v2_ambig_entity_open_cases
+  family: 22
+  difficulty: medium
+  question: "How many open cases are there by priority?"
+  tables: [cust_srv_case]
+  columns: [cust_srv_case.status, cust_srv_case.priority]
+  tags: [support, ambiguous_entity]
+  gold_sql: |
+    SELECT priority, COUNT(*) AS case_count
+    FROM {schema}.cust_srv_case
+    WHERE status IN ('open','pending')
+    GROUP BY priority;
+
+# ============================================
+# Family 23: Implicit value mapping (medium)
+# ============================================
+
+- id: v2_implicit_val_open_ar
+  family: 23
+  difficulty: medium
+  question: "How many unpaid AR invoices are over {amount}?"
+  tables: [finance_ar_invoices]
+  columns: [finance_ar_invoices.amount, finance_ar_invoices.status]
+  tags: [finance, value_mapping]
+  gold_sql: |
+    SELECT COUNT(*) AS invoice_count
+    FROM {schema}.finance_ar_invoices
+    WHERE status = 'open'
+      AND amount > {amount};
+
+- id: v2_implicit_val_late_pct
+  family: 23
+  difficulty: medium
+  question: "What percentage of AR invoices were late in {year}?"
+  tables: [finance_ar_invoices]
+  columns: [finance_ar_invoices.status, finance_ar_invoices.invoice_date]
+  tags: [finance, value_mapping]
+  gold_sql: |
+    SELECT
+      ROUND(100.0 * SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) / COUNT(*), 2) AS late_pct
+    FROM {schema}.finance_ar_invoices
+    WHERE EXTRACT(YEAR FROM invoice_date) = {year};
+
+- id: v2_implicit_val_overdue_vi
+  family: 23
+  difficulty: medium
+  question: "Show all overdue vendor invoices."
+  tables: [vendor_invoices]
+  columns: [vendor_invoices.due_date, vendor_invoices.total, vendor_invoices.status]
+  tags: [procurement, value_mapping]
+  gold_sql: |
+    SELECT invoice_id, vendor_id, due_date, total, status
+    FROM {schema}.vendor_invoices
+    WHERE due_date < CURRENT_DATE AND status <> 'paid';
+
+- id: v2_implicit_val_po_approval
+  family: 23
+  difficulty: medium
+  question: "What is the purchase order approval rate for {year}?"
+  tables: [procurement_po_approvals]
+  columns: [procurement_po_approvals.status, procurement_po_approvals.approval_date]
+  tags: [procurement, value_mapping]
+  gold_sql: |
+    SELECT
+      ROUND(100.0 * SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) / COUNT(*), 2) AS approval_pct
+    FROM {schema}.procurement_po_approvals
+    WHERE EXTRACT(YEAR FROM approval_date) = {year};
+
+# ============================================
+# Family 24: Cross-module 4+ chain (hard)
+# ============================================
+
+- id: v2_cross_mod_order_to_cash
+  family: 24
+  difficulty: hard
+  question: "Order-to-cash pipeline: customers, orders, invoices, and payments for {year}?"
+  tables: [customers, sales_orders, order_lines, finance_ar_invoices, finance_ar_payments]
+  columns: [customers.name, sales_orders.order_date, finance_ar_payments.payment_date]
+  tags: [sales, finance, cross_module]
+  gold_sql: |
+    SELECT c.name AS customer,
+           so.order_id,
+           SUM(ol.quantity * ol.unit_price) AS order_total,
+           ar.invoice_number,
+           ar.amount AS invoice_amount,
+           p.payment_date,
+           p.amount AS payment_amount
+    FROM {schema}.customers c
+    JOIN {schema}.sales_orders so ON so.customer_id = c.customer_id
+    JOIN {schema}.order_lines ol ON ol.order_id = so.order_id
+    JOIN {schema}.finance_ar_invoices ar ON ar.customer_id = c.customer_id
+    LEFT JOIN {schema}.finance_ar_payments p ON p.ar_invoice_id = ar.ar_invoice_id
+    WHERE EXTRACT(YEAR FROM so.order_date) = {year}
+    GROUP BY c.name, so.order_id, ar.invoice_number, ar.amount, p.payment_date, p.amount
+    LIMIT 50;
+
+- id: v2_cross_mod_procure_to_pay
+  family: 24
+  difficulty: hard
+  question: "Procure-to-pay cycle: PO to goods receipt to vendor invoice by vendor for {year}?"
+  tables: [purchase_orders, goods_receipts, vendor_invoices, vendors]
+  columns: [purchase_orders.order_date, goods_receipts.receipt_date, vendor_invoices.invoice_date]
+  tags: [procurement, cross_module]
+  gold_sql: |
+    SELECT v.name AS vendor, po.po_id, po.order_date,
+           gr.receipt_id, gr.receipt_date,
+           vi.invoice_id, vi.invoice_date, vi.total AS invoice_total
+    FROM {schema}.purchase_orders po
+    JOIN {schema}.goods_receipts gr ON gr.po_id = po.po_id
+    JOIN {schema}.vendor_invoices vi ON vi.po_id = po.po_id
+    JOIN {schema}.vendors v ON v.vendor_id = po.vendor_id
+    WHERE EXTRACT(YEAR FROM po.order_date) = {year}
+    ORDER BY po.order_date
+    LIMIT 50;
+
+- id: v2_cross_mod_employee_cost_dept
+  family: 24
+  difficulty: hard
+  question: "Total employee cost (gross pay) per department for {year}?"
+  tables: [payroll_run_line, payroll_run_hdr, employees, departments]
+  columns: [payroll_run_line.gross_pay, employees.department_id, departments.name]
+  tags: [hr, finance, cross_module]
+  gold_sql: |
+    SELECT d.name,
+           SUM(prl.gross_pay) AS total_cost,
+           COUNT(DISTINCT prl.employee_id) AS employee_count
+    FROM {schema}.payroll_run_line prl
+    JOIN {schema}.payroll_run_hdr prh ON prh.run_id = prl.run_id
+    JOIN {schema}.employees e ON e.employee_id = prl.employee_id
+    JOIN {schema}.departments d ON d.department_id = e.department_id
+    WHERE EXTRACT(YEAR FROM prh.pay_period_start) = {year}
+    GROUP BY d.name
+    ORDER BY total_cost DESC;
+
+# ============================================
+# Family 25: HAVING filter (medium)
+# ============================================
+
+- id: v2_having_dept_headcount
+  family: 25
+  difficulty: medium
+  question: "Departments with more than 50 employees?"
+  tables: [employees, departments]
+  columns: [employees.department_id, departments.name]
+  tags: [hr, having]
+  gold_sql: |
+    SELECT d.name, COUNT(*) AS headcount
+    FROM {schema}.employees e
+    JOIN {schema}.departments d ON d.department_id = e.department_id
+    WHERE e.termination_date IS NULL
+    GROUP BY d.name
+    HAVING COUNT(*) > 50;
+
+- id: v2_having_vendors_multi_po
+  family: 25
+  difficulty: medium
+  question: "Vendors with more than 10 purchase orders in {year}?"
+  tables: [purchase_orders, vendors]
+  columns: [purchase_orders.order_date, vendors.name]
+  tags: [procurement, having]
+  gold_sql: |
+    SELECT v.name, COUNT(*) AS po_count
+    FROM {schema}.purchase_orders po
+    JOIN {schema}.vendors v ON v.vendor_id = po.vendor_id
+    WHERE EXTRACT(YEAR FROM po.order_date) = {year}
+    GROUP BY v.name
+    HAVING COUNT(*) > 10
+    ORDER BY po_count DESC;
+
+- id: v2_having_products_high_volume
+  family: 25
+  difficulty: medium
+  question: "Products with more than {amount} total units sold in {year}?"
+  tables: [order_lines, sales_orders, products]
+  columns: [order_lines.quantity, products.name]
+  tags: [sales, having]
+  gold_sql: |
+    SELECT p.name, SUM(ol.quantity) AS total_units
+    FROM {schema}.order_lines ol
+    JOIN {schema}.sales_orders so ON so.order_id = ol.order_id
+    JOIN {schema}.products p ON p.product_id = ol.product_id
+    WHERE EXTRACT(YEAR FROM so.order_date) = {year}
+    GROUP BY p.name
+    HAVING SUM(ol.quantity) > {amount}
+    ORDER BY total_units DESC;
+
+- id: v2_having_customers_high_value
+  family: 25
+  difficulty: medium
+  question: "Customers with total order value exceeding {amount} in {year}?"
+  tables: [sales_orders, order_lines, customers]
+  columns: [order_lines.quantity, order_lines.unit_price, customers.name]
+  tags: [sales, having]
+  gold_sql: |
+    SELECT c.name, SUM(ol.quantity * ol.unit_price) AS total_value
+    FROM {schema}.sales_orders so
+    JOIN {schema}.order_lines ol ON ol.order_id = so.order_id
+    JOIN {schema}.customers c ON c.customer_id = so.customer_id
+    WHERE EXTRACT(YEAR FROM so.order_date) = {year}
+    GROUP BY c.name
+    HAVING SUM(ol.quantity * ol.unit_price) > {amount}
+    ORDER BY total_value DESC;
+
+# ============================================
+# Family 26: CASE bucketing (hard)
+# ============================================
+
+- id: v2_case_vendor_spend_class
+  family: 26
+  difficulty: hard
+  question: "Classify vendors as strategic, preferred, or standard based on total spend in {year}?"
+  tables: [purchase_orders, vendors]
+  columns: [purchase_orders.total, vendors.name]
+  tags: [procurement, case_bucket]
+  gold_sql: |
+    SELECT v.name, SUM(po.total) AS total_spend,
+      CASE
+        WHEN SUM(po.total) > 100000 THEN 'strategic'
+        WHEN SUM(po.total) > 25000 THEN 'preferred'
+        ELSE 'standard'
+      END AS classification
+    FROM {schema}.purchase_orders po
+    JOIN {schema}.vendors v ON v.vendor_id = po.vendor_id
+    WHERE EXTRACT(YEAR FROM po.order_date) = {year}
+    GROUP BY v.name
+    ORDER BY total_spend DESC;
+
+- id: v2_case_aged_ar_buckets
+  family: 26
+  difficulty: hard
+  question: "Aged AR receivables in buckets (0-30, 31-60, 61-90, 90+) for {year}?"
+  tables: [finance_ar_invoices]
+  columns: [finance_ar_invoices.due_date, finance_ar_invoices.amount, finance_ar_invoices.status]
+  tags: [finance, case_bucket]
+  gold_sql: |
+    SELECT
+      CASE
+        WHEN CURRENT_DATE - due_date <= 30 THEN '0-30'
+        WHEN CURRENT_DATE - due_date <= 60 THEN '31-60'
+        WHEN CURRENT_DATE - due_date <= 90 THEN '61-90'
+        ELSE '90+'
+      END AS aging_bucket,
+      COUNT(*) AS invoice_count,
+      SUM(amount) AS total_amount
+    FROM {schema}.finance_ar_invoices
+    WHERE status = 'open'
+      AND EXTRACT(YEAR FROM invoice_date) = {year}
+    GROUP BY aging_bucket
+    ORDER BY aging_bucket;
+
+- id: v2_case_customer_segment
+  family: 26
+  difficulty: hard
+  question: "Segment customers by credit limit: premium, standard, or basic?"
+  tables: [customers]
+  columns: [customers.credit_limit, customers.name]
+  tags: [sales, case_bucket]
+  gold_sql: |
+    SELECT
+      CASE
+        WHEN credit_limit > 50000 THEN 'premium'
+        WHEN credit_limit > 10000 THEN 'standard'
+        ELSE 'basic'
+      END AS segment,
+      COUNT(*) AS customer_count,
+      ROUND(AVG(credit_limit), 2) AS avg_credit_limit
+    FROM {schema}.customers
+    GROUP BY segment
+    ORDER BY avg_credit_limit DESC;
+
+# ============================================
+# Family 27: Dirty naming (medium)
+# ============================================
+
+- id: v2_dirty_mfg_wo_status
+  family: 27
+  difficulty: medium
+  question: "Work order count by status in manufacturing division {schema}?"
+  tables: [xx_mfg_wo, lookup_codes]
+  columns: [xx_mfg_wo.sts_cd, lookup_codes.meaning]
+  tags: [manufacturing, dirty_naming, lookup]
+  archetype: manufacturing
+  gold_sql: |
+    SELECT lc.meaning AS status, COUNT(*) AS wo_count
+    FROM {schema}.xx_mfg_wo wo
+    JOIN {schema}.lookup_codes lc ON lc.code = wo.sts_cd AND lc.domain = 'WO_STATUS'
+    GROUP BY lc.meaning
+    ORDER BY wo_count DESC;
+
+- id: v2_dirty_svc_sow_value
+  family: 27
+  difficulty: medium
+  question: "Total contract value by customer for services division {schema}?"
+  tables: [zz_svc_sow, customers]
+  columns: [zz_svc_sow.tot_amt, zz_svc_sow.cust_nbr, customers.name]
+  tags: [services, dirty_naming]
+  archetype: services
+  gold_sql: |
+    SELECT c.name, SUM(sow.tot_amt) AS total_value, COUNT(*) AS sow_count
+    FROM {schema}.zz_svc_sow sow
+    JOIN {schema}.customers c ON c.customer_id = sow.cust_nbr
+    GROUP BY c.name
+    ORDER BY total_value DESC
+    LIMIT 10;
+
+- id: v2_dirty_rtl_pos_sales
+  family: 27
+  difficulty: medium
+  question: "Total POS sales by payment method for retail division {schema}?"
+  tables: [zz_pos_trnx]
+  columns: [zz_pos_trnx.pay_mthd_cd, zz_pos_trnx.tot_amt]
+  tags: [retail, dirty_naming]
+  archetype: retail
+  gold_sql: |
+    SELECT pay_mthd_cd, COUNT(*) AS txn_count,
+           SUM(tot_amt) AS total_sales
+    FROM {schema}.zz_pos_trnx
+    GROUP BY pay_mthd_cd
+    ORDER BY total_sales DESC;
+
+# ============================================
+# Family 28: Date arithmetic (medium)
+# ============================================
+
+- id: v2_date_po_to_receipt
+  family: 28
+  difficulty: medium
+  question: "Average days from PO to goods receipt by vendor in {year}?"
+  tables: [purchase_orders, goods_receipts, vendors]
+  columns: [purchase_orders.order_date, goods_receipts.receipt_date, vendors.name]
+  tags: [procurement, date_arithmetic]
+  gold_sql: |
+    SELECT v.name, ROUND(AVG(gr.receipt_date - po.order_date), 2) AS avg_days
+    FROM {schema}.purchase_orders po
+    JOIN {schema}.goods_receipts gr ON gr.po_id = po.po_id
+    JOIN {schema}.vendors v ON v.vendor_id = po.vendor_id
+    WHERE EXTRACT(YEAR FROM po.order_date) = {year}
+    GROUP BY v.name
+    ORDER BY avg_days;
+
+- id: v2_date_rfq_response
+  family: 28
+  difficulty: medium
+  question: "Average days from RFQ to vendor response in {year}?"
+  tables: [procurement_rfqs, procurement_rfq_responses]
+  columns: [procurement_rfqs.rfq_date, procurement_rfq_responses.response_date]
+  tags: [procurement, date_arithmetic]
+  gold_sql: |
+    SELECT ROUND(AVG(r.response_date - q.rfq_date), 2) AS avg_days
+    FROM {schema}.procurement_rfqs q
+    JOIN {schema}.procurement_rfq_responses r ON r.rfq_id = q.rfq_id
+    WHERE EXTRACT(YEAR FROM q.rfq_date) = {year};
+
+- id: v2_date_req_to_po
+  family: 28
+  difficulty: medium
+  question: "Average days from requisition to purchase order for {year}?"
+  tables: [purchase_requisitions, purchase_orders]
+  columns: [purchase_requisitions.request_date, purchase_orders.order_date]
+  tags: [procurement, date_arithmetic]
+  gold_sql: |
+    SELECT ROUND(AVG(po.order_date - pr.request_date), 2) AS avg_days
+    FROM {schema}.purchase_requisitions pr
+    JOIN {schema}.purchase_orders po ON po.requisition_id = pr.requisition_id
+    WHERE EXTRACT(YEAR FROM pr.request_date) = {year};
+
+- id: v2_date_vendor_invoice_aging
+  family: 28
+  difficulty: medium
+  question: "Average days between vendor invoice date and due date by vendor?"
+  tables: [vendor_invoices, vendors]
+  columns: [vendor_invoices.invoice_date, vendor_invoices.due_date]
+  tags: [procurement, date_arithmetic]
+  gold_sql: |
+    SELECT v.name, ROUND(AVG(vi.due_date - vi.invoice_date)::numeric, 2) AS avg_days
+    FROM {schema}.vendor_invoices vi
+    JOIN {schema}.vendors v ON v.vendor_id = vi.vendor_id
+    GROUP BY v.name
+    ORDER BY avg_days DESC;
+
+# ============================================
+# Family 29: Rate calculation (medium)
+# ============================================
+
+- id: v2_rate_sla_resolution
+  family: 29
+  difficulty: medium
+  question: "Average time to close support cases in {year}?"
+  tables: [cust_srv_case]
+  columns: [cust_srv_case.opened_at, cust_srv_case.updated_at]
+  tags: [support, rate]
+  gold_sql: |
+    SELECT ROUND(AVG(EXTRACT(EPOCH FROM (updated_at - opened_at)) / 3600), 2) AS avg_close_hours
+    FROM {schema}.cust_srv_case
+    WHERE status = 'closed'
+      AND EXTRACT(YEAR FROM opened_at) = {year};
+
+- id: v2_rate_qc_fail
+  family: 29
+  difficulty: medium
+  question: "QC failure rate for inventory inspections in {year}?"
+  tables: [inventory_qc_inspections]
+  columns: [inventory_qc_inspections.result, inventory_qc_inspections.inspection_date]
+  tags: [inventory, rate]
+  gold_sql: |
+    SELECT
+      ROUND(100.0 * SUM(CASE WHEN result = 'fail' THEN 1 ELSE 0 END) / COUNT(*), 2) AS fail_pct
+    FROM {schema}.inventory_qc_inspections
+    WHERE EXTRACT(YEAR FROM inspection_date) = {year};
+
+- id: v2_rate_quote_conversion
+  family: 29
+  difficulty: medium
+  question: "Quote-to-order conversion rate for {year}?"
+  tables: [sales_quotes, sales_orders]
+  columns: [sales_quotes.quote_date, sales_orders.order_date]
+  tags: [sales, rate]
+  gold_sql: |
+    SELECT
+      ROUND(100.0 * COUNT(DISTINCT so.order_id) / NULLIF(COUNT(DISTINCT sq.quote_id),0), 2) AS conversion_pct
+    FROM {schema}.sales_quotes sq
+    LEFT JOIN {schema}.sales_orders so ON so.customer_id = sq.customer_id
+    WHERE EXTRACT(YEAR FROM sq.quote_date) = {year};
+
+- id: v2_rate_employee_utilization
+  family: 29
+  difficulty: medium
+  question: "Employee utilization rate by week in {year}?"
+  tables: [timesheet_entries, timesheets, employees]
+  columns: [timesheet_entries.hours, timesheets.week_start_date]
+  tags: [projects, hr, rate]
+  gold_sql: |
+    SELECT e.employee_id, DATE_TRUNC('week', t.week_start_date) AS week_start,
+           ROUND(SUM(te.hours) / 40.0, 2) AS utilization
+    FROM {schema}.timesheets t
+    JOIN {schema}.timesheet_entries te ON te.timesheet_id = t.timesheet_id
+    JOIN {schema}.employees e ON e.employee_id = t.employee_id
+    WHERE EXTRACT(YEAR FROM t.week_start_date) = {year}
+    GROUP BY e.employee_id, week_start;
+
+# ============================================
+# Family 30: Pivoted output (extra_hard)
+# ============================================
+
+- id: v2_pivot_quarterly_revenue
+  family: 30
+  difficulty: extra_hard
+  question: "Show {year} revenue as columns Q1, Q2, Q3, Q4?"
+  tables: [order_lines, sales_orders]
+  columns: [order_lines.quantity, order_lines.unit_price, sales_orders.order_date]
+  tags: [sales, pivot]
+  gold_sql: |
+    SELECT
+      SUM(CASE WHEN EXTRACT(QUARTER FROM so.order_date) = 1 THEN ol.quantity * ol.unit_price ELSE 0 END) AS q1,
+      SUM(CASE WHEN EXTRACT(QUARTER FROM so.order_date) = 2 THEN ol.quantity * ol.unit_price ELSE 0 END) AS q2,
+      SUM(CASE WHEN EXTRACT(QUARTER FROM so.order_date) = 3 THEN ol.quantity * ol.unit_price ELSE 0 END) AS q3,
+      SUM(CASE WHEN EXTRACT(QUARTER FROM so.order_date) = 4 THEN ol.quantity * ol.unit_price ELSE 0 END) AS q4
+    FROM {schema}.order_lines ol
+    JOIN {schema}.sales_orders so ON so.order_id = ol.order_id
+    WHERE EXTRACT(YEAR FROM so.order_date) = {year};
+
+- id: v2_pivot_monthly_hires
+  family: 30
+  difficulty: extra_hard
+  question: "Number of hires per month in {year} displayed as columns Jan through Dec?"
+  tables: [employees]
+  columns: [employees.hire_date]
+  tags: [hr, pivot]
+  gold_sql: |
+    SELECT
+      SUM(CASE WHEN EXTRACT(MONTH FROM hire_date) = 1 THEN 1 ELSE 0 END) AS jan,
+      SUM(CASE WHEN EXTRACT(MONTH FROM hire_date) = 2 THEN 1 ELSE 0 END) AS feb,
+      SUM(CASE WHEN EXTRACT(MONTH FROM hire_date) = 3 THEN 1 ELSE 0 END) AS mar,
+      SUM(CASE WHEN EXTRACT(MONTH FROM hire_date) = 4 THEN 1 ELSE 0 END) AS apr,
+      SUM(CASE WHEN EXTRACT(MONTH FROM hire_date) = 5 THEN 1 ELSE 0 END) AS may,
+      SUM(CASE WHEN EXTRACT(MONTH FROM hire_date) = 6 THEN 1 ELSE 0 END) AS jun,
+      SUM(CASE WHEN EXTRACT(MONTH FROM hire_date) = 7 THEN 1 ELSE 0 END) AS jul,
+      SUM(CASE WHEN EXTRACT(MONTH FROM hire_date) = 8 THEN 1 ELSE 0 END) AS aug,
+      SUM(CASE WHEN EXTRACT(MONTH FROM hire_date) = 9 THEN 1 ELSE 0 END) AS sep,
+      SUM(CASE WHEN EXTRACT(MONTH FROM hire_date) = 10 THEN 1 ELSE 0 END) AS oct,
+      SUM(CASE WHEN EXTRACT(MONTH FROM hire_date) = 11 THEN 1 ELSE 0 END) AS nov,
+      SUM(CASE WHEN EXTRACT(MONTH FROM hire_date) = 12 THEN 1 ELSE 0 END) AS dec
+    FROM {schema}.employees
+    WHERE EXTRACT(YEAR FROM hire_date) = {year};
+
+# ============================================
+# Family 31: Recursive CTE (extra_hard)
+# ============================================
+
+- id: v2_recursive_dept_hierarchy
+  family: 31
+  difficulty: extra_hard
+  question: "All sub-departments under Finance at any level?"
+  tables: [departments]
+  columns: [departments.department_id, departments.name, departments.parent_department_id]
+  tags: [hr, recursive, hierarchy]
+  gold_sql: |
+    WITH RECURSIVE dept_tree AS (
+      SELECT department_id, name, parent_department_id, 1 AS level
+      FROM {schema}.departments
+      WHERE name = 'Finance'
+      UNION ALL
+      SELECT d.department_id, d.name, d.parent_department_id, dt.level + 1
+      FROM {schema}.departments d
+      JOIN dept_tree dt ON dt.department_id = d.parent_department_id
+    )
+    SELECT name, level
+    FROM dept_tree
+    WHERE level > 1
+    ORDER BY level, name;
+
+- id: v2_recursive_bu_hierarchy
+  family: 31
+  difficulty: extra_hard
+  question: "Full business unit hierarchy from the top level?"
+  tables: [business_units]
+  columns: [business_units.unit_id, business_units.name, business_units.parent_unit_id]
+  tags: [admin, recursive, hierarchy]
+  gold_sql: |
+    WITH RECURSIVE bu_tree AS (
+      SELECT unit_id, name, parent_unit_id, 1 AS level
+      FROM {schema}.business_units
+      WHERE parent_unit_id IS NULL
+      UNION ALL
+      SELECT bu.unit_id, bu.name, bu.parent_unit_id, bt.level + 1
+      FROM {schema}.business_units bu
+      JOIN bu_tree bt ON bt.unit_id = bu.parent_unit_id
+    )
+    SELECT name, level
+    FROM bu_tree
+    ORDER BY level, name;
+
+# ============================================
+# Family 32: Scalar correlated subquery (hard)
+# ============================================
+
+- id: v2_scalar_corr_late_deliveries
+  family: 32
+  difficulty: hard
+  question: "Vendors with more than 3 late deliveries in {year}?"
+  tables: [purchase_orders, goods_receipts, vendors]
+  columns: [purchase_orders.order_date, goods_receipts.receipt_date]
+  tags: [procurement, correlated_subquery]
+  gold_sql: |
+    SELECT v.vendor_id, v.name,
+           (SELECT COUNT(*)
+            FROM {schema}.purchase_orders po
+            JOIN {schema}.goods_receipts gr ON gr.po_id = po.po_id
+            WHERE po.vendor_id = v.vendor_id
+              AND gr.receipt_date > po.order_date + 14
+              AND EXTRACT(YEAR FROM po.order_date) = {year}
+           ) AS late_count
+    FROM {schema}.vendors v
+    WHERE (SELECT COUNT(*)
+           FROM {schema}.purchase_orders po
+           JOIN {schema}.goods_receipts gr ON gr.po_id = po.po_id
+           WHERE po.vendor_id = v.vendor_id
+             AND gr.receipt_date > po.order_date + 14
+             AND EXTRACT(YEAR FROM po.order_date) = {year}
+          ) > 3;
+
+- id: v2_scalar_corr_depts_over_budget
+  family: 32
+  difficulty: hard
+  question: "Departments where actual expenses exceed budget?"
+  tables: [budgets, project_expenses, departments]
+  columns: [budgets.total_amount, project_expenses.amount]
+  tags: [finance, correlated_subquery]
+  gold_sql: |
+    SELECT d.name, b.total_amount AS budget,
+           (SELECT COALESCE(SUM(pe.amount), 0)
+            FROM {schema}.project_expenses pe
+            JOIN {schema}.projects p ON p.project_id = pe.project_id
+            WHERE p.customer_id IS NOT NULL
+           ) AS actual_spend
+    FROM {schema}.budgets b
+    JOIN {schema}.departments d ON d.department_id = b.department_id
+    WHERE b.total_amount < (
+      SELECT COALESCE(SUM(pe.amount), 0)
+      FROM {schema}.project_expenses pe
+    );
+
+# ============================================
+# Family 33: Multi-hop hidden path (extra_hard)
+# ============================================
+
+- id: v2_multihop_customer_country
+  family: 33
+  difficulty: extra_hard
+  question: "What country are our highest-revenue customers from?"
+  tables: [customers, addresses, cities, states_provinces, countries, sales_orders, order_lines]
+  columns: [customers.billing_address_id, countries.name]
+  tags: [sales, geography, multi_hop]
+  gold_sql: |
+    SELECT co.name AS country, c.name AS customer,
+           SUM(ol.quantity * ol.unit_price) AS revenue
+    FROM {schema}.customers c
+    JOIN {schema}.sales_orders so ON so.customer_id = c.customer_id
+    JOIN {schema}.order_lines ol ON ol.order_id = so.order_id
+    LEFT JOIN {schema}.addresses a ON a.address_id = c.billing_address_id
+    LEFT JOIN {schema}.cities ci ON ci.city_id = a.city_id
+    LEFT JOIN {schema}.states_provinces sp ON sp.state_id = ci.state_id
+    LEFT JOIN {schema}.countries co ON co.country_id = sp.country_id
+    GROUP BY co.name, c.name
+    ORDER BY revenue DESC
+    LIMIT 10;
+
+- id: v2_multihop_sales_by_state
+  family: 33
+  difficulty: extra_hard
+  question: "Sales order count by state for {year}?"
+  tables: [sales_orders, customers, addresses, cities, states_provinces]
+  columns: [sales_orders.order_date, states_provinces.name]
+  tags: [sales, geography, multi_hop]
+  gold_sql: |
+    SELECT s.name AS state, COUNT(*) AS order_count
+    FROM {schema}.sales_orders so
+    JOIN {schema}.customers c ON c.customer_id = so.customer_id
+    LEFT JOIN {schema}.addresses a ON a.address_id = c.billing_address_id
+    LEFT JOIN {schema}.cities ci ON ci.city_id = a.city_id
+    LEFT JOIN {schema}.states_provinces s ON s.state_id = ci.state_id
+    WHERE EXTRACT(YEAR FROM so.order_date) = {year}
+    GROUP BY s.name
+    ORDER BY order_count DESC;
+
+# ============================================
+# Family 34: Year-over-year comparison (hard)
+# ============================================
+
+- id: v2_yoy_sales_growth
+  family: 34
+  difficulty: hard
+  question: "Year-over-year sales growth comparing {year} to the prior year?"
+  tables: [order_lines, sales_orders]
+  columns: [order_lines.quantity, order_lines.unit_price, sales_orders.order_date]
+  tags: [sales, temporal, yoy]
+  gold_sql: |
+    WITH yearly AS (
+      SELECT EXTRACT(YEAR FROM so.order_date) AS yr,
+             SUM(ol.quantity * ol.unit_price) AS total_sales
+      FROM {schema}.order_lines ol
+      JOIN {schema}.sales_orders so ON so.order_id = ol.order_id
+      WHERE EXTRACT(YEAR FROM so.order_date) IN ({year}, {year} - 1)
+      GROUP BY yr
+    )
+    SELECT
+      cur.total_sales AS current_year_sales,
+      prev.total_sales AS prior_year_sales,
+      ROUND(100.0 * (cur.total_sales - prev.total_sales) / NULLIF(prev.total_sales, 0), 2) AS growth_pct
+    FROM yearly cur
+    JOIN yearly prev ON cur.yr = prev.yr + 1;
+
+- id: v2_yoy_po_volume
+  family: 34
+  difficulty: hard
+  question: "Year-over-year purchase order count change comparing {year} vs prior year?"
+  tables: [purchase_orders]
+  columns: [purchase_orders.order_date]
+  tags: [procurement, temporal, yoy]
+  gold_sql: |
+    WITH yearly AS (
+      SELECT EXTRACT(YEAR FROM order_date) AS yr, COUNT(*) AS po_count
+      FROM {schema}.purchase_orders
+      WHERE EXTRACT(YEAR FROM order_date) IN ({year}, {year} - 1)
+      GROUP BY yr
+    )
+    SELECT
+      cur.po_count AS current_year,
+      prev.po_count AS prior_year,
+      cur.po_count - prev.po_count AS change,
+      ROUND(100.0 * (cur.po_count - prev.po_count) / NULLIF(prev.po_count, 0), 2) AS change_pct
+    FROM yearly cur
+    JOIN yearly prev ON cur.yr = prev.yr + 1;
+
+- id: v2_yoy_headcount
+  family: 34
+  difficulty: hard
+  question: "Year-over-year headcount comparison for {year} vs prior year?"
+  tables: [employees]
+  columns: [employees.hire_date, employees.termination_date]
+  tags: [hr, temporal, yoy]
+  gold_sql: |
+    WITH yearly AS (
+      SELECT {year} AS yr, COUNT(*) AS hc
+      FROM {schema}.employees
+      WHERE hire_date <= DATE '{year}-12-31'
+        AND (termination_date IS NULL OR termination_date > DATE '{year}-01-01')
+      UNION ALL
+      SELECT {year} - 1 AS yr, COUNT(*) AS hc
+      FROM {schema}.employees
+      WHERE hire_date <= DATE '{year}-01-01'
+        AND (termination_date IS NULL OR termination_date > DATE (({year}-1)::TEXT || '-01-01'))
+    )
+    SELECT * FROM yearly ORDER BY yr;
+
+# ============================================
+# Family 35: Mixed aggregation levels (hard)
+# ============================================
+
+- id: v2_mixed_agg_salary_vs_dept_avg
+  family: 35
+  difficulty: hard
+  question: "Each employee's salary alongside their department average?"
+  tables: [employees, employee_salaries, departments]
+  columns: [employee_salaries.amount, employees.department_id, departments.name]
+  tags: [hr, mixed_aggregation]
+  gold_sql: |
+    SELECT e.first_name, e.last_name, d.name AS department,
+           es.amount AS salary,
+           AVG(es.amount) OVER (PARTITION BY e.department_id) AS dept_avg_salary
+    FROM {schema}.employees e
+    JOIN {schema}.employee_salaries es ON es.employee_id = e.employee_id
+    JOIN {schema}.departments d ON d.department_id = e.department_id;
+
+- id: v2_mixed_agg_order_vs_customer_avg
+  family: 35
+  difficulty: hard
+  question: "Each order total alongside the customer's average order value for {year}?"
+  tables: [sales_orders, order_lines, customers]
+  columns: [order_lines.quantity, order_lines.unit_price, customers.name]
+  tags: [sales, mixed_aggregation]
+  gold_sql: |
+    WITH order_totals AS (
+      SELECT so.order_id, so.customer_id, SUM(ol.quantity * ol.unit_price) AS order_total
+      FROM {schema}.sales_orders so
+      JOIN {schema}.order_lines ol ON ol.order_id = so.order_id
+      WHERE EXTRACT(YEAR FROM so.order_date) = {year}
+      GROUP BY so.order_id, so.customer_id
+    )
+    SELECT c.name AS customer, ot.order_id, ot.order_total,
+           AVG(ot.order_total) OVER (PARTITION BY ot.customer_id) AS customer_avg
+    FROM order_totals ot
+    JOIN {schema}.customers c ON c.customer_id = ot.customer_id
+    ORDER BY c.name, ot.order_id;
+
+- id: v2_mixed_agg_expense_vs_project_avg
+  family: 35
+  difficulty: hard
+  question: "Each project expense alongside the project's average expense?"
+  tables: [project_expenses, projects]
+  columns: [project_expenses.amount, projects.name]
+  tags: [projects, mixed_aggregation]
+  gold_sql: |
+    SELECT p.name AS project, pe.expense_date, pe.amount,
+           AVG(pe.amount) OVER (PARTITION BY pe.project_id) AS project_avg_expense
+    FROM {schema}.project_expenses pe
+    JOIN {schema}.projects p ON p.project_id = pe.project_id
+    ORDER BY p.name, pe.expense_date;
+
+# ============================================
+# Family A1: Underspecified entity (ambiguous)
+# ============================================
+
+- id: v2_ambig_a1_show_accounts
+  family: A1
+  difficulty: ambiguous
+  question: "Show me the accounts."
+  tables: []
+  columns: []
+  tags: [ambiguous, underspecified]
+  gold_sql: "AMBIGUOUS"
+
+- id: v2_ambig_a1_list_transactions
+  family: A1
+  difficulty: ambiguous
+  question: "List all transactions."
+  tables: []
+  columns: []
+  tags: [ambiguous, underspecified]
+  gold_sql: "AMBIGUOUS"
+
+- id: v2_ambig_a1_show_records
+  family: A1
+  difficulty: ambiguous
+  question: "Show me the latest records."
+  tables: []
+  columns: []
+  tags: [ambiguous, underspecified]
+  gold_sql: "AMBIGUOUS"
+
+- id: v2_ambig_a1_how_many_items
+  family: A1
+  difficulty: ambiguous
+  question: "How many items do we have?"
+  tables: []
+  columns: []
+  tags: [ambiguous, underspecified]
+  gold_sql: "AMBIGUOUS"
+
+# ============================================
+# Family A2: Missing domain context (ambiguous)
+# ============================================
+
+- id: v2_ambig_a2_current_balance
+  family: A2
+  difficulty: ambiguous
+  question: "What's the current balance?"
+  tables: []
+  columns: []
+  tags: [ambiguous, missing_context]
+  gold_sql: "AMBIGUOUS"
+
+- id: v2_ambig_a2_whats_the_total
+  family: A2
+  difficulty: ambiguous
+  question: "What's the total for this month?"
+  tables: []
+  columns: []
+  tags: [ambiguous, missing_context]
+  gold_sql: "AMBIGUOUS"
+
+- id: v2_ambig_a2_show_status
+  family: A2
+  difficulty: ambiguous
+  question: "What's the current status?"
+  tables: []
+  columns: []
+  tags: [ambiguous, missing_context]
+  gold_sql: "AMBIGUOUS"
+
+# ============================================
+# Family A3: Cross-division ambiguity (ambiguous)
+# ============================================
+
+- id: v2_ambig_a3_headcount_by_dept
+  family: A3
+  difficulty: ambiguous
+  question: "Show employee headcount by department."
+  tables: []
+  columns: []
+  tags: [ambiguous, cross_division]
+  gold_sql: "AMBIGUOUS"
+
+- id: v2_ambig_a3_revenue_by_region
+  family: A3
+  difficulty: ambiguous
+  question: "What's our revenue by region?"
+  tables: []
+  columns: []
+  tags: [ambiguous, cross_division]
+  gold_sql: "AMBIGUOUS"
+
+- id: v2_ambig_a3_show_all_orders
+  family: A3
+  difficulty: ambiguous
+  question: "Show all orders across divisions."
+  tables: []
+  columns: []
+  tags: [ambiguous, cross_division]
+  gold_sql: "AMBIGUOUS"
+
+# ============================================
+# Family A4: Unanswerable from data (ambiguous)
+# ============================================
+
+- id: v2_ambig_a4_csat_score
+  family: A4
+  difficulty: ambiguous
+  question: "What's our customer satisfaction score?"
+  tables: []
+  columns: []
+  tags: [ambiguous, unanswerable]
+  gold_sql: "AMBIGUOUS"
+
+- id: v2_ambig_a4_market_share
+  family: A4
+  difficulty: ambiguous
+  question: "What is our market share by product category?"
+  tables: []
+  columns: []
+  tags: [ambiguous, unanswerable]
+  gold_sql: "AMBIGUOUS"
+
+- id: v2_ambig_a4_competitor_pricing
+  family: A4
+  difficulty: ambiguous
+  question: "How does our pricing compare to competitors?"
+  tables: []
+  columns: []
+  tags: [ambiguous, unanswerable]
+  gold_sql: "AMBIGUOUS"
+
+# ============================================
+# Additional templates for coverage targets
+# ============================================
+
+# --- More Easy templates ---
+
+- id: v2_lookup_bank_balance
+  family: 1
+  difficulty: easy
+  question: "Bank accounts with balance under {amount}?"
+  tables: [bank_accounts]
+  columns: [bank_accounts.current_balance]
+  tags: [finance, lookup]
+  gold_sql: |
+    SELECT bank_account_id, account_number, bank_name, current_balance
+    FROM {schema}.bank_accounts
+    WHERE current_balance < {amount};
+
+- id: v2_lookup_expiring_lots
+  family: 1
+  difficulty: easy
+  question: "Inventory lots expiring within 60 days?"
+  tables: [inventory_lots]
+  columns: [inventory_lots.expiration_date, inventory_lots.lot_number]
+  tags: [inventory, lookup]
+  gold_sql: |
+    SELECT lot_id, lot_number, expiration_date
+    FROM {schema}.inventory_lots
+    WHERE expiration_date <= CURRENT_DATE + INTERVAL '60 days';
+
+- id: v2_lookup_submitted_timesheets
+  family: 1
+  difficulty: easy
+  question: "Timesheets awaiting approval in {year}?"
+  tables: [timesheets]
+  columns: [timesheets.status, timesheets.week_start_date]
+  tags: [projects, lookup]
+  gold_sql: |
+    SELECT timesheet_id, employee_id, week_start_date, status
+    FROM {schema}.timesheets
+    WHERE status = 'submitted'
+      AND EXTRACT(YEAR FROM week_start_date) = {year};
+
+- id: v2_agg_payroll_by_period
+  family: 2
+  difficulty: easy
+  question: "Total net pay by pay period for {year}?"
+  tables: [payroll_run_hdr, payroll_run_line]
+  columns: [payroll_run_hdr.pay_period_start, payroll_run_line.net_pay]
+  tags: [hr, payroll, aggregation]
+  gold_sql: |
+    SELECT h.pay_period_start, h.pay_period_end, SUM(l.net_pay) AS total_net_pay
+    FROM {schema}.payroll_run_hdr h
+    JOIN {schema}.payroll_run_line l ON l.run_id = h.run_id
+    WHERE EXTRACT(YEAR FROM h.pay_period_start) = {year}
+    GROUP BY h.pay_period_start, h.pay_period_end
+    ORDER BY h.pay_period_start;
+
+- id: v2_leftjoin_warehouses_no_locations
+  family: 11
+  difficulty: easy
+  question: "Warehouses with no defined locations?"
+  tables: [warehouses, warehouse_locations]
+  columns: [warehouses.warehouse_id, warehouses.name]
+  tags: [inventory, left_join]
+  gold_sql: |
+    SELECT w.warehouse_id, w.name
+    FROM {schema}.warehouses w
+    LEFT JOIN {schema}.warehouse_locations wl ON wl.warehouse_id = w.warehouse_id
+    WHERE wl.location_id IS NULL;
+
+- id: v2_leftjoin_projects_no_milestones
+  family: 11
+  difficulty: easy
+  question: "Projects that have no milestones defined?"
+  tables: [projects, project_milestones]
+  columns: [projects.project_id, projects.name]
+  tags: [projects, left_join]
+  gold_sql: |
+    SELECT p.project_id, p.name
+    FROM {schema}.projects p
+    LEFT JOIN {schema}.project_milestones pm ON pm.project_id = p.project_id
+    WHERE pm.milestone_id IS NULL;
+
+# --- More Medium templates ---
+
+- id: v2_join_val_headcount_by_dept
+  family: 3
+  difficulty: medium
+  question: "Employee headcount by department for {year}?"
+  tables: [employees, departments]
+  columns: [employees.department_id, departments.name]
+  tags: [hr, value_grounding]
+  gold_sql: |
+    SELECT d.name, COUNT(*) AS headcount
+    FROM {schema}.employees e
+    JOIN {schema}.departments d ON d.department_id = e.department_id
+    WHERE EXTRACT(YEAR FROM e.hire_date) <= {year}
+    GROUP BY d.name
+    ORDER BY headcount DESC;
+
+- id: v2_topn_expense_categories
+  family: 4
+  difficulty: medium
+  question: "Top expense categories by total spend in {year}?"
+  tables: [project_expenses]
+  columns: [project_expenses.category, project_expenses.amount, project_expenses.expense_date]
+  tags: [projects, top_n]
+  gold_sql: |
+    SELECT category, SUM(amount) AS total
+    FROM {schema}.project_expenses
+    WHERE EXTRACT(YEAR FROM expense_date) = {year}
+    GROUP BY category
+    ORDER BY total DESC;
+
+- id: v2_hdr_asset_transfers
+  family: 5
+  difficulty: medium
+  question: "Assets transferred between locations in {year}?"
+  tables: [asset_transfers]
+  columns: [asset_transfers.transfer_date]
+  tags: [assets, header_line]
+  gold_sql: |
+    SELECT transfer_id, asset_id, from_location_id, to_location_id, transfer_date
+    FROM {schema}.asset_transfers
+    WHERE EXTRACT(YEAR FROM transfer_date) = {year};
+
+- id: v2_having_overtime_employees
+  family: 25
+  difficulty: medium
+  question: "Employees with more than 10 time clock entries in a single week during {year}?"
+  tables: [hr_time_clock_entries, employees]
+  columns: [hr_time_clock_entries.work_date, employees.employee_id]
+  tags: [hr, having]
+  gold_sql: |
+    SELECT e.employee_id, e.first_name, e.last_name, DATE_TRUNC('week', t.work_date) AS week_start, COUNT(*) AS entries
+    FROM {schema}.hr_time_clock_entries t
+    JOIN {schema}.employees e ON e.employee_id = t.employee_id
+    WHERE EXTRACT(YEAR FROM t.work_date) = {year}
+    GROUP BY e.employee_id, e.first_name, e.last_name, week_start
+    HAVING COUNT(*) > 10;
+
+- id: v2_date_shipment_delay
+  family: 28
+  difficulty: medium
+  question: "Sales orders shipped after their planned ship date in {year}?"
+  tables: [sales_orders]
+  columns: [sales_orders.ship_date, sales_orders.order_date]
+  tags: [sales, date_arithmetic]
+  gold_sql: |
+    SELECT order_id, customer_id, order_date, ship_date
+    FROM {schema}.sales_orders
+    WHERE ship_date IS NOT NULL
+      AND ship_date > order_date
+      AND EXTRACT(YEAR FROM order_date) = {year};
+
+- id: v2_rate_inventory_turnover
+  family: 29
+  difficulty: medium
+  question: "Inventory turnover ratio by product category for {year}?"
+  tables: [inventory_transactions, products, product_categories, inventory_levels]
+  columns: [inventory_transactions.quantity, inventory_transactions.transaction_date, product_categories.name]
+  tags: [inventory, rate]
+  gold_sql: |
+    SELECT pc.name,
+           SUM(ABS(it.quantity)) AS total_moved,
+           AVG(il.quantity_on_hand) AS avg_on_hand,
+           ROUND(SUM(ABS(it.quantity)) / NULLIF(AVG(il.quantity_on_hand), 0), 2) AS turnover_ratio
+    FROM {schema}.inventory_transactions it
+    JOIN {schema}.products p ON p.product_id = it.product_id
+    JOIN {schema}.product_categories pc ON pc.category_id = p.category_id
+    LEFT JOIN {schema}.inventory_levels il ON il.product_id = p.product_id
+    WHERE EXTRACT(YEAR FROM it.transaction_date) = {year}
+    GROUP BY pc.name
+    ORDER BY turnover_ratio DESC;
+
+- id: v2_coded_loyalty_tiers
+  family: 7
+  difficulty: medium
+  question: "Loyalty member count by tier in retail?"
+  tables: [rtl_loyalty_members]
+  columns: [rtl_loyalty_members.tier_code, rtl_loyalty_members.status_code]
+  tags: [retail, lookup]
+  archetype: retail
+  gold_sql: |
+    SELECT tier_code, COUNT(*) AS member_count,
+           AVG(points_balance) AS avg_points
+    FROM {schema}.rtl_loyalty_members
+    WHERE status_code = 'AC'
+    GROUP BY tier_code
+    ORDER BY member_count DESC;
+
+- id: v2_implicit_val_project_resource_alloc
+  family: 23
+  difficulty: medium
+  question: "Average resource allocation by project in {year}?"
+  tables: [project_resources, projects]
+  columns: [project_resources.allocation_percent, projects.start_date]
+  tags: [projects, value_mapping]
+  gold_sql: |
+    SELECT p.name, ROUND(AVG(pr.allocation_percent), 2) AS avg_alloc
+    FROM {schema}.project_resources pr
+    JOIN {schema}.projects p ON p.project_id = pr.project_id
+    WHERE EXTRACT(YEAR FROM p.start_date) = {year}
+    GROUP BY p.name;
+
+- id: v2_hdr_warehouse_low_capacity
+  family: 5
+  difficulty: medium
+  question: "Warehouse locations with capacity below {capacity}?"
+  tables: [warehouse_locations]
+  columns: [warehouse_locations.capacity]
+  tags: [inventory, header_line]
+  gold_sql: |
+    SELECT location_id, warehouse_id, aisle, rack, bin, capacity
+    FROM {schema}.warehouse_locations
+    WHERE capacity < {capacity};
+
+# --- More Hard / Extra-Hard templates ---
+
+- id: v2_chain3_dso_by_customer
+  family: 6
+  difficulty: hard
+  question: "Days Sales Outstanding by customer for {year}?"
+  tables: [finance_ar_invoices, finance_ar_payments, customers]
+  columns: [finance_ar_invoices.invoice_date, finance_ar_payments.payment_date, customers.name]
+  tags: [finance, kpi, multi_join]
+  gold_sql: |
+    SELECT c.name,
+           ROUND(AVG(p.payment_date - i.invoice_date), 1) AS avg_dso
+    FROM {schema}.finance_ar_invoices i
+    JOIN {schema}.finance_ar_payments p ON p.ar_invoice_id = i.ar_invoice_id
+    JOIN {schema}.customers c ON c.customer_id = i.customer_id
+    WHERE EXTRACT(YEAR FROM i.invoice_date) = {year}
+    GROUP BY c.name
+    ORDER BY avg_dso DESC;
+
+- id: v2_cte_gross_margin_by_product
+  family: 19
+  difficulty: hard
+  question: "Gross margin by product for {year}?"
+  tables: [order_lines, sales_orders, products]
+  columns: [order_lines.quantity, order_lines.unit_price, products.name]
+  tags: [sales, finance, cte]
+  gold_sql: |
+    SELECT p.name,
+           SUM(ol.quantity * ol.unit_price) AS revenue,
+           SUM(ol.quantity * ol.unit_price * 0.6) AS estimated_cogs,
+           ROUND(SUM(ol.quantity * ol.unit_price * 0.4), 2) AS gross_margin
+    FROM {schema}.order_lines ol
+    JOIN {schema}.sales_orders so ON so.order_id = ol.order_id
+    JOIN {schema}.products p ON p.product_id = ol.product_id
+    WHERE EXTRACT(YEAR FROM so.order_date) = {year}
+    GROUP BY p.name
+    ORDER BY gross_margin DESC
+    LIMIT 20;
+
+- id: v2_window_rank_rtl_products
+  family: 13
+  difficulty: hard
+  question: "Top 10 products by POS revenue in retail?"
+  tables: [rtl_pos_line_items, products]
+  columns: [rtl_pos_line_items.line_total, products.name]
+  tags: [retail, window]
+  archetype: retail
+  gold_sql: |
+    SELECT p.name, SUM(li.line_total) AS total_revenue,
+           SUM(li.quantity) AS units_sold
+    FROM {schema}.rtl_pos_line_items li
+    JOIN {schema}.products p ON p.product_id = li.product_id
+    GROUP BY p.name
+    ORDER BY total_revenue DESC
+    LIMIT 10;
+
+- id: v2_cross_mod_svc_revenue_customer
+  family: 24
+  difficulty: hard
+  question: "Total SOW contract value by customer for services?"
+  tables: [svc_statements_of_work, customers]
+  columns: [svc_statements_of_work.total_amount, customers.name]
+  tags: [services, cross_module]
+  archetype: services
+  gold_sql: |
+    SELECT c.name, SUM(sow.total_amount) AS total_contract_value, COUNT(*) AS sow_count
+    FROM {schema}.svc_statements_of_work sow
+    JOIN {schema}.customers c ON c.customer_id = sow.customer_id
+    GROUP BY c.name
+    ORDER BY total_contract_value DESC
+    LIMIT 10;
+
+- id: v2_cross_mod_svc_utilization
+  family: 24
+  difficulty: hard
+  question: "Average resource allocation by role for active SOWs in services?"
+  tables: [svc_resource_plan, svc_statements_of_work]
+  columns: [svc_resource_plan.role_name, svc_resource_plan.allocation_percent]
+  tags: [services, cross_module]
+  archetype: services
+  gold_sql: |
+    SELECT rp.role_name,
+           ROUND(AVG(rp.allocation_percent), 1) AS avg_allocation,
+           COUNT(*) AS assignments
+    FROM {schema}.svc_resource_plan rp
+    JOIN {schema}.svc_statements_of_work sow ON sow.sow_id = rp.sow_id
+    WHERE sow.status_code = 'AC'
+    GROUP BY rp.role_name
+    ORDER BY avg_allocation DESC;
+
+- id: v2_union_rtl_payments
+  family: 15
+  difficulty: extra_hard
+  question: "Total POS sales by payment method in retail?"
+  tables: [rtl_pos_transactions]
+  columns: [rtl_pos_transactions.payment_method_code, rtl_pos_transactions.total_amount]
+  tags: [retail, union]
+  archetype: retail
+  gold_sql: |
+    SELECT payment_method_code, COUNT(*) AS txn_count,
+           SUM(total_amount) AS total_sales
+    FROM {schema}.rtl_pos_transactions
+    GROUP BY payment_method_code
+    ORDER BY total_sales DESC;
+
+- id: v2_corp_intercompany
+  family: 24
+  difficulty: hard
+  question: "Net intercompany balance between divisions for corporate?"
+  tables: [corp_intercompany_txns]
+  columns: [corp_intercompany_txns.from_division, corp_intercompany_txns.to_division, corp_intercompany_txns.amount]
+  tags: [corporate, cross_module]
+  archetype: corporate
+  gold_sql: |
+    SELECT from_division, to_division,
+           SUM(amount) AS total_transferred,
+           COUNT(*) AS txn_count
+    FROM {schema}.corp_intercompany_txns
+    WHERE status_code = 'AP'
+    GROUP BY from_division, to_division
+    ORDER BY total_transferred DESC;
+
+- id: v2_corp_tax_comparison
+  family: 26
+  difficulty: hard
+  question: "Compare effective vs statutory tax rate by jurisdiction for corporate?"
+  tables: [corp_tax_provisions]
+  columns: [corp_tax_provisions.jurisdiction, corp_tax_provisions.effective_rate, corp_tax_provisions.statutory_rate]
+  tags: [corporate, case_bucket]
+  archetype: corporate
+  gold_sql: |
+    SELECT jurisdiction, tax_type,
+           ROUND(AVG(effective_rate), 4) AS avg_effective_rate,
+           ROUND(AVG(statutory_rate), 4) AS avg_statutory_rate,
+           ROUND(AVG(statutory_rate - effective_rate), 4) AS avg_rate_gap,
+           SUM(current_provision + deferred_provision) AS total_provision
+    FROM {schema}.corp_tax_provisions
+    GROUP BY jurisdiction, tax_type
+    ORDER BY total_provision DESC;
+
+- id: v2_corp_audit_findings
+  family: 22
+  difficulty: medium
+  question: "Open audit findings by severity and type for corporate?"
+  tables: [corp_audit_findings]
+  columns: [corp_audit_findings.severity, corp_audit_findings.audit_type, corp_audit_findings.status_code]
+  tags: [corporate, ambiguous_entity]
+  archetype: corporate
+  gold_sql: |
+    SELECT audit_type, severity, COUNT(*) AS finding_count
+    FROM {schema}.corp_audit_findings
+    WHERE status_code IN ('OP', 'IP')
+    GROUP BY audit_type, severity
+    ORDER BY severity, finding_count DESC;
+
+- id: v2_svc_overdue_milestones
+  family: 23
+  difficulty: medium
+  question: "Billing milestones past due and not yet invoiced for services?"
+  tables: [svc_billing_milestones, svc_statements_of_work]
+  columns: [svc_billing_milestones.due_date, svc_billing_milestones.invoice_date, svc_billing_milestones.amount]
+  tags: [services, value_mapping]
+  archetype: services
+  gold_sql: |
+    SELECT sow.sow_number, bm.description, bm.amount, bm.due_date
+    FROM {schema}.svc_billing_milestones bm
+    JOIN {schema}.svc_statements_of_work sow ON sow.sow_id = bm.sow_id
+    WHERE bm.due_date < CURRENT_DATE AND bm.invoice_date IS NULL
+    ORDER BY bm.due_date;
+
+- id: v2_rtl_promo_effectiveness
+  family: 29
+  difficulty: medium
+  question: "Promotion effectiveness by active promotion in retail?"
+  tables: [rtl_pos_line_items, rtl_promotions]
+  columns: [rtl_pos_line_items.discount_amount, rtl_promotions.promotion_code]
+  tags: [retail, rate]
+  archetype: retail
+  gold_sql: |
+    SELECT pr.promotion_name, pr.discount_type_code,
+           COUNT(*) AS line_items,
+           ROUND(AVG(li.discount_amount), 2) AS avg_discount
+    FROM {schema}.rtl_pos_line_items li
+    JOIN {schema}.rtl_promotions pr ON pr.promotion_code = li.promotion_code
+    WHERE pr.status_code = 'AC' AND li.promotion_code IS NOT NULL
+    GROUP BY pr.promotion_name, pr.discount_type_code
+    ORDER BY line_items DESC;
+
+- id: v2_corp_consolidation_fx
+  family: 19
+  difficulty: hard
+  question: "Consolidation totals by currency with FX impact for corporate?"
+  tables: [corp_consolidation_entries]
+  columns: [corp_consolidation_entries.currency_code, corp_consolidation_entries.original_amount, corp_consolidation_entries.translated_amount]
+  tags: [corporate, cte]
+  archetype: corporate
+  gold_sql: |
+    SELECT currency_code,
+           SUM(original_amount) AS total_original,
+           SUM(translated_amount) AS total_translated,
+           SUM(translated_amount - original_amount) AS fx_impact,
+           COUNT(*) AS entry_count
+    FROM {schema}.corp_consolidation_entries
+    GROUP BY currency_code
+    ORDER BY total_original DESC;
+
+- id: v2_weighted_avg_cost
+  family: 35
+  difficulty: hard
+  question: "Weighted average cost per unit by product in {year}?"
+  tables: [order_lines, sales_orders, products]
+  columns: [order_lines.quantity, order_lines.unit_price, products.name]
+  tags: [finance, mixed_aggregation]
+  gold_sql: |
+    SELECT p.name,
+           ROUND(SUM(ol.quantity * ol.unit_price) / NULLIF(SUM(ol.quantity), 0), 2) AS weighted_avg_cost,
+           SUM(ol.quantity) AS total_units
+    FROM {schema}.order_lines ol
+    JOIN {schema}.sales_orders so ON so.order_id = ol.order_id
+    JOIN {schema}.products p ON p.product_id = ol.product_id
+    WHERE EXTRACT(YEAR FROM so.order_date) = {year}
+    GROUP BY p.name
+    ORDER BY weighted_avg_cost DESC;
+
+- id: v2_pivot_case_status
+  family: 30
+  difficulty: extra_hard
+  question: "Support cases by status as columns (open, pending, closed) per priority?"
+  tables: [cust_srv_case]
+  columns: [cust_srv_case.status, cust_srv_case.priority]
+  tags: [support, pivot]
+  gold_sql: |
+    SELECT priority,
+      COUNT(*) FILTER (WHERE status = 'open') AS open_cases,
+      COUNT(*) FILTER (WHERE status = 'pending') AS pending_cases,
+      COUNT(*) FILTER (WHERE status = 'closed') AS closed_cases
+    FROM {schema}.cust_srv_case
+    GROUP BY priority
+    ORDER BY priority;

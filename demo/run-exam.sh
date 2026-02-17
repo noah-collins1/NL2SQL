@@ -24,19 +24,22 @@ fail() { echo -e "${RED}  [FAIL] $1${NC}"; exit 1; }
 DB_SIZE=70
 MAX_Q=""
 RUNS=1
+EXAM_VER=""
 for arg in "$@"; do
     case "$arg" in
         --db=2000) DB_SIZE=2000 ;;
         --db=70)   DB_SIZE=70 ;;
         --max=*)   MAX_Q="${arg#--max=}" ;;
         --runs=*)  RUNS="${arg#--runs=}" ;;
+        --v2)      EXAM_VER=v2 ;;
         --help|-h)
-            echo "Usage: $0 [--db=70|--db=2000] [--max=N] [--runs=N]"
+            echo "Usage: $0 [--db=70|--db=2000] [--max=N] [--runs=N] [--v2]"
             echo ""
             echo "  --db=70    Run against 70-table DB (default)"
             echo "  --db=2000  Run against 2000-table DB"
             echo "  --max=N    Limit to first N questions"
             echo "  --runs=N   Number of exam runs (70-table only, for statistical mean)"
+            echo "  --v2       Use exam v2 (500 questions, no evidence, ambiguity grading)"
             exit 0
             ;;
     esac
@@ -61,7 +64,11 @@ if [ "$DB_SIZE" -eq 70 ]; then
         (cd "$ROOT_DIR/mcp-server-nl2sql" && npx tsx scripts/run_exam.ts)
     fi
 else
-    ARGS="--exam $DEMO_DIR/exam/exam_full_300.csv"
+    if [ "$EXAM_VER" = "v2" ]; then
+        ARGS="--exam $DEMO_DIR/exam/exam_v2_500.csv"
+    else
+        ARGS="--exam $DEMO_DIR/exam/exam_full_300.csv"
+    fi
     [ -n "$MAX_Q" ] && ARGS="$ARGS --max=$MAX_Q"
 
     export OLLAMA_MODEL="${OLLAMA_MODEL:-qwen2.5-coder:7b}"
