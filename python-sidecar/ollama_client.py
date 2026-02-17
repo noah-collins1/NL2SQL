@@ -1,14 +1,16 @@
 """
-Hrida Client - Ollama API Integration
+Ollama Client - SQL Generation via Ollama API
 
-Handles communication with Ollama to generate SQL using HridaAI/hrida-t2sql model.
+Handles communication with Ollama to generate SQL using any compatible model
+(qwen2.5-coder, llama3.1, HridaAI/hrida-t2sql, etc.).
 
 Features:
-- Temperature=0.0 for deterministic output
-- Gibberish detection (catches Test 3 failure patterns)
+- Sync and async SQL generation
+- Gibberish detection
 - Confidence scoring
 - Timeout handling
-- Parallel candidate generation with asyncio
+- Parallel and sequential multi-candidate generation with deduplication
+- Embedding support via nomic-embed-text
 """
 
 import re
@@ -23,14 +25,18 @@ from config import OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT, OLLAMA_NUM_CTX
 logger = logging.getLogger(__name__)
 
 
-class HridaError(Exception):
-    """Raised when Hrida fails to generate valid SQL"""
+class OllamaClientError(Exception):
+    """Raised when Ollama fails to generate valid SQL"""
     pass
 
 
-class HridaClient:
+class OllamaClient:
     """
-    Client for Hrida NL2SQL model via Ollama API
+    Client for SQL generation via Ollama API.
+
+    Supports any Ollama-hosted model (qwen2.5-coder, llama3.1, hrida-t2sql, etc.).
+    Provides sync/async generation, multi-candidate parallel/sequential generation,
+    gibberish detection, and confidence scoring.
     """
 
     def __init__(
@@ -56,7 +62,7 @@ class HridaClient:
         seed: Optional[int] = None
     ) -> Tuple[str, float, int, int]:
         """
-        Generate SQL from prompt using Hrida
+        Generate SQL from prompt via Ollama
 
         Args:
             prompt: Complete prompt including schema and question
@@ -69,8 +75,7 @@ class HridaClient:
             Tuple of (sql, confidence_score, prompt_tokens, completion_tokens)
 
         Raises:
-            HridaError: If generation fails or produces gibberish
-            requests.RequestException: If Ollama API call fails
+            OllamaClientError: If generation fails or produces gibberish
         """
         logger.debug(f"Calling Ollama API: {self.model}, seed={seed}")
 
@@ -117,19 +122,19 @@ class HridaClient:
             # Strip markdown code fences / extract SQL from prose
             sql = self._strip_markdown_fences(sql)
 
-            logger.debug(f"Hrida generated: {sql[:100]}...")
+            logger.debug(f"Ollama generated: {sql[:100]}...")
 
             # Check for gibberish (patterns from Test 3)
             # For multi-candidate mode, relax the check since output is larger
             if self._is_gibberish(sql, multi_candidate=multi_candidate):
                 logger.warning(f"Gibberish detected: {sql[:50]}...")
-                raise HridaError("Model generated invalid output (gibberish detected)")
+                raise OllamaClientError("Model generated invalid output (gibberish detected)")
 
             # Check basic structure (skip for multi-candidate mode - output may start with delimiter)
             if not multi_candidate:
                 if not sql.upper().startswith("SELECT"):
                     logger.warning(f"SQL does not start with SELECT: {sql[:50]}...")
-                    raise HridaError("Model did not generate SELECT statement")
+                    raise OllamaClientError("Model did not generate SELECT statement")
                 # Ensure semicolon at end (only for single-candidate)
                 if not sql.endswith(";"):
                     sql += ";"
@@ -137,7 +142,7 @@ class HridaClient:
                 # For multi-candidate, just verify it contains SELECT somewhere
                 if "SELECT" not in sql.upper():
                     logger.warning(f"Multi-candidate output contains no SELECT: {sql[:50]}...")
-                    raise HridaError("Model did not generate any SELECT statements")
+                    raise OllamaClientError("Model did not generate any SELECT statements")
 
             # Estimate confidence based on output quality
             confidence = self._estimate_confidence(sql)
@@ -148,11 +153,11 @@ class HridaClient:
 
         except requests.Timeout:
             logger.error(f"Ollama request timed out after {self.timeout}s")
-            raise HridaError(f"Ollama request timed out after {self.timeout}s")
+            raise OllamaClientError(f"Ollama request timed out after {self.timeout}s")
 
         except requests.RequestException as e:
             logger.error(f"Ollama API error: {e}")
-            raise HridaError(f"Ollama API error: {str(e)}")
+            raise OllamaClientError(f"Ollama API error: {str(e)}")
 
     def _is_gibberish(self, text: str, multi_candidate: bool = False) -> bool:
         """
@@ -296,7 +301,7 @@ class HridaClient:
             Tuple of (sql, confidence_score, prompt_tokens, completion_tokens)
 
         Raises:
-            HridaError: If generation fails
+            OllamaClientError: If generation fails
         """
         logger.debug(f"Async calling Ollama API: {self.model}, temp={temperature}, seed={seed}")
 
@@ -345,10 +350,10 @@ class HridaClient:
 
                 # Validate output
                 if self._is_gibberish(sql):
-                    raise HridaError("Model generated gibberish")
+                    raise OllamaClientError("Model generated gibberish")
 
                 if not sql.upper().startswith("SELECT"):
-                    raise HridaError("Model did not generate SELECT statement")
+                    raise OllamaClientError("Model did not generate SELECT statement")
 
                 if not sql.endswith(";"):
                     sql += ";"
@@ -357,9 +362,9 @@ class HridaClient:
                 return sql, confidence, prompt_eval_count, eval_count
 
         except asyncio.TimeoutError:
-            raise HridaError(f"Async request timed out after {self.timeout}s")
+            raise OllamaClientError(f"Async request timed out after {self.timeout}s")
         except aiohttp.ClientError as e:
-            raise HridaError(f"Async API error: {str(e)}")
+            raise OllamaClientError(f"Async API error: {str(e)}")
         finally:
             if close_session:
                 await session.close()
@@ -484,7 +489,7 @@ class HridaClient:
                     logger.debug(f"Sequential candidate {i} added: {sql[:50]}...")
                 else:
                     logger.debug(f"Sequential candidate {i} is duplicate, skipped")
-            except HridaError as e:
+            except OllamaClientError as e:
                 logger.warning(f"Sequential candidate {i} failed: {e}")
 
         logger.info(f"Generated {len(candidates)} unique candidates from {k} sequential attempts, prompt_tokens={agg_prompt_tokens}")
@@ -492,18 +497,18 @@ class HridaClient:
 
 
 # Singleton instance for convenience
-_default_client: Optional[HridaClient] = None
+_default_client: Optional[OllamaClient] = None
 
 
-def get_hrida_client(**kwargs) -> HridaClient:
-    """Get or create default Hrida client. Pass kwargs to override defaults on first creation."""
+def get_ollama_client(**kwargs) -> OllamaClient:
+    """Get or create default Ollama client. Pass kwargs to override defaults on first creation."""
     global _default_client
     if _default_client is None:
-        _default_client = HridaClient(**kwargs)
+        _default_client = OllamaClient(**kwargs)
     return _default_client
 
 
-def reset_hrida_client():
+def reset_ollama_client():
     """Reset singleton (for testing)"""
     global _default_client
     _default_client = None
@@ -533,7 +538,7 @@ def get_embedding(
         List of floats (embedding vector)
 
     Raises:
-        HridaError: If embedding fails
+        OllamaClientError: If embedding fails
     """
     try:
         response = requests.post(
@@ -551,15 +556,15 @@ def get_embedding(
         embedding = data.get("embedding", [])
 
         if not embedding:
-            raise HridaError("Empty embedding returned from Ollama")
+            raise OllamaClientError("Empty embedding returned from Ollama")
 
         logger.debug(f"Generated embedding with {len(embedding)} dimensions")
         return embedding
 
     except requests.Timeout:
         logger.error(f"Embedding request timed out after {timeout}s")
-        raise HridaError(f"Embedding request timed out after {timeout}s")
+        raise OllamaClientError(f"Embedding request timed out after {timeout}s")
 
     except requests.RequestException as e:
         logger.error(f"Embedding API error: {e}")
-        raise HridaError(f"Embedding API error: {str(e)}")
+        raise OllamaClientError(f"Embedding API error: {str(e)}")

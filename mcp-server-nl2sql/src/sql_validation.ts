@@ -1802,6 +1802,51 @@ function transformBackticks(sql: string): { sql: string; applied: string[] } {
 	return { sql, applied }
 }
 
+/**
+ * Strip phantom division scope clauses like WHERE division = 'div_19'.
+ * Divisions (div_01..div_20) are PostgreSQL schemas handled by search_path,
+ * so no column should be filtered by a 'div_XX' literal. LLMs commonly hallucinate
+ * these clauses when the question mentions "corporate division div_19".
+ */
+function transformStripDivisionScope(sql: string): { sql: string; applied: string[] } {
+	const applied: string[] = []
+
+	const divLiteral = `'div_\\d+'`
+	const colRef = `(?:[\\w]+\\.)?[\\w]+` // optional alias.column
+
+	// Case 1: sole WHERE condition → remove WHERE entirely
+	// WHERE col = 'div_XX' [GROUP BY|ORDER BY|LIMIT|HAVING|;|end]
+	const soleWhereRe = new RegExp(
+		`\\bWHERE\\s+${colRef}\\s*=\\s*${divLiteral}\\s*(?=\\b(?:GROUP|ORDER|LIMIT|HAVING)\\b|;|$)`,
+		"gi"
+	)
+	const beforeSole = sql
+	sql = sql.replace(soleWhereRe, "")
+	if (sql !== beforeSole) applied.push("STRIP_DIVISION_SCOPE")
+
+	// Case 2: first condition with AND → remove condition, keep WHERE
+	// WHERE col = 'div_XX' AND ... → WHERE ...
+	const firstCondRe = new RegExp(
+		`\\bWHERE\\s+${colRef}\\s*=\\s*${divLiteral}\\s+AND\\s+`,
+		"gi"
+	)
+	const beforeFirst = sql
+	sql = sql.replace(firstCondRe, "WHERE ")
+	if (sql !== beforeFirst) applied.push("STRIP_DIVISION_SCOPE")
+
+	// Case 3: subsequent condition → remove AND + condition
+	// ... AND col = 'div_XX'
+	const andCondRe = new RegExp(
+		`\\s+AND\\s+${colRef}\\s*=\\s*${divLiteral}`,
+		"gi"
+	)
+	const beforeAnd = sql
+	sql = sql.replace(andCondRe, "")
+	if (sql !== beforeAnd) applied.push("STRIP_DIVISION_SCOPE")
+
+	return { sql, applied }
+}
+
 function transformDivisionSafety(sql: string): { sql: string; applied: string[] } {
 	const applied: string[] = []
 
@@ -1881,6 +1926,31 @@ function transformDatePartDaySubtract(sql: string): { sql: string; applied: stri
 			regex.lastIndex = 0
 		}
 	}
+
+	// Also handle EXTRACT(DAY FROM expr - expr) — in PG, date - date = integer,
+	// so EXTRACT(DAY FROM integer) fails. Just use the subtraction directly.
+	const extractDayRegex = /\bEXTRACT\s*\(\s*DAY\s+FROM\s+/gi
+	extractDayRegex.lastIndex = 0
+	while ((match = extractDayRegex.exec(sql)) !== null) {
+		const extractStart = sql.lastIndexOf("EXTRACT", match.index)
+		const openParen = sql.indexOf("(", extractStart)
+		const paren = extractParenExpr(sql, openParen)
+		if (!paren) continue
+		// Remove the "DAY FROM" prefix to get the inner expression
+		const inner = paren.content.replace(/^\s*DAY\s+FROM\s+/i, "").trim()
+		// Match parenthesized or bare date subtractions: (a.col - b.col) or a.col - b.col
+		const bareSubtract = /^[a-zA-Z_][\w.]*\s*-\s*[a-zA-Z_][\w.]*$/
+		const parenSubtract = /^\(\s*[a-zA-Z_][\w.]*\s*-\s*[a-zA-Z_][\w.]*\s*\)$/
+		if (bareSubtract.test(inner) || parenSubtract.test(inner)) {
+			const fullMatch = sql.substring(extractStart, paren.endIdx)
+			// Normalize to parenthesized form
+			const normalized = parenSubtract.test(inner) ? inner : `(${inner})`
+			sql = sql.replace(fullMatch, normalized)
+			applied.push("EXTRACT_DAY_FROM_DATE_SUBTRACT")
+			extractDayRegex.lastIndex = 0
+		}
+	}
+
 	return { sql, applied }
 }
 
@@ -1954,6 +2024,7 @@ export function pgNormalize(sql: string): PgNormalizeResult {
 	let currentSQL = sql
 
 	const transforms = [
+		transformStripDivisionScope,
 		transformDateExtract,
 		transformCoalesce,
 		transformDateAddSub,

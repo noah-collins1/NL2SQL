@@ -22,7 +22,7 @@ def _l():
 
 # Ollama Configuration (env vars still work via config_loader overlay)
 OLLAMA_BASE_URL = _m().get("ollama_url", "http://localhost:11434")
-OLLAMA_MODEL = _m().get("llm", "HridaAI/hrida-t2sql:latest")
+OLLAMA_MODEL = _m().get("llm", "qwen2.5-coder:7b")
 OLLAMA_TIMEOUT = int(_m().get("timeout", 90))
 OLLAMA_NUM_CTX = int(_m().get("num_ctx", 0))
 SEQUENTIAL_CANDIDATES = _g().get("sequential", False)
@@ -63,7 +63,7 @@ MCPTEST_SCHEMA = {
     }
 }
 
-# Domain knowledge (fixes for known Hrida issues from Test 3)
+# Domain knowledge (fixes for known LLM issues from Test 3)
 DOMAIN_KNOWLEDGE = """
 Domain-Specific Rules:
 - State codes are 2-letter abbreviations (e.g., 'CA', 'NY', 'TX', not "California")
@@ -72,10 +72,10 @@ Domain-Specific Rules:
 - Years are 2017-2026 (10 years of data)
 """
 
-# Hrida System Prompt Template
-HRIDA_BASE_PROMPT_VERSION = "v1.2.0"
+# SQL Prompt Template
+SQL_BASE_PROMPT_VERSION = "v1.2.0"
 
-HRIDA_BASE_PROMPT = """Generate PostgreSQL SELECT query for the mcptest database.
+SQL_BASE_PROMPT = """Generate PostgreSQL SELECT query for the mcptest database.
 
 ## Database Schema
 
@@ -303,16 +303,16 @@ SQLSTATE_HINTS = {
     "42501": "Permission denied. Query must be SELECT only (read-only access).",
 }
 
-def build_hrida_prompt(question: str, schema: dict = None) -> str:
+def build_sql_prompt(question: str, schema: dict = None) -> str:
     """
-    Build the complete Hrida prompt
+    Build the complete SQL generation prompt.
 
     Args:
         question: Natural language question
         schema: Database schema dict (if None, uses MCPTEST_SCHEMA)
 
     Returns:
-        Complete prompt string for Hrida
+        Complete prompt string for Ollama
     """
     if schema is None:
         schema = MCPTEST_SCHEMA
@@ -332,7 +332,7 @@ def build_hrida_prompt(question: str, schema: dict = None) -> str:
         schema_text += "\n"
 
     # Build complete prompt
-    prompt = HRIDA_BASE_PROMPT.format(
+    prompt = SQL_BASE_PROMPT.format(
         schema=schema_text.strip(),
         domain_knowledge=DOMAIN_KNOWLEDGE,
         question=question
@@ -342,7 +342,7 @@ def build_hrida_prompt(question: str, schema: dict = None) -> str:
 
 
 # RAG-based prompt template for enterprise databases (V2 Enhanced)
-HRIDA_RAG_PROMPT = """Generate PostgreSQL SELECT query for the {database_id} database.
+SQL_RAG_PROMPT = """Generate PostgreSQL SELECT query for the {database_id} database.
 
 ## Database Schema
 
@@ -430,7 +430,7 @@ def build_rag_prompt(question: str, schema_context: dict, schema_link_text: str 
         join_plan_text: Pre-formatted join plan section (Phase 2, opt-in)
 
     Returns:
-        Complete prompt string for Hrida
+        Complete prompt string for Ollama
     """
     tables = schema_context.get("tables", [])
     fk_edges = schema_context.get("fk_edges", [])
@@ -507,7 +507,7 @@ def build_rag_prompt(question: str, schema_context: dict, schema_link_text: str 
         join_paths_block = ""
 
     # Build the base prompt (unchanged template for backward compatibility)
-    prompt = HRIDA_RAG_PROMPT.format(
+    prompt = SQL_RAG_PROMPT.format(
         database_id=database_id,
         schema_block=schema_block,
         join_hints_block=join_hints_block if join_hints_block else "No join hints available.",
@@ -755,7 +755,7 @@ def build_repair_prompt(
         allowed_tables = list(schema.keys())
 
     # Start with base prompt
-    base = build_hrida_prompt(question, schema)
+    base = build_sql_prompt(question, schema)
 
     # Append delta blocks
     delta_blocks = []
@@ -851,10 +851,10 @@ __all__ = [
     'LOG_LEVEL',
     'MCPTEST_SCHEMA',
     'DOMAIN_KNOWLEDGE',
-    'HRIDA_BASE_PROMPT_VERSION',
-    'HRIDA_BASE_PROMPT',
-    'HRIDA_RAG_PROMPT',
-    'build_hrida_prompt',
+    'SQL_BASE_PROMPT_VERSION',
+    'SQL_BASE_PROMPT',
+    'SQL_RAG_PROMPT',
+    'build_sql_prompt',
     'build_rag_prompt',
     'build_repair_prompt',
     'build_rag_repair_prompt',

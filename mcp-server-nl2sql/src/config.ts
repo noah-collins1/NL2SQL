@@ -214,7 +214,7 @@ export interface PythonSidecarResponse {
 		stage1_tables: string[]
 		stage2_tables?: string[]
 		stage3_tables?: string[]
-		hrida_latency_ms: number
+		ollama_latency_ms: number
 		total_latency_ms: number
 		multi_candidate_k?: number
 	}
@@ -669,7 +669,7 @@ export interface NLQueryResponse {
 		retrieval_latency_ms?: number
 		total_latency_ms: number
 		stage1_tables?: string[]
-		hrida_latency_ms?: number
+		ollama_latency_ms?: number
 		tables_selected?: number
 		modules?: string[]
 	}

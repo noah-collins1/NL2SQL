@@ -35,6 +35,8 @@ This module converts non-PG patterns INTO PostgreSQL:
 - `GROUP_CONCAT(expr)` → `STRING_AGG(expr::text, ', ')`
 - MySQL-style `LIMIT offset, count` → PG-style `LIMIT count OFFSET offset`
 - Backtick removal
+- `EXTRACT(DAY FROM (date - date))` → `(date - date)` — date subtraction returns integer in PG
+- Strip `WHERE column = 'div_XX'` — division scope handled by search_path
 
 **To change:** For a MySQL target, you'd write the reverse — a MySQL normalizer that converts PG patterns to MySQL. Or disable normalization entirely and tune the LLM prompt to generate the right dialect directly.
 

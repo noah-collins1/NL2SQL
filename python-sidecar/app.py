@@ -6,7 +6,7 @@ Handles AI logic only - no database credentials or execution.
 
 Architecture:
 - Stage 1: Keyword-based table filtering (keyword_filter.py)
-- Stage 2: SQL generation via Ollama/Hrida (hrida_client.py)
+- Stage 2: SQL generation via Ollama (ollama_client.py)
 - Returns: Generated SQL + confidence + metadata
 
 Phase 1: Hardcoded MCPtest schema
@@ -25,17 +25,17 @@ import uvicorn
 
 from config import (
     MCPTEST_SCHEMA,
-    build_hrida_prompt,
+    build_sql_prompt,
     build_repair_prompt,
     build_rag_prompt,
     build_rag_repair_prompt,
-    HRIDA_BASE_PROMPT_VERSION,
+    SQL_BASE_PROMPT_VERSION,
     OLLAMA_MODEL,
     OLLAMA_NUM_CTX,
     SEQUENTIAL_CANDIDATES,
     SQL_SYSTEM_PROMPT,
 )
-from hrida_client import HridaClient, HridaError, get_hrida_client, get_embedding
+from ollama_client import OllamaClient, OllamaClientError, get_ollama_client, get_embedding
 from keyword_filter import filter_tables, build_filtered_schema, classify_intent
 from semantic_validator import validate_semantic_match, format_semantic_issues
 import re
@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 # FastAPI app
 app = FastAPI(
     title="NL2SQL Python Sidecar",
-    description="AI-powered SQL generation via Ollama/Hrida",
+    description="AI-powered SQL generation via Ollama",
     version="0.1.0"
 )
 
@@ -118,8 +118,8 @@ class TraceInfo(BaseModel):
     stage_1_tables_selected: List[str]
     stage_1_duration_ms: int
     intent_classified: str
-    hrida_prompt_length: int
-    hrida_duration_ms: int
+    ollama_prompt_length: int
+    ollama_duration_ms: int
     total_duration_ms: int
     prompt_tokens: Optional[int] = None
     completion_tokens: Optional[int] = None
@@ -143,12 +143,12 @@ class PythonSidecarResponse(BaseModel):
     completion_tokens: Optional[int] = Field(None, description="Completion token count from Ollama")
 
 
-# Initialize Hrida client with model-appropriate system prompt
+# Initialize Ollama client with model-appropriate system prompt
 _system_prompt = None if "hrida" in OLLAMA_MODEL.lower() else SQL_SYSTEM_PROMPT
-get_hrida_client(system_prompt=_system_prompt)
+get_ollama_client(system_prompt=_system_prompt)
 
-logger.info(f"Hrida client initialized: model={OLLAMA_MODEL}, num_ctx={OLLAMA_NUM_CTX}, "
-            f"sequential={SEQUENTIAL_CANDIDATES}, system_prompt={'yes' if _system_prompt else 'no (Hrida)'}")
+logger.info(f"Ollama client initialized: model={OLLAMA_MODEL}, num_ctx={OLLAMA_NUM_CTX}, "
+            f"sequential={SEQUENTIAL_CANDIDATES}, system_prompt={'yes' if _system_prompt else 'no (baked-in)'}")
 
 
 # Endpoints
@@ -162,8 +162,8 @@ async def health_check():
     - FastAPI server is running
     - Ollama is reachable
     """
-    hrida_client = get_hrida_client()
-    ollama_healthy = hrida_client.health_check()
+    ollama_client = get_ollama_client()
+    ollama_healthy = ollama_client.health_check()
 
     return {
         "status": "healthy" if ollama_healthy else "degraded",
@@ -268,7 +268,7 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
 
     Flow:
     1. Stage 1: Filter relevant tables using keyword matching
-    2. Build Hrida prompt with filtered schema
+    2. Build SQL prompt with filtered schema
     3. Call Ollama to generate SQL
     4. Return SQL + metadata
 
@@ -361,20 +361,20 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
             # Build filtered schema
             filtered_schema = build_filtered_schema(selected_tables, schema)
 
-            # Build Hrida prompt
-            prompt = build_hrida_prompt(request.question, filtered_schema)
+            # Build SQL prompt
+            prompt = build_sql_prompt(request.question, filtered_schema)
 
         # Multi-candidate generation configuration
         multi_k = request.multi_candidate_k or 1
         is_multi_candidate = multi_k > 1
 
         if trace_data is not None:
-            trace_data["hrida_prompt_length"] = len(prompt)
+            trace_data["ollama_prompt_length"] = len(prompt)
             trace_data["multi_candidate_k"] = multi_k
 
-        # Stage 2: Call Hrida to generate SQL
-        hrida_start = time.time()
-        hrida_client = get_hrida_client()
+        # Stage 2: Call Ollama to generate SQL
+        ollama_start = time.time()
+        ollama_client = get_ollama_client()
 
         try:
             sql_candidates = None
@@ -388,7 +388,7 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
                     # Generate K candidates one at a time (avoids VRAM contention with large models)
                     logger.info(f"[{query_id}] Sequential multi-candidate generation with k={multi_k}")
 
-                    candidates, gen_prompt_tokens, gen_completion_tokens = hrida_client.generate_candidates_sequential(
+                    candidates, gen_prompt_tokens, gen_completion_tokens = ollama_client.generate_candidates_sequential(
                         prompt=prompt,
                         k=multi_k,
                         temperature=0.3,  # Non-zero for candidate diversity
@@ -400,7 +400,7 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
                     # Generate K candidates in parallel with temperature for diversity
                     logger.info(f"[{query_id}] Parallel multi-candidate generation with k={multi_k}")
 
-                    candidates, gen_prompt_tokens, gen_completion_tokens = await hrida_client.generate_candidates_parallel(
+                    candidates, gen_prompt_tokens, gen_completion_tokens = await ollama_client.generate_candidates_parallel(
                         prompt=prompt,
                         k=multi_k,
                         temperature=0.3,  # Non-zero for candidate diversity
@@ -408,7 +408,7 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
                         base_seed=42  # Fixed base seed for reproducibility
                     )
 
-                hrida_duration_ms = int((time.time() - hrida_start) * 1000)
+                ollama_duration_ms = int((time.time() - ollama_start) * 1000)
 
                 if candidates:
                     # Extract SQL strings and confidences
@@ -419,23 +419,23 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
                 else:
                     # All candidates failed, fall back to single generation
                     logger.warning(f"[{query_id}] All parallel candidates failed, falling back to single generation")
-                    sql, confidence, gen_prompt_tokens, gen_completion_tokens = hrida_client.generate_sql(
+                    sql, confidence, gen_prompt_tokens, gen_completion_tokens = ollama_client.generate_sql(
                         prompt=prompt,
                         temperature=0.0,
                         max_tokens=200,
                         seed=42  # Fixed seed for reproducibility
                     )
-                    hrida_duration_ms = int((time.time() - hrida_start) * 1000)
+                    ollama_duration_ms = int((time.time() - ollama_start) * 1000)
 
             else:
                 # === SINGLE CANDIDATE GENERATION ===
-                sql, confidence, gen_prompt_tokens, gen_completion_tokens = hrida_client.generate_sql(
+                sql, confidence, gen_prompt_tokens, gen_completion_tokens = ollama_client.generate_sql(
                     prompt=prompt,
                     temperature=0.0,
                     max_tokens=200,
                     seed=42  # Fixed seed for reproducibility
                 )
-                hrida_duration_ms = int((time.time() - hrida_start) * 1000)
+                ollama_duration_ms = int((time.time() - ollama_start) * 1000)
 
             logger.info(f"[{query_id}] SQL generated successfully, confidence: {confidence:.2f}")
 
@@ -461,7 +461,7 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
                 )
 
                 try:
-                    repaired_sql, repaired_confidence, _, _ = hrida_client.generate_sql(
+                    repaired_sql, repaired_confidence, _, _ = ollama_client.generate_sql(
                         prompt=repair_prompt,
                         temperature=0.0,
                         max_tokens=200,
@@ -487,7 +487,7 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
                         confidence = max(0.5, confidence - 0.2)
                         logger.warning(f"[{query_id}] Semantic repair did not improve SQL")
 
-                except HridaError as repair_error:
+                except OllamaClientError as repair_error:
                     logger.error(f"[{query_id}] Semantic repair failed: {repair_error}")
                     notes = f"Semantic issues detected but repair failed: {', '.join([i['code'] for i in error_issues])}"
                     confidence = max(0.4, confidence - 0.3)
@@ -505,8 +505,8 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
                     stage_1_tables_selected=selected_tables,
                     stage_1_duration_ms=stage1_duration_ms,
                     intent_classified=intent,
-                    hrida_prompt_length=trace_data["hrida_prompt_length"],
-                    hrida_duration_ms=hrida_duration_ms,
+                    ollama_prompt_length=trace_data["ollama_prompt_length"],
+                    ollama_duration_ms=ollama_duration_ms,
                     total_duration_ms=total_duration_ms,
                     prompt_tokens=gen_prompt_tokens if gen_prompt_tokens > 0 else None,
                     completion_tokens=gen_completion_tokens if gen_completion_tokens > 0 else None,
@@ -528,8 +528,8 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
                 completion_tokens=gen_completion_tokens if gen_completion_tokens > 0 else None,
             )
 
-        except HridaError as e:
-            logger.error(f"[{query_id}] Hrida error: {str(e)}")
+        except OllamaClientError as e:
+            logger.error(f"[{query_id}] Ollama error: {str(e)}")
             return PythonSidecarResponse(
                 query_id=query_id,
                 sql_generated="",
@@ -666,20 +666,20 @@ async def repair_sql(request: dict) -> PythonSidecarResponse:
             trace_data["semantic_issues_count"] = len(semantic_issues)
             trace_data["has_postgres_error"] = postgres_error is not None
 
-        # Stage 2: Call Hrida to generate repaired SQL
-        hrida_start = time.time()
-        hrida_client = get_hrida_client()
+        # Stage 2: Call Ollama to generate repaired SQL
+        ollama_start = time.time()
+        ollama_client = get_ollama_client()
 
         try:
             # Use attempt-based seed for reproducible repairs
             repair_seed = 100 + attempt
-            sql, confidence, repair_prompt_tokens, repair_completion_tokens = hrida_client.generate_sql(
+            sql, confidence, repair_prompt_tokens, repair_completion_tokens = ollama_client.generate_sql(
                 prompt=prompt,
                 temperature=0.0,  # Deterministic
                 max_tokens=200,
                 seed=repair_seed
             )
-            hrida_duration_ms = int((time.time() - hrida_start) * 1000)
+            ollama_duration_ms = int((time.time() - ollama_start) * 1000)
 
             # Lower confidence for repaired SQL
             confidence = max(0.5, confidence - 0.1 * attempt)
@@ -695,8 +695,8 @@ async def repair_sql(request: dict) -> PythonSidecarResponse:
                     stage_1_tables_selected=selected_tables,
                     stage_1_duration_ms=0,  # Reused from previous attempt
                     intent_classified=intent,
-                    hrida_prompt_length=trace_data["repair_prompt_length"],
-                    hrida_duration_ms=hrida_duration_ms,
+                    ollama_prompt_length=trace_data["repair_prompt_length"],
+                    ollama_duration_ms=ollama_duration_ms,
                     total_duration_ms=total_duration_ms,
                     prompt_tokens=repair_prompt_tokens if repair_prompt_tokens > 0 else None,
                     completion_tokens=repair_completion_tokens if repair_completion_tokens > 0 else None,
@@ -726,8 +726,8 @@ async def repair_sql(request: dict) -> PythonSidecarResponse:
                 completion_tokens=repair_completion_tokens if repair_completion_tokens > 0 else None,
             )
 
-        except HridaError as e:
-            logger.error(f"[{query_id}] Hrida repair error: {str(e)}")
+        except OllamaClientError as e:
+            logger.error(f"[{query_id}] Ollama repair error: {str(e)}")
             return PythonSidecarResponse(
                 query_id=query_id,
                 sql_generated="",
@@ -789,7 +789,7 @@ if __name__ == "__main__":
 
     logger.info(f"Starting Python AI Sidecar on port {port}")
     logger.info(f"Ollama URL: {os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')}")
-    logger.info(f"Ollama Model: {os.getenv('OLLAMA_MODEL', 'HridaAI/hrida-t2sql:v1.2.3')}")
+    logger.info(f"Ollama Model: {os.getenv('OLLAMA_MODEL', 'qwen2.5-coder:7b')}")
 
     uvicorn.run(
         "app:app",
