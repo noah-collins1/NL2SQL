@@ -61,6 +61,7 @@ export {
 export { PG_NORMALIZE_ENABLED } from "./sql_validation.js"
 export { CANDIDATE_RERANKER_ENABLED, VALUE_VERIFICATION_ENABLED } from "./candidate_reranker.js"
 export { BM25_SEARCH_ENABLED, MODULE_ROUTER_ENABLED } from "./schema_retriever.js"
+export { PRE_SQL_ENABLED } from "./pre_sql.js"
 
 /**
  * Join hint format toggle

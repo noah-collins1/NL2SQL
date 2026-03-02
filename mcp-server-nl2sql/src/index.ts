@@ -4,7 +4,7 @@ import {
 } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { z } from "zod"
 import pg from "pg"
-import { executeNLQuery } from "./nl_query_tool.js"
+import { executeNLQuery, parseDivisionId } from "./nl_query_tool.js"
 
 // Predefined database roles following standard permission patterns
 const databaseRoles = {
@@ -454,9 +454,15 @@ export default function createServer({
 					.describe(
 						"Include detailed trace information for debugging (default: false)",
 					),
+				division_id: z
+					.string()
+					.nullish()
+					.describe(
+						"Optional: target a specific division (e.g. 'div_01', '5', 'division 12'). Defaults to div_01 if omitted or not detected from the question.",
+					),
 			},
 		},
-		async ({ question, max_rows, timeout_seconds, explain, trace }) => {
+		async ({ question, max_rows, timeout_seconds, explain, trace, division_id }) => {
 			logger.info("nl_query tool called", { question })
 
 			try {
@@ -467,6 +473,7 @@ export default function createServer({
 						timeout_seconds,
 						explain,
 						trace,
+						division_id,
 					},
 					{ pool, logger },
 				)
@@ -494,6 +501,7 @@ export default function createServer({
 				outputText += `Results (${response.rows_returned} rows):\n${resultText}\n\n`
 				outputText += `Confidence: ${(response.confidence_score * 100).toFixed(1)}%\n`
 				outputText += `Execution Time: ${response.execution_time_ms}ms`
+				outputText += `\nDivision: ${parseDivisionId(question, division_id)}`
 
 				if (response.validation_warnings && response.validation_warnings.length > 0) {
 					outputText += `\n\nWarnings:\n${response.validation_warnings.join("\n")}`

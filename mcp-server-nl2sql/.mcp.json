@@ -1,4 +1,4 @@
 {
-  "postgresConnectionString": "postgresql://postgres:1219@172.28.91.130:5432/enterprise_erp",
+  "postgresConnectionString": "postgresql://postgres:1219@172.28.91.130:5432/industry-erp",
   "role": "read"
 }

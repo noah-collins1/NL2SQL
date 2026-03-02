@@ -132,8 +132,9 @@ class OllamaClient:
 
             # Check basic structure (skip for multi-candidate mode - output may start with delimiter)
             if not multi_candidate:
-                if not sql.upper().startswith("SELECT"):
-                    logger.warning(f"SQL does not start with SELECT: {sql[:50]}...")
+                upper = sql.upper().lstrip()
+                if not (upper.startswith("SELECT") or re.match(r'WITH\s+\w+\s+AS\s*\(', upper)):
+                    logger.warning(f"SQL does not start with SELECT or WITH cte AS: {sql[:50]}...")
                     raise OllamaClientError("Model did not generate SELECT statement")
                 # Ensure semicolon at end (only for single-candidate)
                 if not sql.endswith(";"):
@@ -219,7 +220,13 @@ class OllamaClient:
         if fence_match:
             return fence_match.group(1).strip()
 
-        # If no fences but text contains SELECT, extract from SELECT onward
+        # If no fences, try to extract a CTE first (WITH cte_name AS (...) SELECT ...),
+        # then fall back to plain SELECT. Use a specific CTE pattern (WITH word AS ()
+        # to avoid matching prose "with the given schema..." with IGNORECASE.
+        cte_match = re.search(r'(WITH\s+\w+\s+AS\s*\([\s\S]*)', stripped, re.IGNORECASE)
+        if cte_match:
+            return cte_match.group(1).strip()
+
         select_match = re.search(r'(SELECT\b[\s\S]*)', stripped, re.IGNORECASE)
         if select_match:
             return select_match.group(1).strip()
@@ -315,7 +322,7 @@ class OllamaClient:
             options = {
                 "temperature": temperature,
                 "num_predict": max_tokens,
-                "stop": [";", "\n\n"],
+                "stop": [";"],
             }
             if seed is not None:
                 options["seed"] = seed
@@ -352,7 +359,8 @@ class OllamaClient:
                 if self._is_gibberish(sql):
                     raise OllamaClientError("Model generated gibberish")
 
-                if not sql.upper().startswith("SELECT"):
+                upper = sql.upper().lstrip()
+                if not (upper.startswith("SELECT") or re.match(r'WITH\s+\w+\s+AS\s*\(', upper)):
                     raise OllamaClientError("Model did not generate SELECT statement")
 
                 if not sql.endswith(";"):

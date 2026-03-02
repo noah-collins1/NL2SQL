@@ -1,0 +1,767 @@
+# Industry-Erp NL2SQL Exam Templates
+# Real wholesale distribution ERP — single public schema, no divisions
+# ~40 templates, ~80 questions after parameter expansion
+#
+# Key schema notes:
+#   - Quantity fields are TEXT in SO/PO/ItemLoc tables — use NULLIF(col,'')::numeric
+#   - UnitPrice, UnitCost, InvoiceAmount etc. in header/invoice tables are NUMERIC
+#   - Customer master: tbl_customer (Customer=code, Name=name)
+#   - Vendor master: tbl_vendor (Vendor=code, Name=name)
+#   - SO→Customer join: tbl_sales_order.CustomerShipTo = tbl_customer.Customer
+#   - SOLine→SalesRep via: tbl_so_line_rep (SONumber+SOLineNumber → SalesRep)
+#   - GL: tbl_je_line_item.AccountNumber = tbl_gl_account.AccountId
+
+# ============================================================
+# Family 1: Single-table lookup (easy)
+# ============================================================
+
+- id: trx_lookup_open_so
+  family: 1
+  difficulty: easy
+  question: "List all open sales orders."
+  tables: [tbl_sales_order]
+  columns: [tbl_sales_order.Status]
+  tags: [sales_orders, lookup]
+  gold_sql: |
+    SELECT "SONumber", "CustomerShipTo", "DateOrdered", "Type"
+    FROM "tbl_sales_order"
+    WHERE "Status" = 'OPEN'
+    ORDER BY "DateOrdered" DESC;
+
+- id: trx_lookup_open_invoices
+  family: 1
+  difficulty: easy
+  question: "Show all open AR invoices."
+  tables: [tbl_invoice]
+  columns: [tbl_invoice.Status]
+  tags: [accounts_receivable, lookup]
+  gold_sql: |
+    SELECT "InvoiceNumber", "Customer", "InvoiceDate", "InvoiceDueDate", "InvoiceAmount"
+    FROM "tbl_invoice"
+    WHERE "Status" = 'OPEN'
+    ORDER BY "InvoiceDate" DESC;
+
+- id: trx_lookup_open_po
+  family: 1
+  difficulty: easy
+  question: "List all open purchase orders."
+  tables: [tbl_purchase_order]
+  columns: [tbl_purchase_order.Status]
+  tags: [purchasing, lookup]
+  gold_sql: |
+    SELECT "PONumber", "VendorPurchaseFrom", "OrderingLocation", "OrderDate"
+    FROM "tbl_purchase_order"
+    WHERE "Status" = 'OPEN'
+    ORDER BY "OrderDate" DESC;
+
+- id: trx_lookup_stock_items
+  family: 1
+  difficulty: easy
+  question: "List all stock-type items."
+  tables: [tbl_item]
+  columns: [tbl_item.Type]
+  tags: [inventory, lookup]
+  gold_sql: |
+    SELECT "Item", "Description", "StockUOM", "StandardCost"
+    FROM "tbl_item"
+    WHERE "Type" = 'STOCK'
+    ORDER BY "Item";
+
+- id: trx_lookup_customers_state
+  family: 1
+  difficulty: easy
+  question: "List all customers in {state}."
+  tables: [tbl_customer]
+  columns: [tbl_customer.StateOrProvince]
+  tags: [customers, lookup]
+  gold_sql: |
+    SELECT "Customer", "Name", "City", "CreditLimit", "ARBalance"
+    FROM "tbl_customer"
+    WHERE "StateOrProvince" = '{state}'
+    ORDER BY "Name";
+
+- id: trx_lookup_open_vouchers
+  family: 1
+  difficulty: easy
+  question: "Show all open AP vouchers."
+  tables: [tbl_voucher]
+  columns: [tbl_voucher.Status]
+  tags: [accounts_payable, lookup]
+  gold_sql: |
+    SELECT "VoucherNumber", "Vendor", "InvoiceAmount", "PaymentTermsDueDate"
+    FROM "tbl_voucher"
+    WHERE "Status" = 'OPEN'
+    ORDER BY "PaymentTermsDueDate";
+
+- id: trx_lookup_confirmed_picktickets
+  family: 1
+  difficulty: easy
+  question: "Show all confirmed pick tickets."
+  tables: [tbl_pick_ticket]
+  columns: [tbl_pick_ticket.Status]
+  tags: [warehouse, lookup]
+  gold_sql: |
+    SELECT "PickTicketNumber", "OrderType", "Location", "DateShipped"
+    FROM "tbl_pick_ticket"
+    WHERE "Status" = 'CONFRM'
+    ORDER BY "DateShipped" DESC;
+
+- id: trx_lookup_wip_workorders
+  family: 1
+  difficulty: easy
+  question: "List work orders currently in assembly."
+  tables: [tbl_work_order]
+  columns: [tbl_work_order.AssemblyStatus]
+  tags: [warehouse, lookup]
+  gold_sql: |
+    SELECT "WorkOrderNumber", "Description", "OrderingLocation", "WorkCenter"
+    FROM "tbl_work_order"
+    WHERE "AssemblyStatus" = 'INASSY'
+    ORDER BY "WorkOrderNumber";
+
+# ============================================================
+# Family 2: Single-table aggregation (easy)
+# ============================================================
+
+- id: trx_agg_so_by_type
+  family: 2
+  difficulty: easy
+  question: "How many sales orders are there by order type?"
+  tables: [tbl_sales_order]
+  columns: [tbl_sales_order.Type]
+  tags: [sales_orders, aggregation]
+  gold_sql: |
+    SELECT "Type", COUNT(*) AS order_count
+    FROM "tbl_sales_order"
+    GROUP BY "Type"
+    ORDER BY order_count DESC;
+
+- id: trx_agg_so_count_year
+  family: 2
+  difficulty: easy
+  question: "How many sales orders were placed in {year}?"
+  tables: [tbl_sales_order]
+  columns: [tbl_sales_order.DateOrdered]
+  tags: [sales_orders, aggregation, temporal]
+  gold_sql: |
+    SELECT COUNT(*) AS order_count
+    FROM "tbl_sales_order"
+    WHERE EXTRACT(YEAR FROM "DateOrdered") = {year};
+
+- id: trx_agg_items_by_type
+  family: 2
+  difficulty: easy
+  question: "How many items are there by item type?"
+  tables: [tbl_item]
+  columns: [tbl_item.Type]
+  tags: [inventory, aggregation]
+  gold_sql: |
+    SELECT "Type", COUNT(*) AS item_count
+    FROM "tbl_item"
+    GROUP BY "Type"
+    ORDER BY item_count DESC;
+
+- id: trx_agg_po_by_status
+  family: 2
+  difficulty: easy
+  question: "Count purchase orders by status."
+  tables: [tbl_purchase_order]
+  columns: [tbl_purchase_order.Status]
+  tags: [purchasing, aggregation]
+  gold_sql: |
+    SELECT "Status", COUNT(*) AS po_count
+    FROM "tbl_purchase_order"
+    GROUP BY "Status"
+    ORDER BY po_count DESC;
+
+- id: trx_agg_gl_by_account_type
+  family: 2
+  difficulty: easy
+  question: "How many GL accounts exist by account type?"
+  tables: [tbl_gl_account]
+  columns: [tbl_gl_account.AccountType]
+  tags: [general_ledger, aggregation]
+  gold_sql: |
+    SELECT "AccountType", COUNT(*) AS account_count
+    FROM "tbl_gl_account"
+    GROUP BY "AccountType"
+    ORDER BY account_count DESC;
+
+- id: trx_agg_wip_by_status
+  family: 2
+  difficulty: easy
+  question: "How many work orders are there by assembly status?"
+  tables: [tbl_work_order]
+  columns: [tbl_work_order.AssemblyStatus]
+  tags: [warehouse, aggregation]
+  gold_sql: |
+    SELECT "AssemblyStatus", COUNT(*) AS wo_count
+    FROM "tbl_work_order"
+    GROUP BY "AssemblyStatus"
+    ORDER BY wo_count DESC;
+
+# ============================================================
+# Family 3: Header-detail aggregation (medium)
+# ============================================================
+
+- id: trx_hdr_so_line_count
+  family: 3
+  difficulty: medium
+  question: "How many lines does each open sales order have?"
+  tables: [tbl_sales_order, tbl_so_line]
+  columns: [tbl_sales_order.Status, tbl_so_line.SONumber]
+  tags: [sales_orders, header_detail]
+  gold_sql: |
+    SELECT s."SONumber", s."CustomerShipTo", s."DateOrdered",
+           COUNT(l."SOLineNumber") AS line_count
+    FROM "tbl_sales_order" s
+    JOIN "tbl_so_line" l ON l."SONumber" = s."SONumber"
+    WHERE s."Status" = 'OPEN'
+    GROUP BY s."SONumber", s."CustomerShipTo", s."DateOrdered"
+    ORDER BY line_count DESC;
+
+- id: trx_hdr_po_line_count
+  family: 3
+  difficulty: medium
+  question: "How many lines does each open purchase order have?"
+  tables: [tbl_purchase_order, tbl_purchase_order_line]
+  columns: [tbl_purchase_order.Status, tbl_purchase_order_line.PONumber]
+  tags: [purchasing, header_detail]
+  gold_sql: |
+    SELECT p."PONumber", p."VendorPurchaseFrom", p."OrderDate",
+           COUNT(l."POLineNumber") AS line_count
+    FROM "tbl_purchase_order" p
+    JOIN "tbl_purchase_order_line" l ON l."PONumber" = p."PONumber"
+    WHERE p."Status" = 'OPEN'
+    GROUP BY p."PONumber", p."VendorPurchaseFrom", p."OrderDate"
+    ORDER BY line_count DESC;
+
+- id: trx_hdr_pt_lines_shipped
+  family: 3
+  difficulty: medium
+  question: "What is the total quantity shipped per confirmed pick ticket?"
+  tables: [tbl_pick_ticket, tbl_pick_ticket_line]
+  columns: [tbl_pick_ticket.Status, tbl_pick_ticket_line.QuantityShipped]
+  tags: [warehouse, header_detail]
+  gold_sql: |
+    SELECT pt."PickTicketNumber", pt."DateShipped",
+           SUM(NULLIF(ptl."QuantityShipped", '')::numeric) AS total_shipped
+    FROM "tbl_pick_ticket" pt
+    JOIN "tbl_pick_ticket_line" ptl ON ptl."PickTicketNumber" = pt."PickTicketNumber"
+    WHERE pt."Status" = 'CONFRM'
+    GROUP BY pt."PickTicketNumber", pt."DateShipped"
+    ORDER BY total_shipped DESC NULLS LAST;
+
+- id: trx_hdr_invoice_balance
+  family: 3
+  difficulty: medium
+  question: "What is the outstanding balance on each open invoice?"
+  tables: [tbl_invoice]
+  columns: [tbl_invoice.Status, tbl_invoice.InvoiceAmount, tbl_invoice.PaidAmount]
+  tags: [accounts_receivable, header_detail]
+  gold_sql: |
+    SELECT "InvoiceNumber", "Customer", "InvoiceDate",
+           "InvoiceAmount", COALESCE("PaidAmount", 0) AS paid,
+           "InvoiceAmount" - COALESCE("PaidAmount", 0) AS balance_due
+    FROM "tbl_invoice"
+    WHERE "Status" = 'OPEN'
+    ORDER BY balance_due DESC;
+
+- id: trx_hdr_po_received_qty
+  family: 3
+  difficulty: medium
+  question: "What is the total quantity received vs ordered on open purchase orders?"
+  tables: [tbl_purchase_order, tbl_purchase_order_line]
+  columns: [tbl_purchase_order_line.Quantity, tbl_purchase_order_line.QuantityReceived]
+  tags: [purchasing, header_detail]
+  gold_sql: |
+    SELECT p."PONumber", p."VendorPurchaseFrom",
+           SUM(NULLIF(l."Quantity", '')::numeric) AS total_ordered,
+           SUM(NULLIF(l."QuantityReceived", '')::numeric) AS total_received
+    FROM "tbl_purchase_order" p
+    JOIN "tbl_purchase_order_line" l ON l."PONumber" = p."PONumber"
+    WHERE p."Status" = 'OPEN'
+    GROUP BY p."PONumber", p."VendorPurchaseFrom"
+    ORDER BY total_ordered DESC NULLS LAST;
+
+# ============================================================
+# Family 4: Two-entity join (medium)
+# ============================================================
+
+- id: trx_join_so_customer
+  family: 4
+  difficulty: medium
+  question: "List open sales orders with the customer name."
+  tables: [tbl_sales_order, tbl_customer]
+  columns: [tbl_sales_order.CustomerShipTo, tbl_customer.Name]
+  tags: [sales_orders, customers, join]
+  gold_sql: |
+    SELECT s."SONumber", c."Name" AS customer_name,
+           s."DateOrdered", s."Type"
+    FROM "tbl_sales_order" s
+    JOIN "tbl_customer" c ON c."Customer" = s."CustomerShipTo"
+    WHERE s."Status" = 'OPEN'
+    ORDER BY s."DateOrdered" DESC;
+
+- id: trx_join_po_vendor
+  family: 4
+  difficulty: medium
+  question: "List open purchase orders with the vendor name."
+  tables: [tbl_purchase_order, tbl_vendor]
+  columns: [tbl_purchase_order.VendorPurchaseFrom, tbl_vendor.Name]
+  tags: [purchasing, vendors, join]
+  gold_sql: |
+    SELECT p."PONumber", v."Name" AS vendor_name,
+           p."OrderDate", p."RequiredDate"
+    FROM "tbl_purchase_order" p
+    JOIN "tbl_vendor" v ON v."Vendor" = p."VendorPurchaseFrom"
+    WHERE p."Status" = 'OPEN'
+    ORDER BY p."OrderDate" DESC;
+
+- id: trx_join_voucher_vendor
+  family: 4
+  difficulty: medium
+  question: "Show open AP vouchers with vendor names and amounts due."
+  tables: [tbl_voucher, tbl_vendor]
+  columns: [tbl_voucher.Vendor, tbl_vendor.Name, tbl_voucher.InvoiceAmount]
+  tags: [accounts_payable, vendors, join]
+  gold_sql: |
+    SELECT v."VoucherNumber", vn."Name" AS vendor_name,
+           v."InvoiceAmount", v."PaymentTermsDueDate"
+    FROM "tbl_voucher" v
+    JOIN "tbl_vendor" vn ON vn."Vendor" = v."Vendor"
+    WHERE v."Status" = 'OPEN'
+    ORDER BY v."PaymentTermsDueDate";
+
+- id: trx_join_invoice_customer
+  family: 4
+  difficulty: medium
+  question: "Show open invoices with customer names and amounts due."
+  tables: [tbl_invoice, tbl_customer]
+  columns: [tbl_invoice.Customer, tbl_customer.Name, tbl_invoice.InvoiceAmount]
+  tags: [accounts_receivable, customers, join]
+  gold_sql: |
+    SELECT i."InvoiceNumber", c."Name" AS customer_name,
+           i."InvoiceDate", i."InvoiceDueDate",
+           i."InvoiceAmount", i."PaidAmount"
+    FROM "tbl_invoice" i
+    JOIN "tbl_customer" c ON c."Customer" = i."Customer"
+    WHERE i."Status" = 'OPEN'
+    ORDER BY i."InvoiceDueDate";
+
+# ============================================================
+# Family 5: Top-N (medium)
+# ============================================================
+
+- id: trx_topn_customers_by_so
+  family: 5
+  difficulty: medium
+  question: "Who are the top {n} customers by number of sales orders?"
+  tables: [tbl_sales_order, tbl_customer]
+  columns: [tbl_sales_order.CustomerShipTo, tbl_customer.Name]
+  tags: [sales_orders, customers, top_n]
+  gold_sql: |
+    SELECT c."Name" AS customer_name, COUNT(s."SONumber") AS so_count
+    FROM "tbl_sales_order" s
+    JOIN "tbl_customer" c ON c."Customer" = s."CustomerShipTo"
+    GROUP BY c."Name"
+    ORDER BY so_count DESC
+    LIMIT {n};
+
+- id: trx_topn_vendors_by_po_count
+  family: 5
+  difficulty: medium
+  question: "Who are the top {n} vendors by number of purchase orders?"
+  tables: [tbl_purchase_order, tbl_vendor]
+  columns: [tbl_purchase_order.VendorPurchaseFrom, tbl_vendor.Name]
+  tags: [purchasing, vendors, top_n]
+  gold_sql: |
+    SELECT v."Name" AS vendor_name, COUNT(p."PONumber") AS po_count
+    FROM "tbl_purchase_order" p
+    JOIN "tbl_vendor" v ON v."Vendor" = p."VendorPurchaseFrom"
+    GROUP BY v."Name"
+    ORDER BY po_count DESC
+    LIMIT {n};
+
+- id: trx_topn_items_ordered
+  family: 5
+  difficulty: medium
+  question: "What are the top {n} most frequently ordered items?"
+  tables: [tbl_so_line]
+  columns: [tbl_so_line.Item]
+  tags: [inventory, sales_orders, top_n]
+  gold_sql: |
+    SELECT "Item", "Description", COUNT(*) AS order_line_count
+    FROM "tbl_so_line"
+    WHERE "Item" IS NOT NULL AND "Item" != ''
+    GROUP BY "Item", "Description"
+    ORDER BY order_line_count DESC
+    LIMIT {n};
+
+- id: trx_topn_customers_by_ar
+  family: 5
+  difficulty: medium
+  question: "Who are the top {n} customers by AR balance?"
+  tables: [tbl_customer]
+  columns: [tbl_customer.ARBalance, tbl_customer.Name]
+  tags: [accounts_receivable, customers, top_n]
+  gold_sql: |
+    SELECT "Customer", "Name", "ARBalance"
+    FROM "tbl_customer"
+    WHERE "ARBalance" IS NOT NULL
+    ORDER BY "ARBalance" DESC
+    LIMIT {n};
+
+# ============================================================
+# Family 6: Temporal aggregation (medium)
+# ============================================================
+
+- id: trx_temp_so_by_month
+  family: 6
+  difficulty: medium
+  question: "How many sales orders were placed each month in {year}?"
+  tables: [tbl_sales_order]
+  columns: [tbl_sales_order.DateOrdered]
+  tags: [sales_orders, temporal, aggregation]
+  gold_sql: |
+    SELECT DATE_TRUNC('month', "DateOrdered") AS month,
+           COUNT(*) AS order_count
+    FROM "tbl_sales_order"
+    WHERE EXTRACT(YEAR FROM "DateOrdered") = {year}
+    GROUP BY month
+    ORDER BY month;
+
+- id: trx_temp_po_by_month
+  family: 6
+  difficulty: medium
+  question: "How many purchase orders were placed each month in {year}?"
+  tables: [tbl_purchase_order]
+  columns: [tbl_purchase_order.OrderDate]
+  tags: [purchasing, temporal, aggregation]
+  gold_sql: |
+    SELECT DATE_TRUNC('month', "OrderDate") AS month,
+           COUNT(*) AS po_count
+    FROM "tbl_purchase_order"
+    WHERE EXTRACT(YEAR FROM "OrderDate") = {year}
+    GROUP BY month
+    ORDER BY month;
+
+- id: trx_temp_invoice_total_by_month
+  family: 6
+  difficulty: medium
+  question: "What was the total invoiced amount by month in {year}?"
+  tables: [tbl_invoice]
+  columns: [tbl_invoice.InvoiceDate, tbl_invoice.InvoiceAmount]
+  tags: [accounts_receivable, temporal, aggregation]
+  gold_sql: |
+    SELECT DATE_TRUNC('month', "InvoiceDate") AS month,
+           COUNT(*) AS invoice_count,
+           SUM("InvoiceAmount") AS total_amount
+    FROM "tbl_invoice"
+    WHERE EXTRACT(YEAR FROM "InvoiceDate") = {year}
+    GROUP BY month
+    ORDER BY month;
+
+# ============================================================
+# Family 7: Three-table join (hard)
+# ============================================================
+
+- id: trx_3join_so_customer_qty
+  family: 7
+  difficulty: hard
+  question: "What is the total quantity ordered per customer in {year}?"
+  tables: [tbl_sales_order, tbl_so_line, tbl_customer]
+  columns: [tbl_sales_order.CustomerShipTo, tbl_so_line.Quantity, tbl_customer.Name]
+  tags: [sales_orders, customers, join, temporal]
+  gold_sql: |
+    SELECT c."Name" AS customer_name,
+           COUNT(l."SOLineNumber") AS line_count,
+           SUM(NULLIF(l."Quantity", '')::numeric) AS total_qty
+    FROM "tbl_sales_order" s
+    JOIN "tbl_so_line" l ON l."SONumber" = s."SONumber"
+    JOIN "tbl_customer" c ON c."Customer" = s."CustomerShipTo"
+    WHERE EXTRACT(YEAR FROM s."DateOrdered") = {year}
+    GROUP BY c."Name"
+    ORDER BY total_qty DESC NULLS LAST;
+
+- id: trx_3join_po_vendor_value
+  family: 7
+  difficulty: hard
+  question: "What is the total value of open PO lines by vendor?"
+  tables: [tbl_purchase_order, tbl_purchase_order_line, tbl_vendor]
+  columns: [tbl_purchase_order.VendorPurchaseFrom, tbl_purchase_order_line.UnitCost, tbl_purchase_order_line.Quantity, tbl_vendor.Name]
+  tags: [purchasing, vendors, join]
+  gold_sql: |
+    SELECT v."Name" AS vendor_name,
+           COUNT(l."POLineNumber") AS line_count,
+           SUM(NULLIF(l."Quantity", '')::numeric * l."UnitCost") AS total_value
+    FROM "tbl_purchase_order" p
+    JOIN "tbl_purchase_order_line" l ON l."PONumber" = p."PONumber"
+    JOIN "tbl_vendor" v ON v."Vendor" = p."VendorPurchaseFrom"
+    WHERE p."Status" = 'OPEN'
+    GROUP BY v."Name"
+    ORDER BY total_value DESC NULLS LAST;
+
+- id: trx_3join_invoice_item_revenue
+  family: 7
+  difficulty: hard
+  question: "What is the total revenue by item in {year}?"
+  tables: [tbl_invoice, tbl_invoice_line, tbl_item]
+  columns: [tbl_invoice_line.Item, tbl_invoice_line.UnitPrice, tbl_invoice_line.Quantity, tbl_item.Description]
+  tags: [accounts_receivable, inventory, join, temporal]
+  gold_sql: |
+    SELECT il."Item", im."Description",
+           SUM(NULLIF(il."Quantity", '')::numeric * il."UnitPrice") AS total_revenue
+    FROM "tbl_invoice" i
+    JOIN "tbl_invoice_line" il ON il."InvoiceNumber" = i."InvoiceNumber"
+    JOIN "tbl_item" im ON im."Item" = il."Item"
+    WHERE EXTRACT(YEAR FROM i."InvoiceDate") = {year}
+      AND il."Item" IS NOT NULL AND il."Item" != ''
+    GROUP BY il."Item", im."Description"
+    ORDER BY total_revenue DESC NULLS LAST
+    LIMIT 20;
+
+- id: trx_3join_so_rep_lines
+  family: 7
+  difficulty: hard
+  question: "How many sales order lines does each sales rep have in {year}?"
+  tables: [tbl_sales_order, tbl_so_line_rep, tbl_sales_rep]
+  columns: [tbl_so_line_rep.SalesRep, tbl_sales_rep.Name]
+  tags: [sales_orders, commissions, join, temporal]
+  gold_sql: |
+    SELECT r."Name" AS rep_name, COUNT(lr."SOLineNumber") AS line_count
+    FROM "tbl_sales_order" s
+    JOIN "tbl_so_line_rep" lr ON lr."SONumber" = s."SONumber"
+    JOIN "tbl_sales_rep" r ON r."SalesRep" = lr."SalesRep"
+    WHERE EXTRACT(YEAR FROM s."DateOrdered") = {year}
+    GROUP BY r."Name"
+    ORDER BY line_count DESC;
+
+# ============================================================
+# Family 8: Anti-join / NOT EXISTS (hard)
+# ============================================================
+
+- id: trx_antijoin_items_not_ordered
+  family: 8
+  difficulty: hard
+  question: "Which stock items have never been ordered?"
+  tables: [tbl_item, tbl_so_line]
+  columns: [tbl_item.Item, tbl_item.Type, tbl_so_line.Item]
+  tags: [inventory, anti_join]
+  gold_sql: |
+    SELECT i."Item", i."Description", i."StockUOM"
+    FROM "tbl_item" i
+    WHERE i."Type" = 'STOCK'
+      AND NOT EXISTS (
+        SELECT 1 FROM "tbl_so_line" l WHERE l."Item" = i."Item"
+      )
+    ORDER BY i."Item";
+
+- id: trx_antijoin_customers_no_orders_year
+  family: 8
+  difficulty: hard
+  question: "Which customers placed no sales orders in {year}?"
+  tables: [tbl_customer, tbl_sales_order]
+  columns: [tbl_customer.Customer, tbl_sales_order.CustomerShipTo, tbl_sales_order.DateOrdered]
+  tags: [customers, anti_join, temporal]
+  gold_sql: |
+    SELECT c."Customer", c."Name", c."ARBalance"
+    FROM "tbl_customer" c
+    WHERE NOT EXISTS (
+      SELECT 1 FROM "tbl_sales_order" s
+      WHERE s."CustomerShipTo" = c."Customer"
+        AND EXTRACT(YEAR FROM s."DateOrdered") = {year}
+    )
+    ORDER BY c."Name";
+
+- id: trx_antijoin_vendors_no_open_po
+  family: 8
+  difficulty: hard
+  question: "Which vendors have no open purchase orders?"
+  tables: [tbl_vendor, tbl_purchase_order]
+  columns: [tbl_vendor.Vendor, tbl_purchase_order.VendorPurchaseFrom, tbl_purchase_order.Status]
+  tags: [vendors, purchasing, anti_join]
+  gold_sql: |
+    SELECT v."Vendor", v."Name", v."APBalance"
+    FROM "tbl_vendor" v
+    WHERE NOT EXISTS (
+      SELECT 1 FROM "tbl_purchase_order" p
+      WHERE p."VendorPurchaseFrom" = v."Vendor"
+        AND p."Status" = 'OPEN'
+    )
+    ORDER BY v."Name";
+
+- id: trx_antijoin_so_not_invoiced
+  family: 8
+  difficulty: hard
+  question: "Which open sales orders have not been invoiced?"
+  tables: [tbl_sales_order, tbl_invoice]
+  columns: [tbl_sales_order.SONumber, tbl_sales_order.Status, tbl_invoice.SONumber]
+  tags: [sales_orders, accounts_receivable, anti_join]
+  gold_sql: |
+    SELECT s."SONumber", s."CustomerShipTo", s."DateOrdered", s."Type"
+    FROM "tbl_sales_order" s
+    WHERE s."Status" = 'OPEN'
+      AND NOT EXISTS (
+        SELECT 1 FROM "tbl_invoice" i WHERE i."SONumber" = s."SONumber"
+      )
+    ORDER BY s."DateOrdered" DESC;
+
+# ============================================================
+# Family 9: Window functions (hard)
+# ============================================================
+
+- id: trx_window_rank_customers_ar
+  family: 9
+  difficulty: hard
+  question: "Rank customers by AR balance."
+  tables: [tbl_customer]
+  columns: [tbl_customer.ARBalance, tbl_customer.Name]
+  tags: [accounts_receivable, customers, window_function]
+  gold_sql: |
+    SELECT "Customer", "Name", "ARBalance",
+           RANK() OVER (ORDER BY "ARBalance" DESC) AS ar_rank
+    FROM "tbl_customer"
+    WHERE "ARBalance" IS NOT NULL
+    ORDER BY ar_rank;
+
+- id: trx_window_rank_reps_commission
+  family: 9
+  difficulty: hard
+  question: "Rank sales reps by number of commission lines reported."
+  tables: [tbl_tiered_commission, tbl_sales_rep]
+  columns: [tbl_tiered_commission.SalesRep, tbl_sales_rep.Name]
+  tags: [commissions, window_function]
+  gold_sql: |
+    SELECT r."Name" AS rep_name,
+           COUNT(c."InvoiceNumber") AS commission_line_count,
+           RANK() OVER (ORDER BY COUNT(c."InvoiceNumber") DESC) AS rnk
+    FROM "tbl_tiered_commission" c
+    JOIN "tbl_sales_rep" r ON r."SalesRep" = c."SalesRep"
+    GROUP BY r."Name"
+    ORDER BY rnk;
+
+- id: trx_window_monthly_so_running
+  family: 9
+  difficulty: hard
+  question: "Show monthly sales order count with a running total for {year}."
+  tables: [tbl_sales_order]
+  columns: [tbl_sales_order.DateOrdered]
+  tags: [sales_orders, window_function, temporal]
+  gold_sql: |
+    SELECT DATE_TRUNC('month', "DateOrdered") AS month,
+           COUNT(*) AS monthly_count,
+           SUM(COUNT(*)) OVER (ORDER BY DATE_TRUNC('month', "DateOrdered")) AS running_total
+    FROM "tbl_sales_order"
+    WHERE EXTRACT(YEAR FROM "DateOrdered") = {year}
+    GROUP BY month
+    ORDER BY month;
+
+# ============================================================
+# Family 10: Extra-hard — multi-table / correlated (extra_hard)
+# ============================================================
+
+- id: trx_xhard_overdue_invoices
+  family: 10
+  difficulty: extra_hard
+  question: "Which open invoices are past their due date, and how many days overdue?"
+  tables: [tbl_invoice, tbl_customer]
+  columns: [tbl_invoice.Status, tbl_invoice.InvoiceDueDate, tbl_customer.Name]
+  tags: [accounts_receivable, temporal]
+  gold_sql: |
+    SELECT i."InvoiceNumber", c."Name" AS customer_name,
+           i."InvoiceDate", i."InvoiceDueDate",
+           i."InvoiceAmount", i."PaidAmount",
+           CURRENT_DATE - i."InvoiceDueDate"::date AS days_overdue
+    FROM "tbl_invoice" i
+    JOIN "tbl_customer" c ON c."Customer" = i."Customer"
+    WHERE i."Status" = 'OPEN'
+      AND i."InvoiceDueDate" < CURRENT_DATE
+    ORDER BY days_overdue DESC;
+
+- id: trx_xhard_inventory_value_by_location
+  family: 10
+  difficulty: extra_hard
+  question: "What is the total inventory value by location?"
+  tables: [tbl_item_location, tbl_item]
+  columns: [tbl_item_location.Location, tbl_item_location.QuantityOnHand, tbl_item.StandardCost]
+  tags: [inventory, aggregation]
+  gold_sql: |
+    SELECT il."Location",
+           COUNT(DISTINCT il."Item") AS item_count,
+           SUM(NULLIF(il."QuantityOnHand", '')::numeric * im."StandardCost") AS inventory_value
+    FROM "tbl_item_location" il
+    JOIN "tbl_item" im ON im."Item" = il."Item"
+    WHERE NULLIF(il."QuantityOnHand", '')::numeric > 0
+    GROUP BY il."Location"
+    ORDER BY inventory_value DESC NULLS LAST;
+
+- id: trx_xhard_gl_balance_by_account_type
+  family: 10
+  difficulty: extra_hard
+  question: "What is the net GL balance (debits minus credits) by account type?"
+  tables: [tbl_je_line_item, tbl_gl_account]
+  columns: [tbl_je_line_item.AccountNumber, tbl_je_line_item.DebitAmount, tbl_je_line_item.CreditAmount, tbl_gl_account.AccountType]
+  tags: [general_ledger, aggregation]
+  gold_sql: |
+    SELECT a."AccountType",
+           SUM(je."DebitAmount") AS total_debits,
+           SUM(je."CreditAmount") AS total_credits,
+           SUM(je."DebitAmount") - SUM(je."CreditAmount") AS net_balance
+    FROM "tbl_je_line_item" je
+    JOIN "tbl_gl_account" a ON a."AccountId" = je."AccountNumber"
+    GROUP BY a."AccountType"
+    ORDER BY net_balance DESC;
+
+- id: trx_xhard_wip_cost_by_status
+  family: 10
+  difficulty: extra_hard
+  question: "What is the total estimated cost of work orders by assembly status?"
+  tables: [tbl_work_order, tbl_work_order_item]
+  columns: [tbl_work_order.AssemblyStatus, tbl_work_order_item.EstimatedExtendedCost]
+  tags: [warehouse, aggregation]
+  gold_sql: |
+    SELECT w."AssemblyStatus",
+           COUNT(DISTINCT w."WorkOrderNumber") AS wo_count,
+           SUM(wi."EstimatedExtendedCost") AS total_estimated_cost
+    FROM "tbl_work_order" w
+    JOIN "tbl_work_order_item" wi ON wi."WorkOrderNumber" = w."WorkOrderNumber"
+    GROUP BY w."AssemblyStatus"
+    ORDER BY total_estimated_cost DESC NULLS LAST;
+
+- id: trx_xhard_item_reorder_needed
+  family: 10
+  difficulty: extra_hard
+  question: "Which items at location HUDW have quantity on hand below the minimum shelf quantity?"
+  tables: [tbl_item_location, tbl_item]
+  columns: [tbl_item_location.QuantityOnHand, tbl_item_location.MinShelfQty, tbl_item_location.Location]
+  tags: [inventory, aggregation]
+  gold_sql: |
+    SELECT il."Item", im."Description", il."Location",
+           NULLIF(il."QuantityOnHand", '')::numeric AS qty_on_hand,
+           NULLIF(il."MinShelfQty", '')::numeric AS min_shelf_qty
+    FROM "tbl_item_location" il
+    JOIN "tbl_item" im ON im."Item" = il."Item"
+    WHERE il."Location" = 'HUDW'
+      AND NULLIF(il."MinShelfQty", '')::numeric > 0
+      AND NULLIF(il."QuantityOnHand", '')::numeric < NULLIF(il."MinShelfQty", '')::numeric
+    ORDER BY (NULLIF(il."QuantityOnHand", '')::numeric - NULLIF(il."MinShelfQty", '')::numeric);
+
+- id: trx_xhard_so_customer_invoice_gap
+  family: 10
+  difficulty: extra_hard
+  question: "Which customers have open sales orders that have not yet been invoiced?"
+  tables: [tbl_sales_order, tbl_invoice, tbl_customer]
+  columns: [tbl_sales_order.SONumber, tbl_sales_order.Status, tbl_invoice.SONumber, tbl_customer.Name]
+  tags: [sales_orders, accounts_receivable, anti_join]
+  gold_sql: |
+    SELECT c."Name" AS customer_name,
+           COUNT(s."SONumber") AS uninvoiced_so_count
+    FROM "tbl_sales_order" s
+    JOIN "tbl_customer" c ON c."Customer" = s."CustomerShipTo"
+    WHERE s."Status" = 'OPEN'
+      AND NOT EXISTS (
+        SELECT 1 FROM "tbl_invoice" i WHERE i."SONumber" = s."SONumber"
+      )
+    GROUP BY c."Name"
+    ORDER BY uninvoiced_so_count DESC;

@@ -13,7 +13,7 @@
 
 import { Pool, PoolClient } from "pg"
 import { v4 as uuidv4 } from "uuid"
-import { validateSQL, ValidationResult, lintSQL, LintResult, lintIssuesToValidatorIssues, formatLintIssuesForRepair, attemptAutocorrect, AutocorrectResult, pgNormalize, type PgNormalizeResult, parseUndefinedColumn } from "./sql_validation.js"
+import { validateSQL, ValidationResult, lintSQL, LintResult, lintIssuesToValidatorIssues, formatLintIssuesForRepair, attemptAutocorrect, AutocorrectResult, pgNormalize, type PgNormalizeResult, parseUndefinedColumn, quoteIdentifiers } from "./sql_validation.js"
 import { getPythonClient, PythonClient } from "./python_client.js"
 import {
 	MCPTEST_CONFIG,
@@ -80,6 +80,7 @@ import {
 	type RerankerResult,
 	type RerankerDetail,
 } from "./candidate_reranker.js"
+import { runPreSQL, type PreSQLResult, PRE_SQL_ENABLED } from "./pre_sql.js"
 import fs from "fs"
 import path from "path"
 
@@ -89,6 +90,38 @@ export interface NLQueryToolInput {
 	timeout_seconds?: number
 	explain?: boolean
 	trace?: boolean
+	/** Optional: restrict query to a specific division (e.g. "div_01", "1", "division 3") */
+	division_id?: string | null
+}
+
+/**
+ * Parse a division identifier into the canonical "div_XX" format.
+ *
+ * Accepts: "1", "01", "3", "div_03", "div03", "div 3", "division 3", etc.
+ * Extracts numeric patterns from natural language when no explicit id is given.
+ * Falls back to "div_01" if nothing matches.
+ */
+export function parseDivisionId(question: string, explicit?: string | null): string {
+	if (explicit) {
+		const m = explicit.match(/(\d{1,2})/)
+		if (m) {
+			const n = parseInt(m[1], 10)
+			if (n >= 1 && n <= 20) return `div_${String(n).padStart(2, "0")}`
+		}
+	}
+	// Extract from question text
+	const patterns = [
+		/\bdiv(?:ision)?[_\s-]?(?:no\.?\s*)?(\d{1,2})\b/i,
+		/\b(\d{1,2})(?:st|nd|rd|th)?\s*div(?:ision)?\b/i,
+	]
+	for (const pat of patterns) {
+		const m = question.match(pat)
+		if (m) {
+			const n = parseInt(m[1], 10)
+			if (n >= 1 && n <= 20) return `div_${String(n).padStart(2, "0")}`
+		}
+	}
+	return "div_01"
 }
 
 export interface NLQueryToolContext {
@@ -120,11 +153,15 @@ export async function executeNLQuery(
 		timeout_seconds = DEFAULTS.timeoutSeconds,
 		explain = false,
 		trace = false,
+		division_id: rawDivisionId,
 	} = input
 
 	const { pool, logger } = context
 	const pythonClient = getPythonClient()
 	const maxAttempts = REPAIR_CONFIG.maxAttempts
+
+	// Resolve division routing
+	const divisionId = parseDivisionId(question, rawDivisionId)
 
 	// Determine which database to use
 	const databaseId = ACTIVE_DATABASE
@@ -277,6 +314,12 @@ export async function executeNLQuery(
 			allowedTables = (dbConfig as typeof MCPTEST_CONFIG).allowedTables || []
 		}
 
+		// Classify difficulty early for pre-SQL gating and multi-candidate k
+		// (schemaContext may be null for non-RAG databases — classifyDifficulty handles null gracefully)
+		const difficulty = MULTI_CANDIDATE_CONFIG.enabled
+			? classifyDifficulty(question, schemaContext)
+			: ("medium" as "easy" | "medium" | "hard")
+
 		// === SCHEMA GROUNDING PIPELINE (Phase 1 + Phase 2) ===
 		let schemaLinkBundle: SchemaLinkBundle | null = null
 		let joinPlan: JoinPlan | null = null
@@ -316,6 +359,58 @@ export async function executeNLQuery(
 				if (EXAM_MODE) {
 					recordExamSchemaLink(schemaLinkBundle)
 				}
+			}
+
+			// Phase 1.5: Pre-SQL sketch generation + re-retrieval (B1)
+			if (PRE_SQL_ENABLED && difficulty !== "easy") {
+				const preSqlStart = Date.now()
+				const preSqlResult = await runPreSQL(
+					question,
+					schemaContext,
+					glosses ?? null,
+					pythonClient,
+					pool,
+					difficulty,
+				)
+
+				if (preSqlResult && preSqlResult.additionalTablesRetrieved.length > 0) {
+					// Re-run glosses and linker with expanded context
+					if (SCHEMA_GLOSSES_ENABLED) {
+						glosses = generateGlosses(schemaContext)
+					}
+					if (SCHEMA_LINKER_ENABLED) {
+						schemaLinkBundle = linkSchema(question, schemaContext, glosses)
+						schemaLinkText = glosses
+							? formatSchemaLinkForPrompt(schemaLinkBundle, glosses, schemaContext ?? undefined)
+							: undefined
+					}
+					allowedTables = getAllowedTables(schemaContext)
+					logger.info("Pre-SQL expanded schema context", {
+						query_id: queryId,
+						additional_tables: preSqlResult.additionalTablesRetrieved,
+					})
+				}
+
+				if (EXAM_MODE && currentExamEntry) {
+					currentExamEntry.pre_sql = {
+						sketch_sql: preSqlResult?.sketchSQL ?? "",
+						referenced_tables: preSqlResult?.referencedTables ?? [],
+						missing_tables: preSqlResult?.missingTables ?? [],
+						additional_tables: preSqlResult?.additionalTablesRetrieved ?? [],
+						latency_ms: preSqlResult?.latencyMs ?? 0,
+					}
+					if (currentExamEntry.stage_latencies) {
+						currentExamEntry.stage_latencies.pre_sql_ms = Date.now() - preSqlStart
+					}
+				}
+
+				logger.info("Pre-SQL complete", {
+					query_id: queryId,
+					sketch_sql: preSqlResult?.sketchSQL?.slice(0, 100),
+					missing_tables: preSqlResult?.missingTables,
+					additional_tables: preSqlResult?.additionalTablesRetrieved,
+					latency_ms: preSqlResult?.latencyMs,
+				})
 			}
 
 			// Phase 2: Join planning
@@ -362,7 +457,6 @@ export async function executeNLQuery(
 			if (attempt === 1) {
 				// === SQL GENERATION (multi-candidate) ===
 				const useMultiCandidate = MULTI_CANDIDATE_CONFIG.enabled
-				const difficulty = useMultiCandidate ? classifyDifficulty(question, schemaContext) : "medium"
 				const kValue = useMultiCandidate ? getKForDifficulty(difficulty) : 1
 
 				const pythonRequest: NLQueryRequest = {
@@ -566,6 +660,24 @@ export async function executeNLQuery(
 				}
 			}
 
+			// --- Step 1.6: Quote mixed-case identifiers ---
+			// Post-processor: mechanically quote any unquoted mixed-case identifiers
+			// from the known schema context. No-op for all-lowercase DBs.
+			if (currentSQL && schemaContext) {
+				// Collect table names + column names from m_schema strings
+				const knownIds: string[] = schemaContext.tables.map(t => t.table_name)
+				for (const t of schemaContext.tables) {
+					// Extract quoted identifiers from m_schema: "ColumnName" patterns
+					const colMatches = t.m_schema.matchAll(/"(\w+)"/g)
+					for (const m of colMatches) {
+						if (m[1] && !knownIds.includes(m[1])) {
+							knownIds.push(m[1])
+						}
+					}
+				}
+				currentSQL = quoteIdentifiers(currentSQL, knownIds)
+			}
+
 			// If Python returned an error, propagate it
 			if (pythonResponse.error) {
 				throw new NL2SQLError(
@@ -716,6 +828,7 @@ export async function executeNLQuery(
 
 			try {
 				client = await pool.connect()
+				await client.query(`SET search_path TO ${divisionId}, public, rag`)
 
 				// Set short timeout for EXPLAIN
 				await client.query(`SET statement_timeout = ${REPAIR_CONFIG.explainTimeout}`)
@@ -785,6 +898,7 @@ export async function executeNLQuery(
 						try {
 							const retryClient = await pool.connect()
 							try {
+								await retryClient.query(`SET search_path TO ${divisionId}, public, rag`)
 								await retryClient.query(`SET statement_timeout = ${REPAIR_CONFIG.explainTimeout}`)
 								await retryClient.query(`EXPLAIN (FORMAT JSON) ${correctedSQL}`)
 								logger.info("Surgical whitelist: EXPLAIN passed after rewrite", { query_id: queryId })
@@ -850,6 +964,7 @@ export async function executeNLQuery(
 						try {
 							const retryClient = await pool.connect()
 							try {
+								await retryClient.query(`SET search_path TO ${divisionId}, public, rag`)
 								await retryClient.query(`SET statement_timeout = ${REPAIR_CONFIG.explainTimeout}`)
 								await retryClient.query(`EXPLAIN (FORMAT JSON) ${correctedSQL}`)
 								logger.info("Autocorrect EXPLAIN passed", { query_id: queryId })
@@ -1139,6 +1254,7 @@ export async function executeNLQuery(
 			// --- Step 4: Execute Query ---
 			const executeStart = Date.now()
 			client = await pool.connect()
+			await client.query(`SET search_path TO ${divisionId}, public, rag`)
 
 			try {
 				// Set statement timeout for actual execution

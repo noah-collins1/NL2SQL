@@ -498,7 +498,12 @@ function checkDangerousFunctions(tokens: Token[]): {
 }
 
 function extractTableNames(tokens: Token[]): string[] {
-	const normalTokens = getNormalTokens(tokens)
+	// Include DOUBLE_QUOTE tokens (quoted identifiers like "TableName") alongside NORMAL tokens.
+	// Using only NORMAL tokens strips quoted table names — e.g. `FROM "tbl_sales_order" c` becomes
+	// `FROM  c`, causing the alias `c` to be extracted as the table name instead of `tbl_sales_order`.
+	const normalTokens = tokens.filter(
+		(t) => t.type === TokenType.NORMAL || t.type === TokenType.DOUBLE_QUOTE,
+	)
 	const normalSQL = normalTokens.map((t) => t.value).join("")
 	const tables: string[] = []
 
@@ -564,16 +569,17 @@ export function validateSQL(
 
 	const tokens = tokenizeSQL(currentSQL)
 
-	// Rule 1: Must start with SELECT
+	// Rule 1: Must start with SELECT or WITH (CTEs like "WITH cte AS (...) SELECT ...")
 	const normalTokens = getNormalTokens(tokens)
 	const firstCodeToken = normalTokens.find((t) => t.value.trim().length > 0)
-	if (!firstCodeToken || !firstCodeToken.value.trim().toUpperCase().startsWith("SELECT")) {
+	const firstValue = firstCodeToken?.value.trim().toUpperCase() ?? ""
+	if (!firstCodeToken || (!firstValue.startsWith("SELECT") && !firstValue.startsWith("WITH"))) {
 		issues.push({
 			code: "NO_SELECT",
 			severity: "error",
 			action: "fail_fast",
-			message: "Query must start with SELECT",
-			suggestion: "Only SELECT queries are allowed",
+			message: "Query must start with SELECT or WITH",
+			suggestion: "Only SELECT queries (including CTEs) are allowed",
 		})
 		return {
 			valid: false,
@@ -654,9 +660,17 @@ export function validateSQL(
 	}
 
 	// Rule 5: Table allowlist enforcement
+	// Exclude CTE names (defined in WITH ... AS (...)) from the unknown-table check
 	const tablesUsed = extractTableNames(tokens)
+	const cteNamePattern = /\bWITH\s+(\w+)\s+AS\s*\(|,\s*(\w+)\s+AS\s*\(/gi
+	const cteNames = new Set<string>()
+	let cteMatch: RegExpExecArray | null
+	while ((cteMatch = cteNamePattern.exec(currentSQL)) !== null) {
+		const name = (cteMatch[1] || cteMatch[2] || "").toLowerCase()
+		if (name) cteNames.add(name)
+	}
 	const unknownTables = tablesUsed.filter(
-		(table) => !context.allowedTables.map((t) => t.toLowerCase()).includes(table),
+		(table) => !cteNames.has(table) && !context.allowedTables.map((t) => t.toLowerCase()).includes(table),
 	)
 	if (unknownTables.length > 0) {
 		issues.push({
@@ -877,7 +891,9 @@ function checkTrailingCommas(normalSQL: string): LintIssue[] {
 function checkJoinWithoutCondition(normalSQL: string): LintIssue[] {
 	const issues: LintIssue[] = []
 
-	const joinPattern = /\b((?:LEFT|RIGHT|INNER|OUTER|FULL)?\s*JOIN)\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\s+(?:AS\s+)?[a-zA-Z_][a-zA-Z0-9_]*)?)\s*/gi
+	// Match both quoted ("TableName") and unquoted (table_name) identifiers,
+	// optionally followed by a schema prefix (schema."Table") and an alias.
+	const joinPattern = /\b((?:LEFT|RIGHT|INNER|OUTER|FULL)?\s*JOIN)\s+(?:"[^"]+"|[a-zA-Z_][a-zA-Z0-9_]*)(?:\."[^"]+"|[a-zA-Z_][a-zA-Z0-9_]*)?(?:\s+(?:AS\s+)?(?:"[^"]+"|[a-zA-Z_][a-zA-Z0-9_]*))?\s*/gi
 
 	let match
 	while ((match = joinPattern.exec(normalSQL)) !== null) {
@@ -1074,12 +1090,21 @@ export function lintSQL(sql: string): LintResult {
 	const tokens = tokenizeSQL(sql)
 	const normalSQL = getNormalSQL(tokens)
 
+	// For join-condition checking we need double-quoted identifiers (object names) preserved.
+	// normalSQL strips them (DOUBLE_QUOTE tokens are excluded from NORMAL), which causes
+	// `JOIN "Table" alias ON ...` to appear as `JOIN  alias ON ...` where `ON` gets eaten
+	// as the alias and a false join_without_condition error is emitted.
+	const sqlWithObjectNames = tokens
+		.filter((t) => t.type === TokenType.NORMAL || t.type === TokenType.DOUBLE_QUOTE)
+		.map((t) => t.value)
+		.join("")
+
 	const allIssues: LintIssue[] = []
 
 	allIssues.push(...checkUnbalancedParens(normalSQL))
 	allIssues.push(...checkUnclosedQuotes(sql, tokens))
 	allIssues.push(...checkTrailingCommas(normalSQL))
-	allIssues.push(...checkJoinWithoutCondition(normalSQL))
+	allIssues.push(...checkJoinWithoutCondition(sqlWithObjectNames))
 
 	const aliases = lintExtractAliases(normalSQL)
 	allIssues.push(...checkUndefinedAliases(normalSQL, aliases))
@@ -2052,4 +2077,41 @@ export function pgNormalize(sql: string): PgNormalizeResult {
 		applied: allApplied,
 		changed: allApplied.length > 0,
 	}
+}
+
+// ============================================================================
+// Identifier Quoting
+// ============================================================================
+
+/**
+ * Quote any unquoted SQL identifiers that need case-preservation.
+ *
+ * PostgreSQL folds unquoted identifiers to lowercase, so any identifier with
+ * uppercase letters must be double-quoted (e.g. tbl_sales_order → "tbl_sales_order").
+ * This is a no-op for all-lowercase databases (enterprise_erp_2000 etc.).
+ *
+ * Only identifiers present in `knownIdentifiers` are touched, preventing
+ * false-positive replacements of SQL keywords or arbitrary words.
+ *
+ * @param sql              Raw SQL from the LLM
+ * @param knownIdentifiers Table names + column names from the schema context
+ */
+export function quoteIdentifiers(sql: string, knownIdentifiers: string[]): string {
+	if (!sql) return sql
+
+	// Collect only identifiers that actually need quoting
+	const toQuote = knownIdentifiers.filter((id) => id !== id.toLowerCase())
+	if (toQuote.length === 0) return sql
+
+	// Longest first so "tbl_so_line" is handled before "tbl_sales_order"
+	toQuote.sort((a, b) => b.length - a.length)
+
+	let out = sql
+	for (const id of toQuote) {
+		// Match word-boundary occurrences not already inside double-quotes
+		const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+		const re = new RegExp(`(?<!")\\b${escaped}\\b(?!")`, "g")
+		out = out.replace(re, `"${id}"`)
+	}
+	return out
 }

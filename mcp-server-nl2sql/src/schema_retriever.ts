@@ -221,7 +221,11 @@ export interface ModuleRouteResult {
 	method: "keyword" | "embedding" | "hybrid"
 }
 
-const MODULE_KEYWORDS: Record<string, string[]> = {
+/** Hardcoded fallback keywords — used when rag.module_definitions is absent.
+ *  For any new database, populate rag.module_definitions via scripts/setup_rag.py
+ *  and these hardcoded values are automatically superseded.
+ */
+const FALLBACK_MODULE_KEYWORDS: Record<string, string[]> = {
 	HR: ["employee", "employees", "salary", "salaries", "leave", "leaves", "benefit", "benefits", "department", "departments", "hire", "hired", "hiring", "training", "trainings", "attendance", "payroll"],
 	Finance: ["journal", "ledger", "account", "accounts", "fiscal", "budget", "budgets", "bank", "tax", "taxes", "payment", "payments", "receivable", "payable", "financial", "revenue", "expense", "expenses", "invoice", "invoices", "ar", "ap", "depreciation", "gl", "posting", "period"],
 	Sales: ["customer", "customers", "order", "orders", "sales", "sale", "quote", "quotes", "opportunity", "opportunities", "revenue", "territory", "territories", "representative", "representatives"],
@@ -238,9 +242,56 @@ const MODULE_KEYWORDS: Record<string, string[]> = {
 	Workflow: ["approval", "approvals", "workflow", "requisition", "requisitions"],
 }
 
+/** Cache of module keywords loaded from rag.module_definitions (per-database). */
+let _moduleKeywordsCache: Record<string, string[]> | null = null
+let _moduleKeywordsCacheTime = 0
+const MODULE_KEYWORDS_TTL_MS = 5 * 60 * 1000 // 5 minutes
+
+/**
+ * Load module keywords from rag.module_definitions (DB-driven, cached).
+ * Falls back to FALLBACK_MODULE_KEYWORDS if the table is absent or empty.
+ * Cache is invalidated after 5 minutes to pick up setup_rag.py changes.
+ */
+async function getModuleKeywords(
+	client: PoolClient,
+): Promise<Record<string, string[]>> {
+	const now = Date.now()
+	if (_moduleKeywordsCache !== null && now - _moduleKeywordsCacheTime < MODULE_KEYWORDS_TTL_MS) {
+		return _moduleKeywordsCache
+	}
+	try {
+		const res = await client.query(`
+			SELECT module_name, keywords
+			FROM rag.module_definitions
+			WHERE array_length(keywords, 1) > 0
+		`)
+		if (res.rows.length > 0) {
+			const loaded: Record<string, string[]> = {}
+			for (const row of res.rows) {
+				loaded[row.module_name] = row.keywords as string[]
+			}
+			_moduleKeywordsCache = loaded
+			_moduleKeywordsCacheTime = now
+			return _moduleKeywordsCache
+		}
+	} catch {
+		// rag.module_definitions table doesn't exist yet — use fallback
+	}
+	_moduleKeywordsCache = FALLBACK_MODULE_KEYWORDS
+	_moduleKeywordsCacheTime = now
+	return _moduleKeywordsCache
+}
+
+/** Invalidate the module keywords cache (call after setup_rag.py completes). */
+export function invalidateModuleKeywordsCache(): void {
+	_moduleKeywordsCache = null
+	_moduleKeywordsCacheTime = 0
+}
+
 /**
  * Classify a question into 1-3 ERP modules.
- * Uses keyword rules + embedding similarity against module embeddings.
+ * Uses keyword rules (from rag.module_definitions or fallback) +
+ * embedding similarity against rag.module_embeddings.
  */
 export async function routeToModules(
 	client: PoolClient,
@@ -249,11 +300,12 @@ export async function routeToModules(
 	maxModules: number = 3,
 	logger?: { debug: Function; warn: Function },
 ): Promise<ModuleRouteResult> {
+	const moduleKeywords = await getModuleKeywords(client)
 	const questionLower = question.toLowerCase()
 	const tokens = questionLower.split(/\s+/)
 	const keywordScores = new Map<string, number>()
 
-	for (const [module, keywords] of Object.entries(MODULE_KEYWORDS)) {
+	for (const [module, keywords] of Object.entries(moduleKeywords)) {
 		let score = 0
 		for (const kw of keywords) {
 			if (tokens.includes(kw) || questionLower.includes(kw)) {
@@ -600,14 +652,20 @@ export class SchemaRetriever {
 		expansionLimit: number,
 		maxTables: number,
 	): Promise<RetrievedTable[]> {
-		const selectedTableNames = new Set(retrievedTables.map((t) => t.table_name))
-		const expandedTables: RetrievedTable[] = [...retrievedTables]
-		const hubTablesCapped: string[] = []
-
 		// Sort by similarity descending for prioritized expansion
 		const sortedTables = [...retrievedTables].sort(
 			(a, b) => b.similarity - a.similarity,
 		)
+
+		// Trim to (maxTables - expansionLimit) before FK expansion so there is always room
+		// to add FK-neighbor tables. Without this, if topK > maxTables, expandedTables starts
+		// above maxTables and the FK expansion loop never fires.
+		const baseLimit = Math.max(1, maxTables - expansionLimit)
+		const baseSet = sortedTables.slice(0, baseLimit)
+
+		const selectedTableNames = new Set(baseSet.map((t) => t.table_name))
+		const expandedTables: RetrievedTable[] = [...baseSet]
+		const hubTablesCapped: string[] = []
 
 		// Expand top tables (respect expansionLimit)
 		const tablesToExpand = sortedTables.slice(0, expansionLimit)
@@ -826,7 +884,7 @@ export class SchemaRetriever {
 					table_name: rt.table_name,
 					table_schema: rt.table_schema,
 					module: rt.module,
-					gloss: rt.table_gloss,
+					gloss: rt.table_gloss ?? "",
 					m_schema: `${rt.table_name} (...)`,
 					similarity: rt.similarity,
 					source: rt.source,
@@ -838,7 +896,7 @@ export class SchemaRetriever {
 				table_name: meta.table_name,
 				table_schema: meta.table_schema,
 				module: meta.module,
-				gloss: meta.table_gloss,
+				gloss: meta.table_gloss ?? "",
 				m_schema: renderMSchema(meta),
 				similarity: rt.similarity,
 				source: rt.source,

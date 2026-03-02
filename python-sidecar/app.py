@@ -392,7 +392,7 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
                         prompt=prompt,
                         k=multi_k,
                         temperature=0.3,  # Non-zero for candidate diversity
-                        max_tokens=200,
+                        max_tokens=500,
                         base_seed=42  # Fixed base seed for reproducibility
                     )
                 else:
@@ -404,7 +404,7 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
                         prompt=prompt,
                         k=multi_k,
                         temperature=0.3,  # Non-zero for candidate diversity
-                        max_tokens=200,
+                        max_tokens=500,
                         base_seed=42  # Fixed base seed for reproducibility
                     )
 
@@ -422,7 +422,7 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
                     sql, confidence, gen_prompt_tokens, gen_completion_tokens = ollama_client.generate_sql(
                         prompt=prompt,
                         temperature=0.0,
-                        max_tokens=200,
+                        max_tokens=500,
                         seed=42  # Fixed seed for reproducibility
                     )
                     ollama_duration_ms = int((time.time() - ollama_start) * 1000)
@@ -432,7 +432,7 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
                 sql, confidence, gen_prompt_tokens, gen_completion_tokens = ollama_client.generate_sql(
                     prompt=prompt,
                     temperature=0.0,
-                    max_tokens=200,
+                    max_tokens=500,
                     seed=42  # Fixed seed for reproducibility
                 )
                 ollama_duration_ms = int((time.time() - ollama_start) * 1000)
@@ -464,7 +464,7 @@ async def generate_sql(request: NLQueryRequest) -> PythonSidecarResponse:
                     repaired_sql, repaired_confidence, _, _ = ollama_client.generate_sql(
                         prompt=repair_prompt,
                         temperature=0.0,
-                        max_tokens=200,
+                        max_tokens=500,
                         seed=99  # Fixed seed for semantic repair
                     )
 
@@ -676,7 +676,7 @@ async def repair_sql(request: dict) -> PythonSidecarResponse:
             sql, confidence, repair_prompt_tokens, repair_completion_tokens = ollama_client.generate_sql(
                 prompt=prompt,
                 temperature=0.0,  # Deterministic
-                max_tokens=200,
+                max_tokens=500,
                 seed=repair_seed
             )
             ollama_duration_ms = int((time.time() - ollama_start) * 1000)

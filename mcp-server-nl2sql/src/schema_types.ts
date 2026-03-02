@@ -324,20 +324,36 @@ export interface RepairContext {
  *
  * Format: table_name (col1 TYPE, col2 TYPE FK→target, col3 TYPE PK, ...)
  */
+/**
+ * Return true if this SQL identifier needs double-quoting to preserve case.
+ * All-lowercase identifiers are safe without quotes; mixed-case needs quoting.
+ */
+function needsQuoting(name: string): boolean {
+	return name !== name.toLowerCase()
+}
+
+function q(name: string): string {
+	return needsQuoting(name) ? `"${name}"` : name
+}
+
 export function renderMSchema(table: TableMeta): string {
 	const colParts = table.columns.map((col) => {
-		let part = `${col.column_name} ${col.data_type}`
+		let part = `${q(col.column_name)} ${col.data_type}`
 
 		if (col.is_pk) {
 			part += " PK"
 		} else if (col.is_fk && col.fk_target_table) {
-			part += ` FK→${col.fk_target_table}`
+			// Include target column when available (critical for natural-key DBs where FK→non-PK)
+			const target = col.fk_target_column
+				? `${col.fk_target_table}.${col.fk_target_column}`
+				: col.fk_target_table
+			part += ` FK→${target}`
 		}
 
 		return part
 	})
 
-	return `${table.table_name} (${colParts.join(", ")})`
+	return `${q(table.table_name)} (${colParts.join(", ")})`
 }
 
 /**

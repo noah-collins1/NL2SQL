@@ -1,0 +1,56 @@
+# Industry-Erp Wholesale Distribution ERP — Module Definitions
+# Used by scripts/setup_rag.py to populate rag.module_definitions.
+# Table naming convention: tbl{module}{EntityName}
+#   tbl_so* → SO, tbl_ar* → AR, tbl_po* → PO, tbl_ap* → AP,
+#   tbl_gl* → GL, tbl_im* → IM, tbl_wh* → WH, tbl_sn* → SN, tbl_sa* → SA
+
+modules:
+  - name: SO
+    description: "Sales Orders module (SO). Manages sales orders, order lines, quotes, blanket orders, counter orders, EDI, and order-level taxes. Primary tables: tbl_sales_order (order header), tbl_so_line (line items), tbl_quote, tbl_so_line_rep (rep assignment)."
+    keywords: ["sales order", "sales orders", order, orders, so, quote, quotes, blanket, "counter order", "order line", "order lines", "order date", ordered, placed, "open order", "open orders", "standard order"]
+    table_prefixes: [tbl_so]
+
+  - name: AR
+    description: "Accounts Receivable module (AR). Manages customers, invoices, cash receipts, AR balances, credit limits, and invoice corrections. Primary tables: tbl_customer (customer master), tbl_invoice (invoice header), tbl_invoice_line, tbl_cash_receipt."
+    keywords: [customer, customers, invoice, invoices, receivable, "accounts receivable", ar, "cash receipt", "cash receipts", "ar balance", "credit limit", "credit rating", "past due", "payment received", "open invoice", "open invoices", "invoiced amount", "invoice date", "due date"]
+    table_prefixes: [tbl_ar]
+
+  - name: PO
+    description: "Purchase Orders module (PO). Manages purchase orders, purchase order lines, receipts, and order-to-receive tracking. Primary tables: tbl_purchase_order (PO header), tbl_purchase_order_line (line items), tbl_po_receipt."
+    keywords: ["purchase order", "purchase orders", po, purchasing, buyer, "open po", "open purchase order", received, receiving, "quantity received", requisition, "po line", "vendor order", "purchase requisition"]
+    table_prefixes: [tbl_po]
+
+  - name: AP
+    description: "Accounts Payable module (AP). Manages vendors, AP vouchers (vendor invoices), voucher payments, and AP balances. Primary tables: tbl_vendor (vendor master), tbl_voucher (voucher header), tbl_voucher_payment."
+    keywords: [vendor, vendors, ap, "accounts payable", payable, voucher, vouchers, "vendor payment", "ap balance", "vendor invoice", "voucher payment", "vendor name", "pay vendor", "payment terms"]
+    table_prefixes: [tbl_ap]
+
+  - name: GL
+    description: "General Ledger module (GL). Manages journal entries, chart of accounts, GL transaction history, account balances, and period closing. Primary tables: tbl_gl_account (chart of accounts), tbl_journal_entry, tbl_je_line_item (debits/credits), tbl_tx_history."
+    keywords: [gl, "general ledger", journal, "journal entry", "journal entries", account, accounts, "chart of accounts", debit, debits, credit, credits, "account balance", "fiscal year", period, posting, posted, "tx history", "transaction history", "gl balance"]
+    table_prefixes: [tbl_gl]
+
+  - name: IM
+    description: "Inventory Management module (IM). Manages inventory items, item locations, pricing, vendor sourcing, bills of materials, and inventory valuation. Primary tables: tbl_item (item master), tbl_item_location (item by location), tbl_item_price, tbl_bom."
+    keywords: [item, items, inventory, product, products, stock, sku, "item location", "on hand", "quantity on hand", "standard cost", uom, "unit of measure", "min shelf qty", reorder, "inventory value", "item type", "stock item", bom, "bill of materials", "item price", "item vendor"]
+    table_prefixes: [tbl_im]
+
+  - name: WH
+    description: "Warehouse module (WH). Manages pick tickets, work orders, warehouse assembly, WIP history, and bin allocations. Primary tables: tbl_pick_ticket (pick ticket header), tbl_pick_ticket_line, tbl_work_order (WO header), tbl_work_order_item."
+    keywords: ["pick ticket", "pick tickets", "work order", "work orders", wo, warehouse, picking, shipment, shipped, "date shipped", bin, assembly, fabrication, wip, "work in progress", "assembly status", "work center", "qty shipped", "quantity shipped", "pick line"]
+    table_prefixes: [tbl_wh]
+
+  - name: SN
+    description: "Sales Commissions module (SN). Manages sales representatives, territories, commission codes, tiered commission structures, and reported commissions. Primary tables: tbl_sales_rep, tbl_sales_rep_territory, tbl_sales_territory, tbl_tiered_commission."
+    keywords: [commission, commissions, "sales rep", "sales reps", rep, reps, territory, territories, tiered, "commission rate", "commission percent", "commission code", "district manager", "rep assignment", "reported commission", incentive]
+    table_prefixes: [tbl_sn]
+
+  - name: SA
+    description: "Sales Administration module (SA). Manages system configuration, locations, payment terms, fiscal years, user settings, audit logs, comments, and background jobs. Primary tables: tbl_location, tbl_terms, tbl_fiscal_year, tbl_audit_log."
+    keywords: [location, locations, "payment terms", terms, "fiscal year", "fiscal years", setup, configuration, administration, "user field", "audit log", comments, "system settings", "selling location"]
+    table_prefixes: [tbl_sa]
+
+  - name: Other
+    description: "Miscellaneous and system tables not assigned to a primary ERP module."
+    keywords: []
+    table_prefixes: []

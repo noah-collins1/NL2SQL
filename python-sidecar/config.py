@@ -369,8 +369,11 @@ Use these FK relationships for JOINs:
 4. **No cross-table column guessing** - If `budgets` doesn't list `project_id`, don't use `budgets.project_id`
 5. **Do NOT guess column names** - Use ONLY the exact column names shown in the schema.
    Common mistakes: `name` vs `first_name`/`last_name`, `price` vs `list_price`/`unit_cost`,
-   `posted` vs `status = 'Posted'`, `amount` vs `planned_amount`/`total_amount`
-6. **For boolean-like filters** (posted, active, approved), check if the table uses a `status` column instead
+   `posted` vs `status = 'posted'`, `amount` vs `planned_amount`/`total_amount`
+6. **Status values** - Use the EXACT values shown in the schema column gloss.
+   The gloss may say "Status (OPEN/CLOSED)" — use those exact strings (case-sensitive).
+   Do NOT assume lowercase; check the gloss description for the actual values.
+7. **For boolean-like filters** (posted, active, approved), check if the table uses a `status` column instead
 7. **Lookup codes:** When joining to `lookup_codes`, use `lc.meaning` for the decoded text
    and `lc.code` for the code value. Filter with `lc.domain = 'DOMAIN_NAME'`.
    Do NOT use `description` — the column is called `meaning`.
@@ -471,6 +474,13 @@ def build_rag_prompt(question: str, schema_context: dict, schema_link_text: str 
         """Extract table name from hint string like 'schema.table.column'"""
         parts = hint_str.split(".")
         return parts[1].lower() if len(parts) >= 2 else parts[0].lower()
+
+    # Fall back to fk_edges when join_hints is empty (e.g. join planner is off)
+    if not join_hints and fk_edges:
+        join_hints = [
+            {"from": f"{e.get('from_table')}.{e.get('from_column')}", "to": f"{e.get('to_table')}.{e.get('to_column')}"}
+            for e in fk_edges
+        ]
 
     filtered_hints = [
         h for h in (join_hints or [])

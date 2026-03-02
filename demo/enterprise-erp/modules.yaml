@@ -1,0 +1,76 @@
+# Enterprise ERP 2000 — Module Definitions
+# Used by scripts/setup_rag.py to populate rag.module_definitions.
+# description: rich text embedded for semantic module routing
+# keywords:    lowercase tokens for fast keyword matching
+# table_prefixes: table name prefixes that belong to this module
+
+modules:
+  - name: Common
+    description: "Common/shared module. Reference data used across all modules: countries, states, cities, addresses, currencies, business units, cost centers, audit logs, document attachments, lookup codes."
+    keywords: [country, countries, state, states, city, cities, address, addresses, currency, currencies, audit, "business unit", "cost center", lookup, region, regions, attachment, attachments]
+    table_prefixes: []
+
+  - name: HR
+    description: "Human Resources module (HR). Manages employees, departments, positions, salaries, benefits, leave, attendance, training, payroll, and onboarding."
+    keywords: [employee, employees, hr, "human resources", salary, salaries, payroll, department, departments, position, positions, leave, benefit, benefits, hire, hired, hiring, training, attendance, headcount, onboarding, workforce]
+    table_prefixes: [hr_]
+
+  - name: Finance
+    description: "Finance module. Manages journal entries, chart of accounts, fiscal years, budgets, bank accounts, accounts receivable, accounts payable, tax rates, depreciation, and financial reporting."
+    keywords: [journal, "journal entry", ledger, account, accounts, "chart of accounts", fiscal, budget, budgets, bank, tax, taxes, payment, payments, receivable, payable, financial, revenue, expense, expenses, invoice, invoices, ar, ap, depreciation, gl, posting, period, "general ledger", cash, balance]
+    table_prefixes: [journal_, account_, fiscal_, budget_, bank_, ar_, ap_, tax_]
+
+  - name: Sales
+    description: "Sales module. Manages customers, sales orders, order lines, quotes, opportunities, territories, sales regions, and revenue tracking."
+    keywords: [customer, customers, "sales order", "sales orders", order, orders, sale, sales, quote, quotes, opportunity, opportunities, revenue, territory, territories, representative, representatives, "sales rep", "sales reps", region, regions, discount, pipeline]
+    table_prefixes: [customers, sales_orders, order_lines, quotes, opportunities, territories, sales_regions]
+
+  - name: Procurement
+    description: "Procurement module. Manages vendors, purchase orders, purchase requisitions, goods receipts, and vendor invoices."
+    keywords: [vendor, vendors, "purchase order", "purchase orders", purchase, purchases, requisition, requisitions, supplier, suppliers, procurement, receipt, receipts, "goods receipt", buyer, sourcing]
+    table_prefixes: [vendors, purchase_orders, purchase_requisitions, goods_receipts]
+
+  - name: Inventory
+    description: "Inventory module. Manages warehouses, products, inventory levels, stock transfers, reorder rules, lots, bins, and quality control inspections."
+    keywords: [warehouse, warehouses, product, products, stock, inventory, transfer, transfers, reorder, item, items, lot, lots, bin, bins, "on hand", "quantity on hand", replenishment, sku, location, locations]
+    table_prefixes: [warehouses, products, inventory_, stock_, lots, quality_]
+
+  - name: Projects
+    description: "Project Management module. Manages projects, tasks, milestones, timesheets, project budgets, expenses, and resource allocations."
+    keywords: [project, projects, task, tasks, milestone, milestones, timesheet, timesheets, resource, resources, phase, phases, "project budget", "project expense", allocation, allocations, deliverable, deliverables]
+    table_prefixes: [projects, tasks, milestones, timesheets, project_]
+
+  - name: Assets
+    description: "Fixed Assets module. Manages fixed assets, depreciation schedules, asset maintenance, and asset transfers."
+    keywords: [asset, assets, "fixed asset", "fixed assets", depreciation, maintenance, disposal, capitalization, "asset transfer"]
+    table_prefixes: [fixed_assets, depreciation_, asset_]
+
+  - name: Manufacturing
+    description: "Manufacturing module. Manages work orders, bills of materials (BOM), production routing, work centers, quality holds, and scrap."
+    keywords: [manufacturing, bom, "bill of materials", "work order", "work orders", production, routing, "work center", scrap, quality, fabrication, assembly, wip, "work in progress"]
+    table_prefixes: [mfg_]
+
+  - name: Services
+    description: "Professional Services module. Manages statements of work, deliverables, billing milestones, engagements, rate cards, and skill matrices."
+    keywords: [sow, "statement of work", deliverable, deliverables, engagement, billing, "billing milestone", "rate card", skill, services, consulting, professional]
+    table_prefixes: [svc_]
+
+  - name: Retail
+    description: "Retail module. Manages point-of-sale transactions, loyalty programs, promotions, store inventory, and retail-specific pricing."
+    keywords: [retail, pos, "point of sale", loyalty, promotion, promotions, store, "store inventory", discount, "retail price", cashier, transaction, transactions]
+    table_prefixes: [rtl_]
+
+  - name: Corporate
+    description: "Corporate Finance module. Manages intercompany transactions, consolidation entries, elimination entries, statutory reporting, and compliance."
+    keywords: [intercompany, consolidation, elimination, statutory, compliance, "audit finding", corporate, reporting, subsidiary]
+    table_prefixes: [intercompany_, consolidation_, elimination_]
+
+  - name: Support
+    description: "Customer Support module. Manages support tickets, customer service cases, SLA tracking, and service requests."
+    keywords: [support, ticket, tickets, case, cases, sla, "customer service", "service request", incident, resolution]
+    table_prefixes: [cust_srv_, support_]
+
+  - name: Workflow
+    description: "Workflow and Approvals module. Manages approval steps, workflow routing, requisition approvals, and cost center assignments."
+    keywords: [approval, approvals, workflow, requisition, requisitions, approve, authorized, "cost center assignment"]
+    table_prefixes: [wf_]

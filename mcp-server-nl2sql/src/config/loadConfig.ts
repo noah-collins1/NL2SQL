@@ -251,6 +251,41 @@ function applyEnvOverrides(cfg: Record<string, any>): void {
 	l.level = env("LOG_LEVEL") ?? l.level
 }
 
+// ── Defaults ─────────────────────────────────────────────────────────
+
+const DEFAULTS: NL2SQLConfig = {
+	database: { host: "localhost", port: 5432, name: "enterprise_erp", user: "postgres", password: "" },
+	model: {
+		llm: "qwen2.5-coder:7b", embedding: "nomic-embed-text", provider: "ollama",
+		ollama_url: "http://localhost:11434", timeout: 90, num_ctx: 0,
+		sql_system_prompt: "You are an expert PostgreSQL query generator. Given a database schema and a question, output ONLY a single SELECT query. No explanations, no markdown, no commentary.",
+	},
+	generation: {
+		temperature: 0.3, max_tokens: 512, sequential: false,
+		candidates: { enabled: true, k_default: 4, k_easy: 2, k_hard: 6, max_explain: 4, max_execute: 1, time_budget_ms: 10000, explain_timeout_ms: 2000 },
+	},
+	retrieval: { top_k: 15, threshold: 0.25, max_tables: 10, fk_expansion_limit: 3, hub_fk_cap: 5 },
+	features: {
+		glosses: true, pg_normalize: true, schema_linker: false, join_planner: false, join_planner_top_k: 3,
+		fk_subgraph_cache: true, dynamic_hub_cap: true, join_path_scoring: true, cross_module_join: true,
+		bm25: true, module_router: true, column_pruning: false, reranker: true, pre_sql: false, value_verification: false,
+	},
+	repair: {
+		max_attempts: 3, confidence_penalty: 0.1, explain_timeout: 2000,
+		surgical_whitelist: {
+			enabled: true, mode: "observe", observe_in_exam_only: true,
+			include_fk_neighbors: true, max_neighbor_tables: 3, max_tables_total: 4, max_columns_per_table: 60,
+			rewrite_min_confidence: 0.75, rewrite_ambiguity_delta: 0.1,
+			active_rewrite_gate: { min_score: 0.80, min_dominance: 0.60, require_containment_or_exact: true, require_score_separation: true, min_score_delta: 0.10, min_score_ratio: 1.15 },
+			risk_blacklist: { enabled: true, pairs: [["name","number"],["name","id"],["amount","total"],["date","id"],["vendor","customer"]], action: "block", apply_to_observe: false },
+		},
+	},
+	validation: { max_limit: 1000, require_limit: true, max_joins: 10 },
+	sidecar: { url: "http://localhost:8001", timeout_ms: 30000, join_hint_format: "edges" },
+	exam: { mode: false, log_dir: "exam_logs" },
+	logging: { level: "INFO" },
+}
+
 // ── Singleton ────────────────────────────────────────────────────────
 
 let _config: NL2SQLConfig | null = null
@@ -259,12 +294,12 @@ export function loadConfig(): NL2SQLConfig {
 	if (_config) return _config
 
 	const configDir = findConfigDir()
-	let merged: Record<string, any> = {}
+	let merged: Record<string, any> = deepMerge({}, DEFAULTS as any)
 
 	if (configDir) {
 		const base = loadYaml(path.join(configDir, "config.yaml"))
 		const local = loadYaml(path.join(configDir, "config.local.yaml"))
-		merged = deepMerge(base, local)
+		merged = deepMerge(merged, deepMerge(base, local))
 	}
 
 	applyEnvOverrides(merged)

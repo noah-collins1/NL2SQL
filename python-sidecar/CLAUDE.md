@@ -1,13 +1,15 @@
 # Python Sidecar - NL2SQL AI Layer
 
-**Last Updated:** 2026-02-17
+**Last Updated:** 2026-02-26
 
 ## Overview
 
 This Python sidecar handles AI-powered SQL generation for the NL2SQL MCP server. It communicates with Ollama to generate SQL from natural language questions.
 
-**Database:** Enterprise ERP (86 tables / 2,377 tables)
-**Current Success Rate:** 88.3% (86-table) / 90.7% (2,377-table) with qwen2.5-coder:7b
+**Databases:**
+- Enterprise ERP (2,377 tables) — **90.7% (272/300)** with qwen2.5-coder:7b on V1 300-question exam
+- Industry-Erp (883 tables) — **91.1% (72/79)** with qwen2.5-coder:7b
+- V2 500-question exam: **84.3% SQL / 79.4% overall** (Phase 0 baseline was 73.3%)
 
 ## Components
 
@@ -197,6 +199,62 @@ aiohttp     # For async parallel generation
 pydantic
 pyyaml      # Config loader
 ```
+
+## CTE Support (Fixed 2026-02-26)
+
+CTEs (`WITH cte_name AS (...)`) were being rejected as "Model did not generate SELECT statement". Three locations were fixed:
+
+1. **`ollama_client.py` line ~135 (sync)** — candidate-level SELECT check:
+   ```python
+   upper = sql.upper().lstrip()
+   if not (upper.startswith("SELECT") or re.match(r'WITH\s+\w+\s+AS\s*\(', upper)):
+       raise OllamaClientError("Model did not generate SELECT statement")
+   ```
+
+2. **`ollama_client.py` line ~361 (async)** — same fix in `generate_sql_async`
+
+3. **`sql_validation.ts` Rule 1 NO_SELECT** — TypeScript validator also accepts `WITH` prefix now
+
+Also: `max_tokens` increased from 200 → 500 everywhere in `app.py` to prevent CTEs from being truncated mid-OVER-clause.
+
+## Known Bugs / Pending Fixes
+
+### CRITICAL: `\n\n` stop token was removed — causes V1 regression
+
+**Status: NOT FIXED — must restore next session**
+
+Removing `\n\n` from stop tokens caused V1 regression: 90.7% → 85.0% (+21 execution errors). The model generates more elaborate/verbose SQL with wrong column names when not stopped at blank lines.
+
+**Fix needed in `ollama_client.py`:**
+```python
+# Sync path (~line 85): restore \n\n
+stop_tokens = ["\n\n"] if multi_candidate else [";", "\n\n"]
+
+# Async path (~line 326): restore \n\n
+"stop": [";", "\n\n"],
+```
+
+**Why this is safe**: qwen2.5-coder CTEs do NOT contain `\n\n` internally. They were truncating due to `max_tokens=200`, not the `\n\n` stop token. Now that `max_tokens=500`, CTEs will generate fully without needing to remove `\n\n`.
+
+### `module: null` causes 422 validation errors
+
+Some `rag.schema_embeddings` rows have `module = NULL`. The sidecar's Pydantic model rejects null module in `schema_context`, causing 422 errors. Affects 9 questions in V2 exam.
+
+**Fix**: `UPDATE rag.schema_embeddings SET module = 'general' WHERE module IS NULL;` on the affected DB.
+
+### EXCEPT / UNION operations — low success rate
+
+V2 exam: EXCEPT 10%, UNION 22%. Model rarely uses set operations correctly. Needs prompt guidance.
+
+### CTE patterns — 8/19 fail
+
+Two repeating templates fail:
+- "Turnover rate" — scalar subquery returns multiple rows
+- "Working capital ratio" — inline ratio fails validation
+
+### Timeout on complex queries
+
+11 V2 questions exceed 30s. All are complex: UNION 3+ tables, pivot, year-over-year. Sequential candidates × repairs × complex prompts exceed timeout.
 
 ## Current Performance
 
