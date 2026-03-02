@@ -443,6 +443,8 @@ export const SQLSTATE_CLASSIFICATION = {
 		"42883", // Undefined function
 		"22", // Data exception (e.g., division by zero)
 		"42803", // Grouping error
+		"21000", // Subquery returns multiple rows
+		"42702", // Ambiguous column reference
 	],
 }
 
@@ -615,6 +617,8 @@ export function getSQLSTATEHint(sqlstate: string): string {
 		"42803": "Add missing column to GROUP BY or use aggregate",
 		"22012": "Avoid division by zero - add NULLIF or CASE",
 		"57014": "Query timed out - simplify query or add filters",
+		"21000": "Scalar subquery returned multiple rows. Use LIMIT 1, restructure as a JOIN with GROUP BY, or use EXISTS/NOT EXISTS instead.",
+		"42702": "Ambiguous column reference. Qualify with table alias (e.g., t.column_name instead of column_name).",
 	}
 	return hints[sqlstate] || "Review the error message and fix the SQL"
 }

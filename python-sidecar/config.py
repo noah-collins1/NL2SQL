@@ -301,6 +301,9 @@ SQLSTATE_HINTS = {
     "42804": "Datatype mismatch. Ensure comparisons use compatible types (e.g., text = 'value', not text = 123).",
     "42883": "Function does not exist. Check function name and argument types. PostgreSQL does not have EXTRACT(DECADE FROM ...).",
     "42501": "Permission denied. Query must be SELECT only (read-only access).",
+    "21000": "Scalar subquery returned multiple rows. Use LIMIT 1 on the subquery, rewrite as a JOIN with GROUP BY, or use EXISTS.",
+    "42702": "Ambiguous column name. Qualify with a table alias (e.g., use t.column_name not column_name).",
+    "42803": "Grouping error. Add the ungrouped column to GROUP BY or wrap it in an aggregate function (MAX, MIN, etc.).",
 }
 
 def build_sql_prompt(question: str, schema: dict = None) -> str:

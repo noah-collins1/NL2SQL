@@ -883,7 +883,7 @@ export class SchemaRetriever {
 				return {
 					table_name: rt.table_name,
 					table_schema: rt.table_schema,
-					module: rt.module,
+					module: rt.module ?? 'general',
 					gloss: rt.table_gloss ?? "",
 					m_schema: `${rt.table_name} (...)`,
 					similarity: rt.similarity,
@@ -895,7 +895,7 @@ export class SchemaRetriever {
 			return {
 				table_name: meta.table_name,
 				table_schema: meta.table_schema,
-				module: meta.module,
+				module: meta.module ?? 'general',
 				gloss: meta.table_gloss ?? "",
 				m_schema: renderMSchema(meta),
 				similarity: rt.similarity,
@@ -905,7 +905,7 @@ export class SchemaRetriever {
 		})
 
 		// Extract unique modules
-		const modules = [...new Set(tables.map((t) => t.module))]
+		const modules = [...new Set(tables.map((t) => t.module).filter(Boolean))]
 
 		// Count sources
 		const tablesFromRetrieval = tables.filter(

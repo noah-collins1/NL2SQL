@@ -655,6 +655,21 @@ const CONFUSABLE_TABLES: Record<string, {
 		triggerKeywords: ["region", "regions", "by region", "sales region"],
 		hint: "For geographic 'by region' grouping, use states_provinces via address chain (customers → addresses → cities → states_provinces). sales_regions has NO FK to sales_orders.",
 	},
+	rtl_promotions: {
+		confusesWith: "rtl_promotions",
+		triggerKeywords: ["promotion", "promo", "discount", "list price", "effective"],
+		hint: "rtl_promotions has NO list_price column. Available price columns: discount_value (numeric amount), discount_type_code (discount category). Join to products via rtl_promo_products (promotion_id FK).",
+	},
+	order_lines: {
+		confusesWith: "sales_orders",
+		triggerKeywords: ["order date", "date", "placed", "when", "order_date"],
+		hint: "order_lines has NO date columns. Date columns (order_date, required_date, ship_date) are on the parent sales_orders table. JOIN sales_orders ON order_lines.order_id = sales_orders.order_id to access dates.",
+	},
+	po_lines: {
+		confusesWith: "purchase_orders",
+		triggerKeywords: ["po date", "order date", "date", "when"],
+		hint: "po_lines has NO date columns. Date columns (order_date, expected_receipt_date) are on the parent purchase_orders table. JOIN purchase_orders ON po_lines.po_id = purchase_orders.po_id to access dates.",
+	},
 }
 
 // ============================================================================

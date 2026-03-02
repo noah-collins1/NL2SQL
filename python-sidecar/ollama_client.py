@@ -322,7 +322,7 @@ class OllamaClient:
             options = {
                 "temperature": temperature,
                 "num_predict": max_tokens,
-                "stop": [";"],
+                "stop": [";", "\n\n"],
             }
             if seed is not None:
                 options["seed"] = seed
