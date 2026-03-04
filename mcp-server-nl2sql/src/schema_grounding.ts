@@ -656,20 +656,112 @@ const CONFUSABLE_TABLES: Record<string, {
 		hint: "For geographic 'by region' grouping, use states_provinces via address chain (customers → addresses → cities → states_provinces). sales_regions has NO FK to sales_orders.",
 	},
 	rtl_promotions: {
-		confusesWith: "rtl_promotions",
-		triggerKeywords: ["promotion", "promo", "discount", "list price", "effective"],
-		hint: "rtl_promotions has NO list_price column. Available price columns: discount_value (numeric amount), discount_type_code (discount category). Join to products via rtl_promo_products (promotion_id FK).",
+		confusesWith: "rtl_pos_line_items",
+		triggerKeywords: ["promotion", "promo", "discount", "list price", "effective", "pos", "retail"],
+		hint: "rtl_promotions stores promotion definitions only (promotion_code, promotion_name, discount_type_code, discount_value, status_code). For POS effectiveness/revenue: JOIN rtl_pos_line_items ON rtl_pos_line_items.promotion_code = rtl_promotions.promotion_code. rtl_pos_line_items has: product_id, quantity, unit_price, discount_amount, line_total. There is NO list_price on rtl_promotions. DO NOT use rtl_promo_products for metrics — it is a bare mapping table with no sales data.",
+	},
+	rtl_promo_products: {
+		confusesWith: "rtl_pos_line_items",
+		triggerKeywords: ["promotion", "promo", "pos", "revenue", "sales", "product", "retail", "discount", "effective"],
+		hint: "rtl_promo_products is a bare mapping table (promotion_id → product_id) with NO quantity, unit_price, discount_amount, or revenue metrics. For POS revenue and promotion effectiveness, use rtl_pos_line_items which has: product_id, quantity, unit_price, discount_amount, line_total, promotion_code.",
 	},
 	order_lines: {
 		confusesWith: "sales_orders",
-		triggerKeywords: ["order date", "date", "placed", "when", "order_date"],
+		triggerKeywords: ["order date", "date", "placed", "when", "order_date", "year", "month", "quarter", "period"],
 		hint: "order_lines has NO date columns. Date columns (order_date, required_date, ship_date) are on the parent sales_orders table. JOIN sales_orders ON order_lines.order_id = sales_orders.order_id to access dates.",
 	},
 	po_lines: {
 		confusesWith: "purchase_orders",
-		triggerKeywords: ["po date", "order date", "date", "when"],
+		triggerKeywords: ["po date", "order date", "date", "when", "year", "month", "quarter", "period"],
 		hint: "po_lines has NO date columns. Date columns (order_date, expected_receipt_date) are on the parent purchase_orders table. JOIN purchase_orders ON po_lines.po_id = purchase_orders.po_id to access dates.",
 	},
+	customers: {
+		confusesWith: "customers",
+		triggerKeywords: ["customer", "client", "buyer", "purchaser"],
+		hint: "customers has NO cust_nbr column. Customer identifier columns: customer_id (integer PK), customer_number (varchar). Display name: name. Do not invent cust_nbr.",
+	},
+	sales_opportunities: {
+		confusesWith: "sales_opportunities",
+		triggerKeywords: ["opportunity", "opportunities", "pipeline", "deal", "open", "prospect"],
+		hint: "sales_opportunities has NO status column. To filter active opportunities use probability > 0 or stage_id. Columns: opportunity_id, name, customer_id, stage_id, amount, probability (integer 0-100), expected_close_date, actual_close_date.",
+	},
+	finance_ar_invoices: {
+		confusesWith: "sales_orders",
+		triggerKeywords: ["invoice", "ar invoice", "accounts receivable", "billing", "order to cash", "cash"],
+		hint: "finance_ar_invoices has NO order_id column. Join to customer data via customer_id. For order-to-cash: sales_orders → finance_ar_invoices via customer_id → finance_ar_payments via ar_invoice_id. finance_ar_payments columns: ar_invoice_id (FK), payment_date, amount, payment_method.",
+	},
+	finance_posting_period: {
+		confusesWith: "payroll_run_hdr",
+		triggerKeywords: ["payroll", "pay period", "net pay", "gross pay", "salary", "compensation", "earnings"],
+		hint: "finance_posting_period is a GL fiscal calendar table, NOT for payroll. For payroll queries use: payroll_run_hdr (pay_period_start, pay_period_end, run_id) JOIN payroll_run_line ON payroll_run_line.run_id = payroll_run_hdr.run_id. payroll_run_line has: employee_id, gross_pay, tax_withheld, net_pay.",
+	},
+}
+
+// ============================================================================
+// Pattern Hints (SQL idiom coaching for complex patterns)
+// ============================================================================
+
+const PATTERN_HINTS: Array<{
+	triggerKeywords: string[]
+	label: string
+	hint: string
+}> = [
+	{
+		triggerKeywords: ["have not placed", "not placed any", "no orders in", "haven't placed", "without any orders", "never placed"],
+		label: "Anti-Join (NOT EXISTS)",
+		hint: `For "customers who have NOT placed orders" use NOT EXISTS, not LEFT JOIN:
+SELECT t.id, t.name FROM customers t
+WHERE NOT EXISTS (
+  SELECT 1 FROM sales_orders r
+  WHERE r.customer_id = t.customer_id AND condition
+);`,
+	},
+	{
+		triggerKeywords: ["never been sold", "never sold", "products that have never", "never ordered", "no sales"],
+		label: "Anti-Join (NOT EXISTS)",
+		hint: `For "products that have NEVER been sold" use NOT EXISTS:
+SELECT p.product_id, p.name FROM products p
+WHERE NOT EXISTS (
+  SELECT 1 FROM order_lines ol WHERE ol.product_id = p.product_id
+);`,
+	},
+	{
+		triggerKeywords: ["but not in 2024", "but not in 2023", "but not in 2022", "but not in 2021", "last year but not", "had orders but", "no longer"],
+		label: "Set Exclusion (EXCEPT)",
+		hint: `For "vendors/products in year X but NOT in year Y" use EXCEPT:
+SELECT v.vendor_id, v.name FROM purchase_orders po JOIN vendors v ON v.vendor_id = po.vendor_id
+WHERE EXTRACT(YEAR FROM po.order_date) = X
+EXCEPT
+SELECT v.vendor_id, v.name FROM purchase_orders po JOIN vendors v ON v.vendor_id = po.vendor_id
+WHERE EXTRACT(YEAR FROM po.order_date) = Y;`,
+	},
+	{
+		triggerKeywords: ["turnover rate", "employee turnover"],
+		label: "CTE — Turnover Rate",
+		hint: `For turnover rate use two scalar CTEs then divide:
+WITH terminated AS (
+  SELECT COUNT(*) AS n FROM employees
+  WHERE EXTRACT(YEAR FROM termination_date) = YEAR
+),
+headcount AS (
+  SELECT COUNT(*) AS n FROM employees
+  WHERE hire_date <= DATE 'YEAR-12-31'
+    AND (termination_date IS NULL OR termination_date > DATE 'YEAR-01-01')
+)
+SELECT ROUND(100.0 * t.n / NULLIF(h.n, 0), 2) AS turnover_pct
+FROM terminated t, headcount h;`,
+	},
+]
+
+export function detectPatternHints(question: string): string[] {
+	const q = question.toLowerCase()
+	const matched: string[] = []
+	for (const ph of PATTERN_HINTS) {
+		if (ph.triggerKeywords.some(kw => q.includes(kw))) {
+			matched.push(`### SQL Pattern — ${ph.label}\n${ph.hint}`)
+		}
+	}
+	return matched
 }
 
 // ============================================================================
@@ -815,7 +907,8 @@ export function formatSchemaLinkForPrompt(
 
 	// Table confusion warnings (e.g., sales_regions vs states_provinces)
 	if (schemaContext) {
-		const tableNames = new Set(bundle.linkedTables.map(t => t.table.toLowerCase()))
+		// Use retrieved tables (schemaContext) not just linker-linked tables
+		const tableNames = new Set(schemaContext.tables.map(t => t.table_name.toLowerCase()))
 		const question = schemaContext.question.toLowerCase()
 		const tableWarnings: string[] = []
 		for (const [tableName, config] of Object.entries(CONFUSABLE_TABLES)) {
@@ -826,6 +919,13 @@ export function formatSchemaLinkForPrompt(
 		if (tableWarnings.length > 0) {
 			lines.push("### Table Warnings (READ CAREFULLY)")
 			lines.push(...tableWarnings)
+			lines.push("")
+		}
+
+		// Pattern hints (SQL idiom coaching)
+		const patternHints = detectPatternHints(schemaContext.question)
+		if (patternHints.length > 0) {
+			lines.push(...patternHints)
 			lines.push("")
 		}
 	}
