@@ -710,17 +710,24 @@ const PATTERN_HINTS: Array<{
 		triggerKeywords: ["have not placed", "not placed any", "no orders in", "haven't placed", "without any orders", "never placed"],
 		label: "Anti-Join (NOT EXISTS)",
 		hint: `For "customers who have NOT placed orders" use NOT EXISTS, not LEFT JOIN:
-SELECT t.id, t.name FROM customers t
+-- customers columns: customer_id (PK), customer_number, name
+-- sales_orders columns: order_id (PK), customer_id (FK), order_date
+SELECT c.customer_id, c.name
+FROM customers c
 WHERE NOT EXISTS (
-  SELECT 1 FROM sales_orders r
-  WHERE r.customer_id = t.customer_id AND condition
+  SELECT 1 FROM sales_orders so
+  WHERE so.customer_id = c.customer_id
+  AND EXTRACT(YEAR FROM so.order_date) = 2024
 );`,
 	},
 	{
 		triggerKeywords: ["never been sold", "never sold", "products that have never", "never ordered", "no sales"],
 		label: "Anti-Join (NOT EXISTS)",
 		hint: `For "products that have NEVER been sold" use NOT EXISTS:
-SELECT p.product_id, p.name FROM products p
+-- products columns: product_id (PK), sku, name, list_price
+-- order_lines columns: line_id (PK), order_id (FK→sales_orders), product_id (FK→products)
+SELECT p.product_id, p.name
+FROM products p
 WHERE NOT EXISTS (
   SELECT 1 FROM order_lines ol WHERE ol.product_id = p.product_id
 );`,
@@ -729,24 +736,29 @@ WHERE NOT EXISTS (
 		triggerKeywords: ["but not in 2024", "but not in 2023", "but not in 2022", "but not in 2021", "last year but not", "had orders but", "no longer"],
 		label: "Set Exclusion (EXCEPT)",
 		hint: `For "vendors/products in year X but NOT in year Y" use EXCEPT:
-SELECT v.vendor_id, v.name FROM purchase_orders po JOIN vendors v ON v.vendor_id = po.vendor_id
-WHERE EXTRACT(YEAR FROM po.order_date) = X
+-- vendors columns: vendor_id (PK), vendor_number, name
+-- purchase_orders columns: po_id (PK), vendor_id (FK→vendors), order_date
+SELECT v.vendor_id, v.name
+FROM purchase_orders po JOIN vendors v ON v.vendor_id = po.vendor_id
+WHERE EXTRACT(YEAR FROM po.order_date) = 2023
 EXCEPT
-SELECT v.vendor_id, v.name FROM purchase_orders po JOIN vendors v ON v.vendor_id = po.vendor_id
-WHERE EXTRACT(YEAR FROM po.order_date) = Y;`,
+SELECT v.vendor_id, v.name
+FROM purchase_orders po JOIN vendors v ON v.vendor_id = po.vendor_id
+WHERE EXTRACT(YEAR FROM po.order_date) = 2024;`,
 	},
 	{
 		triggerKeywords: ["turnover rate", "employee turnover"],
 		label: "CTE — Turnover Rate",
 		hint: `For turnover rate use two scalar CTEs then divide:
+-- employees columns: employee_id (PK), hire_date, termination_date (NULL = still active)
 WITH terminated AS (
   SELECT COUNT(*) AS n FROM employees
-  WHERE EXTRACT(YEAR FROM termination_date) = YEAR
+  WHERE EXTRACT(YEAR FROM termination_date) = 2024
 ),
 headcount AS (
   SELECT COUNT(*) AS n FROM employees
-  WHERE hire_date <= DATE 'YEAR-12-31'
-    AND (termination_date IS NULL OR termination_date > DATE 'YEAR-01-01')
+  WHERE hire_date <= '2024-12-31'
+    AND (termination_date IS NULL OR termination_date > '2024-01-01')
 )
 SELECT ROUND(100.0 * t.n / NULLIF(h.n, 0), 2) AS turnover_pct
 FROM terminated t, headcount h;`,

@@ -159,18 +159,21 @@ async function reRetrieveTables(
 			// Embed the missing table name as a query
 			const embedding = await pythonClient.embedText(tableName)
 
-			// Query pgvector for closest match
+			// Query pgvector for closest match (join embeddings + table metadata)
 			const result = await client.query(
 				`SELECT
-					table_schema,
-					table_name,
-					COALESCE(module, 'unknown') as module,
-					COALESCE(inferred_gloss, table_name) as gloss,
-					m_schema_compact,
-					1 - (description_embedding <=> $1::vector) as similarity
-				FROM rag.schema_tables
-				WHERE 1 - (description_embedding <=> $1::vector) > 0.20
-				ORDER BY description_embedding <=> $1::vector
+					se.table_schema,
+					se.table_name,
+					COALESCE(st.module, 'general') as module,
+					COALESCE(st.table_gloss, se.table_name) as gloss,
+					1 - (se.embedding <=> $1::vector) as similarity
+				FROM rag.schema_embeddings se
+				LEFT JOIN rag.schema_tables st
+					ON se.table_name = st.table_name
+					AND se.table_schema = st.table_schema
+				WHERE se.entity_type = 'table'
+					AND 1 - (se.embedding <=> $1::vector) > 0.20
+				ORDER BY se.embedding <=> $1::vector
 				LIMIT 3`,
 				[`[${embedding.join(",")}]`],
 			)
@@ -182,7 +185,7 @@ async function reRetrieveTables(
 						table_schema: row.table_schema,
 						module: row.module,
 						gloss: row.gloss,
-						m_schema: row.m_schema_compact,
+						m_schema: `${row.table_name} (...)`,
 						similarity: row.similarity,
 						source: "retrieval",
 					})
