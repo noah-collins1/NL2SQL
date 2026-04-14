@@ -1,8 +1,12 @@
 # NL2SQL Evaluation: 2,000-Table Enterprise ERP Database
 
+> **Note (2026-04-14):** This document covers the V1 300-question evaluation (with evidence, no ambiguity questions). The current benchmark is the **V2 500-question exam** (no evidence, ambiguity grading): **92.0% SQL / 86.6% overall** as of Round 7 (2026-03-04). See [STATUS.md](../STATUS.md) for the current numbers.
+
+---
+
 **Date:** February 17, 2026
 **Model:** qwen2.5-coder:7b (4.7 GB, 32K context)
-**Result:** 90.7% (272/300) on a 300-question exam
+**Result:** 90.7% (272/300) on a 300-question exam (V1)
 
 ---
 

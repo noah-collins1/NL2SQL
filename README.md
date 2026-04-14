@@ -5,18 +5,19 @@
 
 A [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that converts natural language questions into PostgreSQL queries using local LLMs via Ollama. Connect it to any MCP-compatible client — [LibreChat](https://www.librechat.ai/), [Claude Desktop](https://claude.ai/download), or your own internal applications — and let users query databases in plain English.
 
-The server uses a multi-stage validation and repair pipeline, achieving **88.3% accuracy** on an 86-table enterprise database and **76% on 2,000+ tables**.
+The server uses a multi-stage validation and repair pipeline, achieving **92% SQL accuracy** on a 2,000+ table enterprise ERP — running fully on local hardware with no cloud API calls.
 
 > **Platform:** All setup and run scripts target **Linux (Bash)**. macOS may work with minor adjustments; Windows requires WSL.
 
 ## Performance
 
-| Database | Tables | Questions | Accuracy | Model |
-|----------|--------|-----------|----------|-------|
+| Database | Tables | Questions | SQL Accuracy | Notes |
+|----------|--------|-----------|--------------|-------|
 | Enterprise ERP | 86 | 60 | **88.3%** | qwen2.5-coder:7b |
-| Enterprise ERP (expanded) | 2,377 | 300 | **76.0%** | qwen2.5-coder:7b |
+| Enterprise ERP (expanded, V2) | 2,377 | 500 | **92.0% SQL / 86.6% overall** | V2 exam: no evidence, ambiguity grading; 86.6% includes 30 unanswerable ambiguity questions |
+| Industry-Erp (real ERP) | 883 | 79 | **91.1%** | Real SQL Server ERP migrated to PostgreSQL |
 
-These results are against a **single large enterprise database** (one ERP system, 8 modules: HR, Finance, Sales, Inventory, Procurement, Projects, Assets, Common). This is a different challenge from benchmarks like [BIRD](https://bird-bench.github.io/) which test across 95 small/medium databases spanning 37 domains. See [Benchmark Context](#benchmark-context) for details.
+These results are against **large enterprise databases** (one ERP system with 8+ modules). This is a different challenge from benchmarks like [BIRD](https://bird-bench.github.io/) which test across 95 small/medium databases spanning 37 domains. See [Benchmark Context](#benchmark-context) for details.
 
 ## MCP Integration
 
@@ -201,7 +202,8 @@ This is complementary to benchmarks like **[BIRD](https://bird-bench.github.io/)
 | Benchmark | Databases | Tables (total) | Questions | Focus |
 |-----------|-----------|----------------|-----------|-------|
 | **Ours (86-table)** | 1 | 86 | 60 | Single-DB depth, enterprise ERP |
-| **Ours (2,377-table)** | 1 | 2,377 | 300 | Large-schema retrieval at scale |
+| **Ours (2,377-table, V2)** | 1 | 2,377 | 500 | Large-schema retrieval, no evidence, ambiguity grading |
+| **Ours (Industry-Erp)** | 1 | 883 | 79 | Real production ERP (SQL Server migrated to PG) |
 | **BIRD** | 95 | ~5,000 | 12,751 | Cross-domain breadth, dirty data |
 | **Spider** | 200 | ~1,000 | 10,181 | Cross-domain, clean schemas |
 
@@ -225,11 +227,14 @@ This is complementary to benchmarks like **[BIRD](https://bird-bench.github.io/)
 # 86-table (60 questions)
 ./demo/run-exam.sh
 
-# 2,377-table (300 questions, or subset)
+# 2,377-table V2 (500 questions, or subset)
 ./demo/run-exam.sh --db=2000
 ./demo/run-exam.sh --db=2000 --max=10
 
-# Multiple runs for statistical mean
+# Industry-Erp real ERP (79 questions)
+./demo/run-exam.sh --db=industry-erp
+
+# Multiple runs for statistical mean (86-table only)
 ./demo/run-exam.sh --runs=3
 ```
 

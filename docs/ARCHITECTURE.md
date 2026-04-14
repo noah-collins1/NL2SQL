@@ -18,7 +18,8 @@ Question
   │  3a. Schema Glosses    ──> enriched column descriptions
   │  3b. Schema Linker     ──> SchemaLinkBundle (grounded columns)
   │  3c. Confusable Tables ──> table-level warnings
-  │  3d. Join Planner      ──> JoinPlan (skeleton, paths)
+  │  3d. Pattern Hints     ──> schema-concrete SQL examples for hard patterns
+  │  3e. Join Planner      ──> JoinPlan (skeleton, paths)
   │
   v
 [4. SQL Generation]
@@ -130,12 +131,23 @@ The output is rendered into a `## Schema Contract (MANDATORY)` section with `###
 
 A static map of tables that LLMs commonly confuse or mis-join. When a confusable table appears in the linked tables AND the question contains trigger keywords, a `### Table Warnings (READ CAREFULLY)` section is injected into the schema contract.
 
-Currently contains one entry:
-- **`sales_regions`**: Triggered by keywords like "region", "by region". Warns that geographic region grouping should use `states_provinces` via the address chain (`customers → addresses → cities → states_provinces`), not `sales_regions` which has no FK to `sales_orders`.
+Examples:
+- **`sales_regions`**: Triggered by "region", "by region". Warns to use `states_provinces` via the address chain, not `sales_regions` which has no FK to `sales_orders`.
+- **`rtl_promo_products`**: Triggered by "promotion". Warns against joining directly — go through `rtl_promotions`.
+- **`customers.cust_nbr`**: Warns that `cust_nbr` is a natural key (char), not a surrogate — use it in JOINs, not `customers.id` (int).
 
 This is a targeted, low-cost mechanism for domain-specific pitfalls that 7B models repeatedly fall into.
 
-#### 3d. Join Planner
+#### 3d. Pattern Hints
+**File:** `mcp-server-nl2sql/src/schema_grounding.ts` (`PATTERN_HINTS` map, `detectPatternHints`, rendered in `formatSchemaLinkForPrompt`)
+
+A static map of SQL pattern templates keyed by trigger keywords. When a question matches known-hard patterns (EXCEPT, YoY, CTEs, anti-joins), a `### SQL Pattern Hint` section is injected into the schema contract with a **schema-concrete** example using actual column names from the retrieved schema context.
+
+Critical: examples must use real column names (e.g., `c.customer_id`, `EXTRACT(YEAR FROM so.order_date)`), not generic placeholders (`t.id`, `condition`). Generic placeholders cause 7B models to hallucinate column names.
+
+Currently covers: EXCEPT exclusion patterns, year-over-year (YoY) growth, NOT EXISTS anti-joins, working capital dual-scalar CTEs.
+
+#### 3e. Join Planner
 **File:** `mcp-server-nl2sql/src/join_planner.ts`
 **Flag:** `JOIN_PLANNER_ENABLED` (OFF by default, ON for qwen2.5-coder via config)
 **Sub-flags:** `FK_SUBGRAPH_CACHE_ENABLED`, `DYNAMIC_HUB_CAP_ENABLED`, `JOIN_PATH_SCORING_ENABLED`, `CROSS_MODULE_JOIN_ENABLED` (all ON)
@@ -357,7 +369,7 @@ Techniques adopted from BIRD/Spider benchmark leaderboard entries. Key finding: 
 | reranker | ON | `CANDIDATE_RERANKER_ENABLED` | Candidate reranking |
 | value_verification | OFF | `VALUE_VERIFICATION_ENABLED` | DB value checks in reranker |
 | column_pruning | OFF | `COLUMN_PRUNING_ENABLED` | Column pruning (regression risk) |
-| pre_sql | OFF | `PRE_SQL_ENABLED` | Pre-SQL backward recall |
+| pre_sql | OFF | `PRE_SQL_ENABLED` | Pre-SQL backward recall (ON for V2 exam runs) |
 | multi_candidate | ON | `MULTI_CANDIDATE_ENABLED` | Multi-candidate generation |
 
 \* ON for qwen2.5-coder via `config.yaml` model-specific settings (32K context handles it)

@@ -7,7 +7,8 @@ The exam system measures end-to-end accuracy: question in, correct SQL result ou
 | Exam | DB | Questions | Difficulty Mix | Location |
 |------|----|-----------|----------------|----------|
 | 86-table regression | enterprise_erp (86 tables) | 60 | 20 easy, 25 medium, 15 hard | `demo/enterprise-erp/003_test_questions.json` |
-| 300-question full | enterprise_erp_2000 (2,377 tables) | 300 | 40 simple, 120 moderate, 140 challenging | `demo/exam/exam_full_300.csv` |
+| V2 full (no evidence) | enterprise_erp_2000 (2,377 tables) | 500 | Simple/moderate/challenging + 35 ambiguity | `demo/exam/exam_full_500.csv` |
+| Industry-Erp | industry-erp (883 tables, real ERP) | 79 | Mixed | `demo/exam/exam_industry-erp.csv` |
 
 ## Running Exams
 
@@ -20,11 +21,14 @@ The exam system measures end-to-end accuracy: question in, correct SQL result ou
 # 86-table, 3 runs for statistical mean
 ./demo/run-exam.sh --runs=3
 
-# 2,377-table, full 300 questions
+# 2,377-table V2, full 500 questions
 ./demo/run-exam.sh --db=2000
 
-# 2,377-table, first 10 questions (quick smoke test)
+# 2,377-table V2, first 10 questions (quick smoke test)
 ./demo/run-exam.sh --db=2000 --max=10
+
+# Industry-Erp real ERP, full 79 questions
+./demo/run-exam.sh --db=industry-erp
 ```
 
 ### Prerequisites
@@ -34,15 +38,16 @@ The exam system measures end-to-end accuracy: question in, correct SQL result ou
 
 ### Environment
 
-The exam script sets `EXAM_MODE=true` automatically. For the 2,377-table exam, it also sets `SEQUENTIAL_CANDIDATES=true` and `OLLAMA_MODEL=qwen2.5-coder:7b` if not already set.
+The exam script sets `EXAM_MODE=true` automatically. For the 2,377-table exam, it also sets `SEQUENTIAL_CANDIDATES=true` and `OLLAMA_MODEL=qwen2.5-coder:7b` if not already set. For Industry-Erp, it additionally sets `OLLAMA_NUM_CTX=16384` (verbose schemas require a larger context window).
 
 ## Interpreting Results
 
 ### Output Files
 
-Results are saved to `mcp-server-nl2sql/exam_logs/`:
+Results are saved to `exam_logs/` at the project root:
 - `exam_results_full_YYYY-MM-DD.json` (86-table)
 - `exam_2000_YYYY-MM-DDTHH-MM-SS.json` (2,377-table)
+- `exam_industry-erp_YYYY-MM-DDTHH-MM-SS.json` (Industry-Erp)
 
 ### Key Metrics
 
