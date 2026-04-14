@@ -13,3 +13,13 @@ config/config.local.yaml
 demo/data_gen/output/
 demo/schema_gen/generated_divisions.sql
 mcp-server-nl2sql/exam_logs/
+
+# Model weights (too large for GitHub)
+models/
+
+# Exam logs
+exam_logs/
+
+# Temporary debug scripts
+mcp-server-nl2sql/debug_*.ts
+mcp-server-nl2sql/lint_test_tmp.ts

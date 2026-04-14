@@ -16,9 +16,11 @@ TEMPLATES_FILE = Path(__file__).parent / "templates_industry-erp.yaml"
 OUTPUT_FILE = Path(__file__).parent / "exam_industry-erp.csv"
 
 # Parameter expansion values
-YEARS = [2021, 2022, 2023, 2024]
+YEARS = [2021, 2022, 2023, 2024, 2025]
 STATES = ["OH", "CA"]
-TOP_N = [5, 10]
+TOP_N = [3, 5, 10]
+LOCATIONS = ["HUDW", "BENSON"]
+WO_STATUS = ["INASSY", "COMPLT", "DESIGN"]
 
 random.seed(42)
 
@@ -120,6 +122,20 @@ def expand(tmpl: dict) -> list[dict]:
         for yr in YEARS:
             for n in TOP_N:
                 variants.append({"year": yr, "n": n})
+    elif params_needed == {"location"}:
+        for loc in LOCATIONS:
+            variants.append({"location": loc})
+    elif params_needed == {"location", "n"}:
+        for loc in LOCATIONS:
+            for n in TOP_N:
+                variants.append({"location": loc, "n": n})
+    elif params_needed == {"location", "year"}:
+        for loc in LOCATIONS:
+            for yr in YEARS:
+                variants.append({"location": loc, "year": yr})
+    elif params_needed == {"wo_status"}:
+        for ws in WO_STATUS:
+            variants.append({"wo_status": ws})
     else:
         # Unknown params — emit one question with placeholders as-is
         variants.append({})

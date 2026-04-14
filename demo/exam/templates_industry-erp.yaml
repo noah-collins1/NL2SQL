@@ -765,3 +765,2235 @@
       )
     GROUP BY c."Name"
     ORDER BY uninvoiced_so_count DESC;
+
+# ============================================================
+# Family 11: Additional simple lookups (easy)
+# ============================================================
+
+- id: trx_lookup_closed_so_year
+  family: 11
+  difficulty: easy
+  question: "List all closed sales orders placed in {year}."
+  tables: [tbl_sales_order]
+  columns: [tbl_sales_order.Status, tbl_sales_order.DateOrdered]
+  tags: [sales_orders, lookup, temporal]
+  gold_sql: |
+    SELECT "SONumber", "CustomerShipTo", "DateOrdered", "Type"
+    FROM "tbl_sales_order"
+    WHERE "Status" = 'CLOSED'
+      AND EXTRACT(YEAR FROM "DateOrdered") = {year}
+    ORDER BY "DateOrdered" DESC;
+
+- id: trx_lookup_completed_workorders
+  family: 11
+  difficulty: easy
+  question: "List all completed work orders."
+  tables: [tbl_work_order]
+  columns: [tbl_work_order.AssemblyStatus]
+  tags: [warehouse, lookup]
+  gold_sql: |
+    SELECT "WorkOrderNumber", "Description", "OrderingLocation", "WorkCenter"
+    FROM "tbl_work_order"
+    WHERE "AssemblyStatus" = 'COMPLT'
+    ORDER BY "WorkOrderNumber";
+
+- id: trx_lookup_transfer_po
+  family: 11
+  difficulty: easy
+  question: "List all transfer-type purchase orders."
+  tables: [tbl_purchase_order]
+  columns: [tbl_purchase_order.Type]
+  tags: [purchasing, lookup]
+  gold_sql: |
+    SELECT "PONumber", "VendorPurchaseFrom", "OrderingLocation", "OrderDate", "Status"
+    FROM "tbl_purchase_order"
+    WHERE "Type" = 'TRANSF'
+    ORDER BY "OrderDate" DESC;
+
+- id: trx_lookup_active_customers
+  family: 11
+  difficulty: easy
+  question: "List all active customers."
+  tables: [tbl_customer]
+  columns: [tbl_customer.Status]
+  tags: [customers, lookup]
+  gold_sql: |
+    SELECT "Customer", "Name", "City", "StateOrProvince", "ARBalance"
+    FROM "tbl_customer"
+    WHERE "Status" = 'ACTIVE'
+    ORDER BY "Name";
+
+- id: trx_lookup_active_vendors
+  family: 11
+  difficulty: easy
+  question: "List all active vendors."
+  tables: [tbl_vendor]
+  columns: [tbl_vendor.Status]
+  tags: [vendors, lookup]
+  gold_sql: |
+    SELECT "Vendor", "Name", "StateOrProvince", "APBalance"
+    FROM "tbl_vendor"
+    WHERE "Status" = 'ACTIVE'
+    ORDER BY "Name";
+
+- id: trx_lookup_open_pt
+  family: 11
+  difficulty: easy
+  question: "List all open pick tickets."
+  tables: [tbl_pick_ticket]
+  columns: [tbl_pick_ticket.Status]
+  tags: [warehouse, lookup]
+  gold_sql: |
+    SELECT "PickTicketNumber", "OrderType", "Location", "DateShipped"
+    FROM "tbl_pick_ticket"
+    WHERE "Status" = 'OPEN'
+    ORDER BY "PickTicketNumber";
+
+- id: trx_lookup_gl_active_accounts
+  family: 11
+  difficulty: easy
+  question: "List all active GL accounts."
+  tables: [tbl_gl_account]
+  columns: [tbl_gl_account.IsActive]
+  tags: [general_ledger, lookup]
+  gold_sql: |
+    SELECT "AccountId", "Description", "AccountType"
+    FROM "tbl_gl_account"
+    WHERE "IsActive" = true
+    ORDER BY "AccountId";
+
+- id: trx_lookup_items_no_cost
+  family: 11
+  difficulty: easy
+  question: "Which stock items have zero standard cost?"
+  tables: [tbl_item]
+  columns: [tbl_item.Type, tbl_item.StandardCost]
+  tags: [inventory, lookup]
+  gold_sql: |
+    SELECT "Item", "Description", "StockUOM", "StandardCost"
+    FROM "tbl_item"
+    WHERE "Type" = 'STOCK'
+      AND ("StandardCost" IS NULL OR "StandardCost" = 0)
+    ORDER BY "Item";
+
+- id: trx_lookup_so_stand_year
+  family: 11
+  difficulty: easy
+  question: "List all standard sales orders placed in {year}."
+  tables: [tbl_sales_order]
+  columns: [tbl_sales_order.Type, tbl_sales_order.DateOrdered]
+  tags: [sales_orders, lookup, temporal]
+  gold_sql: |
+    SELECT "SONumber", "CustomerShipTo", "SellingLocation", "DateOrdered", "Status"
+    FROM "tbl_sales_order"
+    WHERE "Type" = 'STAND'
+      AND EXTRACT(YEAR FROM "DateOrdered") = {year}
+    ORDER BY "DateOrdered" DESC;
+
+- id: trx_lookup_vouchers_closed
+  family: 11
+  difficulty: easy
+  question: "List all closed AP vouchers."
+  tables: [tbl_voucher]
+  columns: [tbl_voucher.Status]
+  tags: [accounts_payable, lookup]
+  gold_sql: |
+    SELECT "VoucherNumber", "Vendor", "InvoiceAmount", "Type"
+    FROM "tbl_voucher"
+    WHERE "Status" = 'CLOSED'
+    ORDER BY "VoucherNumber" DESC;
+
+# ============================================================
+# Family 12: More single-table aggregations (easy)
+# ============================================================
+
+- id: trx_agg_invoice_by_type
+  family: 12
+  difficulty: easy
+  question: "How many invoices are there by invoice type?"
+  tables: [tbl_invoice]
+  columns: [tbl_invoice.InvoiceType]
+  tags: [accounts_receivable, aggregation]
+  gold_sql: |
+    SELECT "InvoiceType", COUNT(*) AS invoice_count
+    FROM "tbl_invoice"
+    GROUP BY "InvoiceType"
+    ORDER BY invoice_count DESC;
+
+- id: trx_agg_po_by_type
+  family: 12
+  difficulty: easy
+  question: "How many purchase orders are there by order type?"
+  tables: [tbl_purchase_order]
+  columns: [tbl_purchase_order.Type]
+  tags: [purchasing, aggregation]
+  gold_sql: |
+    SELECT "Type", COUNT(*) AS po_count
+    FROM "tbl_purchase_order"
+    GROUP BY "Type"
+    ORDER BY po_count DESC;
+
+- id: trx_agg_so_by_location
+  family: 12
+  difficulty: easy
+  question: "How many sales orders are there by selling location?"
+  tables: [tbl_sales_order]
+  columns: [tbl_sales_order.SellingLocation]
+  tags: [sales_orders, aggregation]
+  gold_sql: |
+    SELECT "SellingLocation", COUNT(*) AS order_count
+    FROM "tbl_sales_order"
+    WHERE "SellingLocation" IS NOT NULL
+    GROUP BY "SellingLocation"
+    ORDER BY order_count DESC;
+
+- id: trx_agg_po_by_location
+  family: 12
+  difficulty: easy
+  question: "How many purchase orders are there by ordering location?"
+  tables: [tbl_purchase_order]
+  columns: [tbl_purchase_order.OrderingLocation]
+  tags: [purchasing, aggregation]
+  gold_sql: |
+    SELECT "OrderingLocation", COUNT(*) AS po_count
+    FROM "tbl_purchase_order"
+    WHERE "OrderingLocation" IS NOT NULL
+    GROUP BY "OrderingLocation"
+    ORDER BY po_count DESC;
+
+- id: trx_agg_customer_by_state
+  family: 12
+  difficulty: easy
+  question: "How many customers are there by state?"
+  tables: [tbl_customer]
+  columns: [tbl_customer.StateOrProvince]
+  tags: [customers, aggregation]
+  gold_sql: |
+    SELECT "StateOrProvince", COUNT(*) AS customer_count
+    FROM "tbl_customer"
+    WHERE "StateOrProvince" IS NOT NULL AND "StateOrProvince" != ''
+    GROUP BY "StateOrProvince"
+    ORDER BY customer_count DESC;
+
+- id: trx_agg_vendor_by_type
+  family: 12
+  difficulty: easy
+  question: "How many vendors are there by vendor type?"
+  tables: [tbl_vendor]
+  columns: [tbl_vendor.Type]
+  tags: [vendors, aggregation]
+  gold_sql: |
+    SELECT "Type", COUNT(*) AS vendor_count
+    FROM "tbl_vendor"
+    WHERE "Type" IS NOT NULL AND "Type" != ''
+    GROUP BY "Type"
+    ORDER BY vendor_count DESC;
+
+- id: trx_agg_pt_by_order_type
+  family: 12
+  difficulty: easy
+  question: "How many pick tickets are there by order type?"
+  tables: [tbl_pick_ticket]
+  columns: [tbl_pick_ticket.OrderType]
+  tags: [warehouse, aggregation]
+  gold_sql: |
+    SELECT "OrderType", COUNT(*) AS pt_count
+    FROM "tbl_pick_ticket"
+    GROUP BY "OrderType"
+    ORDER BY pt_count DESC;
+
+- id: trx_agg_wip_by_accounting_status
+  family: 12
+  difficulty: easy
+  question: "How many work orders are there by accounting status?"
+  tables: [tbl_work_order]
+  columns: [tbl_work_order.AccountingStatus]
+  tags: [warehouse, aggregation]
+  gold_sql: |
+    SELECT "AccountingStatus", COUNT(*) AS wo_count
+    FROM "tbl_work_order"
+    GROUP BY "AccountingStatus"
+    ORDER BY wo_count DESC;
+
+- id: trx_agg_gl_by_account_year
+  family: 12
+  difficulty: easy
+  question: "How many GL journal entries were posted in {year}?"
+  tables: [tbl_je_line_item]
+  columns: [tbl_je_line_item.TransactionDate]
+  tags: [general_ledger, aggregation, temporal]
+  gold_sql: |
+    SELECT COUNT(*) AS entry_count
+    FROM "tbl_je_line_item"
+    WHERE EXTRACT(YEAR FROM "TransactionDate") = {year};
+
+- id: trx_agg_item_by_type_count
+  family: 12
+  difficulty: easy
+  question: "What is the total standard cost value of all stock items?"
+  tables: [tbl_item]
+  columns: [tbl_item.Type, tbl_item.StandardCost]
+  tags: [inventory, aggregation]
+  gold_sql: |
+    SELECT COUNT(*) AS item_count,
+           SUM("StandardCost") AS total_standard_cost,
+           AVG("StandardCost") AS avg_standard_cost
+    FROM "tbl_item"
+    WHERE "Type" = 'STOCK'
+      AND "StandardCost" > 0;
+
+# ============================================================
+# Family 13: More temporal aggregation (medium) — param: {year}
+# ============================================================
+
+- id: trx_temp_so_by_quarter
+  family: 13
+  difficulty: medium
+  question: "How many sales orders were placed each quarter in {year}?"
+  tables: [tbl_sales_order]
+  columns: [tbl_sales_order.DateOrdered]
+  tags: [sales_orders, temporal, aggregation]
+  gold_sql: |
+    SELECT EXTRACT(QUARTER FROM "DateOrdered") AS quarter,
+           COUNT(*) AS order_count
+    FROM "tbl_sales_order"
+    WHERE EXTRACT(YEAR FROM "DateOrdered") = {year}
+    GROUP BY quarter
+    ORDER BY quarter;
+
+- id: trx_temp_invoice_by_quarter
+  family: 13
+  difficulty: medium
+  question: "What was the total invoiced amount each quarter in {year}?"
+  tables: [tbl_invoice]
+  columns: [tbl_invoice.InvoiceDate, tbl_invoice.InvoiceAmount]
+  tags: [accounts_receivable, temporal, aggregation]
+  gold_sql: |
+    SELECT EXTRACT(QUARTER FROM "InvoiceDate") AS quarter,
+           COUNT(*) AS invoice_count,
+           SUM("InvoiceAmount") AS total_amount
+    FROM "tbl_invoice"
+    WHERE EXTRACT(YEAR FROM "InvoiceDate") = {year}
+    GROUP BY quarter
+    ORDER BY quarter;
+
+- id: trx_temp_po_by_quarter
+  family: 13
+  difficulty: medium
+  question: "How many purchase orders were placed each quarter in {year}?"
+  tables: [tbl_purchase_order]
+  columns: [tbl_purchase_order.OrderDate]
+  tags: [purchasing, temporal, aggregation]
+  gold_sql: |
+    SELECT EXTRACT(QUARTER FROM "OrderDate") AS quarter,
+           COUNT(*) AS po_count
+    FROM "tbl_purchase_order"
+    WHERE EXTRACT(YEAR FROM "OrderDate") = {year}
+    GROUP BY quarter
+    ORDER BY quarter;
+
+- id: trx_temp_pt_shipped_by_month
+  family: 13
+  difficulty: medium
+  question: "How many pick tickets were shipped each month in {year}?"
+  tables: [tbl_pick_ticket]
+  columns: [tbl_pick_ticket.DateShipped, tbl_pick_ticket.Status]
+  tags: [warehouse, temporal, aggregation]
+  gold_sql: |
+    SELECT DATE_TRUNC('month', "DateShipped") AS month,
+           COUNT(*) AS pt_count
+    FROM "tbl_pick_ticket"
+    WHERE "Status" = 'CONFRM'
+      AND EXTRACT(YEAR FROM "DateShipped") = {year}
+    GROUP BY month
+    ORDER BY month;
+
+- id: trx_temp_gl_by_quarter
+  family: 13
+  difficulty: medium
+  question: "What was the total GL debit amount each quarter in {year}?"
+  tables: [tbl_je_line_item]
+  columns: [tbl_je_line_item.TransactionDate, tbl_je_line_item.DebitAmount]
+  tags: [general_ledger, temporal, aggregation]
+  gold_sql: |
+    SELECT EXTRACT(QUARTER FROM "TransactionDate") AS quarter,
+           SUM("DebitAmount") AS total_debits,
+           SUM("CreditAmount") AS total_credits
+    FROM "tbl_je_line_item"
+    WHERE EXTRACT(YEAR FROM "TransactionDate") = {year}
+    GROUP BY quarter
+    ORDER BY quarter;
+
+- id: trx_temp_so_by_location_year
+  family: 13
+  difficulty: medium
+  question: "How many sales orders were placed by selling location in {year}?"
+  tables: [tbl_sales_order]
+  columns: [tbl_sales_order.SellingLocation, tbl_sales_order.DateOrdered]
+  tags: [sales_orders, temporal, aggregation]
+  gold_sql: |
+    SELECT "SellingLocation", COUNT(*) AS order_count
+    FROM "tbl_sales_order"
+    WHERE EXTRACT(YEAR FROM "DateOrdered") = {year}
+      AND "SellingLocation" IS NOT NULL
+    GROUP BY "SellingLocation"
+    ORDER BY order_count DESC;
+
+- id: trx_temp_invoice_by_location_year
+  family: 13
+  difficulty: medium
+  question: "What was the total invoiced amount by selling location in {year}?"
+  tables: [tbl_invoice]
+  columns: [tbl_invoice.SellingLocation, tbl_invoice.InvoiceAmount, tbl_invoice.InvoiceDate]
+  tags: [accounts_receivable, temporal, aggregation]
+  gold_sql: |
+    SELECT "SellingLocation", COUNT(*) AS invoice_count,
+           SUM("InvoiceAmount") AS total_invoiced
+    FROM "tbl_invoice"
+    WHERE EXTRACT(YEAR FROM "InvoiceDate") = {year}
+      AND "SellingLocation" IS NOT NULL
+    GROUP BY "SellingLocation"
+    ORDER BY total_invoiced DESC;
+
+- id: trx_temp_so_open_closed_year
+  family: 13
+  difficulty: medium
+  question: "How many sales orders were opened vs closed each month in {year}?"
+  tables: [tbl_sales_order]
+  columns: [tbl_sales_order.DateOrdered, tbl_sales_order.Status]
+  tags: [sales_orders, temporal, aggregation]
+  gold_sql: |
+    SELECT DATE_TRUNC('month', "DateOrdered") AS month,
+           SUM(CASE WHEN "Status" = 'OPEN' THEN 1 ELSE 0 END) AS open_count,
+           SUM(CASE WHEN "Status" = 'CLOSED' THEN 1 ELSE 0 END) AS closed_count
+    FROM "tbl_sales_order"
+    WHERE EXTRACT(YEAR FROM "DateOrdered") = {year}
+    GROUP BY month
+    ORDER BY month;
+
+- id: trx_temp_voucher_by_month
+  family: 13
+  difficulty: medium
+  question: "What was the total AP voucher amount by month in {year}?"
+  tables: [tbl_voucher]
+  columns: [tbl_voucher.PaymentTermsDueDate, tbl_voucher.InvoiceAmount]
+  tags: [accounts_payable, temporal, aggregation]
+  gold_sql: |
+    SELECT DATE_TRUNC('month', "PaymentTermsDueDate") AS month,
+           COUNT(*) AS voucher_count,
+           SUM("InvoiceAmount") AS total_amount
+    FROM "tbl_voucher"
+    WHERE EXTRACT(YEAR FROM "PaymentTermsDueDate") = {year}
+    GROUP BY month
+    ORDER BY month;
+
+- id: trx_temp_woi_by_quarter
+  family: 13
+  difficulty: medium
+  question: "How many work order components had required dates in each quarter of {year}?"
+  tables: [tbl_work_order_item]
+  columns: [tbl_work_order_item.DateRequired]
+  tags: [warehouse, temporal, aggregation]
+  gold_sql: |
+    SELECT EXTRACT(QUARTER FROM "DateRequired") AS quarter,
+           COUNT(*) AS component_count
+    FROM "tbl_work_order_item"
+    WHERE "DateRequired" IS NOT NULL
+      AND EXTRACT(YEAR FROM "DateRequired") = {year}
+    GROUP BY quarter
+    ORDER BY quarter;
+
+# ============================================================
+# Family 14: More Top-N (medium) — params: {n} or {year, n}
+# ============================================================
+
+- id: trx_topn_items_by_cost
+  family: 14
+  difficulty: medium
+  question: "What are the top {n} most expensive stock items by standard cost?"
+  tables: [tbl_item]
+  columns: [tbl_item.StandardCost, tbl_item.Type]
+  tags: [inventory, top_n]
+  gold_sql: |
+    SELECT "Item", "Description", "StockUOM", "StandardCost"
+    FROM "tbl_item"
+    WHERE "Type" = 'STOCK' AND "StandardCost" > 0
+    ORDER BY "StandardCost" DESC
+    LIMIT {n};
+
+- id: trx_topn_vendors_by_ap
+  family: 14
+  difficulty: medium
+  question: "Who are the top {n} vendors by AP balance?"
+  tables: [tbl_vendor]
+  columns: [tbl_vendor.APBalance, tbl_vendor.Name]
+  tags: [vendors, accounts_payable, top_n]
+  gold_sql: |
+    SELECT "Vendor", "Name", "APBalance"
+    FROM "tbl_vendor"
+    WHERE "APBalance" IS NOT NULL AND "APBalance" > 0
+    ORDER BY "APBalance" DESC
+    LIMIT {n};
+
+- id: trx_topn_customers_credit
+  family: 14
+  difficulty: medium
+  question: "Which {n} customers have the highest credit limit?"
+  tables: [tbl_customer]
+  columns: [tbl_customer.CreditLimit, tbl_customer.Name]
+  tags: [customers, top_n]
+  gold_sql: |
+    SELECT "Customer", "Name", "CreditLimit", "ARBalance"
+    FROM "tbl_customer"
+    WHERE "CreditLimit" IS NOT NULL AND "CreditLimit" > 0
+    ORDER BY "CreditLimit" DESC
+    LIMIT {n};
+
+- id: trx_topn_gl_accounts_debit
+  family: 14
+  difficulty: medium
+  question: "What are the top {n} GL accounts by total debit amount?"
+  tables: [tbl_je_line_item, tbl_gl_account]
+  columns: [tbl_je_line_item.AccountNumber, tbl_je_line_item.DebitAmount, tbl_gl_account.Description]
+  tags: [general_ledger, top_n]
+  gold_sql: |
+    SELECT je."AccountNumber", a."Description", a."AccountType",
+           SUM(je."DebitAmount") AS total_debits
+    FROM "tbl_je_line_item" je
+    JOIN "tbl_gl_account" a ON a."AccountId" = je."AccountNumber"
+    GROUP BY je."AccountNumber", a."Description", a."AccountType"
+    ORDER BY total_debits DESC
+    LIMIT {n};
+
+- id: trx_topn_items_invoiced_year
+  family: 14
+  difficulty: medium
+  question: "What are the top {n} items by invoice quantity in {year}?"
+  tables: [tbl_invoice, tbl_invoice_line]
+  columns: [tbl_invoice_line.Item, tbl_invoice_line.Quantity, tbl_invoice.InvoiceDate]
+  tags: [inventory, accounts_receivable, top_n, temporal]
+  gold_sql: |
+    SELECT il."Item",
+           SUM(NULLIF(il."Quantity", '')::numeric) AS total_qty_invoiced
+    FROM "tbl_invoice" i
+    JOIN "tbl_invoice_line" il ON il."InvoiceNumber" = i."InvoiceNumber"
+    WHERE EXTRACT(YEAR FROM i."InvoiceDate") = {year}
+      AND il."Item" IS NOT NULL AND il."Item" != ''
+    GROUP BY il."Item"
+    ORDER BY total_qty_invoiced DESC NULLS LAST
+    LIMIT {n};
+
+- id: trx_topn_customers_invoiced_year
+  family: 14
+  difficulty: medium
+  question: "Who are the top {n} customers by total invoiced amount in {year}?"
+  tables: [tbl_invoice, tbl_customer]
+  columns: [tbl_invoice.Customer, tbl_invoice.InvoiceAmount, tbl_invoice.InvoiceDate, tbl_customer.Name]
+  tags: [accounts_receivable, customers, top_n, temporal]
+  gold_sql: |
+    SELECT c."Name" AS customer_name,
+           COUNT(i."InvoiceNumber") AS invoice_count,
+           SUM(i."InvoiceAmount") AS total_invoiced
+    FROM "tbl_invoice" i
+    JOIN "tbl_customer" c ON c."Customer" = i."Customer"
+    WHERE EXTRACT(YEAR FROM i."InvoiceDate") = {year}
+    GROUP BY c."Name"
+    ORDER BY total_invoiced DESC
+    LIMIT {n};
+
+- id: trx_topn_vendors_po_year
+  family: 14
+  difficulty: medium
+  question: "Who are the top {n} vendors by number of purchase orders in {year}?"
+  tables: [tbl_purchase_order, tbl_vendor]
+  columns: [tbl_purchase_order.VendorPurchaseFrom, tbl_purchase_order.OrderDate, tbl_vendor.Name]
+  tags: [purchasing, vendors, top_n, temporal]
+  gold_sql: |
+    SELECT v."Name" AS vendor_name, COUNT(p."PONumber") AS po_count
+    FROM "tbl_purchase_order" p
+    JOIN "tbl_vendor" v ON v."Vendor" = p."VendorPurchaseFrom"
+    WHERE EXTRACT(YEAR FROM p."OrderDate") = {year}
+    GROUP BY v."Name"
+    ORDER BY po_count DESC
+    LIMIT {n};
+
+- id: trx_topn_items_po_qty_year
+  family: 14
+  difficulty: medium
+  question: "What are the top {n} items by total quantity purchased in {year}?"
+  tables: [tbl_purchase_order, tbl_purchase_order_line]
+  columns: [tbl_purchase_order_line.Item, tbl_purchase_order_line.Quantity, tbl_purchase_order.OrderDate]
+  tags: [inventory, purchasing, top_n, temporal]
+  gold_sql: |
+    SELECT l."Item",
+           SUM(NULLIF(l."Quantity", '')::numeric) AS total_qty_ordered
+    FROM "tbl_purchase_order" p
+    JOIN "tbl_purchase_order_line" l ON l."PONumber" = p."PONumber"
+    WHERE EXTRACT(YEAR FROM p."OrderDate") = {year}
+      AND l."Item" IS NOT NULL AND l."Item" != ''
+    GROUP BY l."Item"
+    ORDER BY total_qty_ordered DESC NULLS LAST
+    LIMIT {n};
+
+- id: trx_topn_reps_lines_year
+  family: 14
+  difficulty: medium
+  question: "Who are the top {n} sales reps by SO line count in {year}?"
+  tables: [tbl_sales_order, tbl_so_line_rep, tbl_sales_rep]
+  columns: [tbl_so_line_rep.SalesRep, tbl_sales_rep.Name, tbl_sales_order.DateOrdered]
+  tags: [sales_orders, commissions, top_n, temporal]
+  gold_sql: |
+    SELECT r."Name" AS rep_name, COUNT(lr."SOLineNumber") AS line_count
+    FROM "tbl_sales_order" s
+    JOIN "tbl_so_line_rep" lr ON lr."SONumber" = s."SONumber"
+    JOIN "tbl_sales_rep" r ON r."SalesRep" = lr."SalesRep"
+    WHERE EXTRACT(YEAR FROM s."DateOrdered") = {year}
+    GROUP BY r."Name"
+    ORDER BY line_count DESC
+    LIMIT {n};
+
+- id: trx_topn_customers_so_year
+  family: 14
+  difficulty: medium
+  question: "Who are the top {n} customers by sales order count in {year}?"
+  tables: [tbl_sales_order, tbl_customer]
+  columns: [tbl_sales_order.CustomerShipTo, tbl_sales_order.DateOrdered, tbl_customer.Name]
+  tags: [sales_orders, customers, top_n, temporal]
+  gold_sql: |
+    SELECT c."Name" AS customer_name, COUNT(s."SONumber") AS so_count
+    FROM "tbl_sales_order" s
+    JOIN "tbl_customer" c ON c."Customer" = s."CustomerShipTo"
+    WHERE EXTRACT(YEAR FROM s."DateOrdered") = {year}
+    GROUP BY c."Name"
+    ORDER BY so_count DESC
+    LIMIT {n};
+
+# ============================================================
+# Family 15: More header-detail aggregation (medium)
+# ============================================================
+
+- id: trx_hdr_so_line_value
+  family: 15
+  difficulty: medium
+  question: "What is the total line value of each open sales order?"
+  tables: [tbl_sales_order, tbl_so_line]
+  columns: [tbl_sales_order.Status, tbl_so_line.Quantity, tbl_so_line.UnitPriceCalculated]
+  tags: [sales_orders, header_detail]
+  gold_sql: |
+    SELECT s."SONumber", s."CustomerShipTo", s."DateOrdered",
+           COUNT(l."SOLineNumber") AS line_count,
+           SUM(NULLIF(l."Quantity", '')::numeric * l."UnitPriceCalculated") AS total_value
+    FROM "tbl_sales_order" s
+    JOIN "tbl_so_line" l ON l."SONumber" = s."SONumber"
+    WHERE s."Status" = 'OPEN'
+    GROUP BY s."SONumber", s."CustomerShipTo", s."DateOrdered"
+    ORDER BY total_value DESC NULLS LAST;
+
+- id: trx_hdr_invoice_line_count
+  family: 15
+  difficulty: medium
+  question: "How many lines does each open invoice have?"
+  tables: [tbl_invoice, tbl_invoice_line]
+  columns: [tbl_invoice.Status, tbl_invoice_line.InvoiceNumber]
+  tags: [accounts_receivable, header_detail]
+  gold_sql: |
+    SELECT i."InvoiceNumber", i."Customer", i."InvoiceDate",
+           i."InvoiceAmount", COUNT(il."InvoiceLineNumber") AS line_count
+    FROM "tbl_invoice" i
+    JOIN "tbl_invoice_line" il ON il."InvoiceNumber" = i."InvoiceNumber"
+    WHERE i."Status" = 'OPEN'
+    GROUP BY i."InvoiceNumber", i."Customer", i."InvoiceDate", i."InvoiceAmount"
+    ORDER BY line_count DESC;
+
+- id: trx_hdr_pt_item_count
+  family: 15
+  difficulty: medium
+  question: "How many items were on each confirmed pick ticket?"
+  tables: [tbl_pick_ticket, tbl_pick_ticket_line]
+  columns: [tbl_pick_ticket.Status, tbl_pick_ticket_line.PickTicketNumber]
+  tags: [warehouse, header_detail]
+  gold_sql: |
+    SELECT pt."PickTicketNumber", pt."Location", pt."DateShipped",
+           COUNT(ptl."Item") AS item_count
+    FROM "tbl_pick_ticket" pt
+    JOIN "tbl_pick_ticket_line" ptl ON ptl."PickTicketNumber" = pt."PickTicketNumber"
+    WHERE pt."Status" = 'CONFRM'
+    GROUP BY pt."PickTicketNumber", pt."Location", pt."DateShipped"
+    ORDER BY item_count DESC;
+
+- id: trx_hdr_wip_component_count
+  family: 15
+  difficulty: medium
+  question: "How many components does each in-assembly work order have?"
+  tables: [tbl_work_order, tbl_work_order_item]
+  columns: [tbl_work_order.AssemblyStatus, tbl_work_order_item.WorkOrderNumber]
+  tags: [warehouse, header_detail]
+  gold_sql: |
+    SELECT w."WorkOrderNumber", w."Description", w."WorkCenter",
+           COUNT(wi."ComponentID") AS component_count,
+           SUM(wi."EstimatedExtendedCost") AS total_est_cost
+    FROM "tbl_work_order" w
+    JOIN "tbl_work_order_item" wi ON wi."WorkOrderNumber" = w."WorkOrderNumber"
+    WHERE w."AssemblyStatus" = 'INASSY'
+    GROUP BY w."WorkOrderNumber", w."Description", w."WorkCenter"
+    ORDER BY component_count DESC;
+
+- id: trx_hdr_so_qty_vs_shipped
+  family: 15
+  difficulty: medium
+  question: "What is the total quantity ordered vs shipped per open sales order?"
+  tables: [tbl_sales_order, tbl_so_line]
+  columns: [tbl_sales_order.Status, tbl_so_line.Quantity, tbl_so_line.QuantityShipped]
+  tags: [sales_orders, header_detail]
+  gold_sql: |
+    SELECT s."SONumber", s."CustomerShipTo",
+           SUM(NULLIF(l."Quantity", '')::numeric) AS total_ordered,
+           SUM(NULLIF(l."QuantityShipped", '')::numeric) AS total_shipped
+    FROM "tbl_sales_order" s
+    JOIN "tbl_so_line" l ON l."SONumber" = s."SONumber"
+    WHERE s."Status" = 'OPEN'
+    GROUP BY s."SONumber", s."CustomerShipTo"
+    ORDER BY total_ordered DESC NULLS LAST;
+
+- id: trx_hdr_po_receipt_pct
+  family: 15
+  difficulty: medium
+  question: "What percentage of each open purchase order has been received?"
+  tables: [tbl_purchase_order, tbl_purchase_order_line]
+  columns: [tbl_purchase_order.Status, tbl_purchase_order_line.Quantity, tbl_purchase_order_line.QuantityReceived]
+  tags: [purchasing, header_detail]
+  gold_sql: |
+    SELECT p."PONumber", p."VendorPurchaseFrom",
+           SUM(NULLIF(l."Quantity", '')::numeric) AS total_ordered,
+           SUM(NULLIF(l."QuantityReceived", '')::numeric) AS total_received,
+           ROUND(
+             100.0 * SUM(NULLIF(l."QuantityReceived", '')::numeric) /
+             NULLIF(SUM(NULLIF(l."Quantity", '')::numeric), 0),
+             1
+           ) AS pct_received
+    FROM "tbl_purchase_order" p
+    JOIN "tbl_purchase_order_line" l ON l."PONumber" = p."PONumber"
+    WHERE p."Status" = 'OPEN'
+    GROUP BY p."PONumber", p."VendorPurchaseFrom"
+    ORDER BY pct_received ASC NULLS LAST;
+
+# ============================================================
+# Family 16: More two-entity joins (medium) — some with {year}
+# ============================================================
+
+- id: trx_join_so_customer_year
+  family: 16
+  difficulty: medium
+  question: "How many sales orders did each customer place in {year}?"
+  tables: [tbl_sales_order, tbl_customer]
+  columns: [tbl_sales_order.CustomerShipTo, tbl_sales_order.DateOrdered, tbl_customer.Name]
+  tags: [sales_orders, customers, join, temporal]
+  gold_sql: |
+    SELECT c."Name" AS customer_name,
+           COUNT(s."SONumber") AS so_count
+    FROM "tbl_sales_order" s
+    JOIN "tbl_customer" c ON c."Customer" = s."CustomerShipTo"
+    WHERE EXTRACT(YEAR FROM s."DateOrdered") = {year}
+    GROUP BY c."Name"
+    ORDER BY so_count DESC;
+
+- id: trx_join_invoice_customer_year
+  family: 16
+  difficulty: medium
+  question: "What was the total invoiced amount per customer in {year}?"
+  tables: [tbl_invoice, tbl_customer]
+  columns: [tbl_invoice.Customer, tbl_invoice.InvoiceAmount, tbl_invoice.InvoiceDate, tbl_customer.Name]
+  tags: [accounts_receivable, customers, join, temporal]
+  gold_sql: |
+    SELECT c."Name" AS customer_name,
+           COUNT(i."InvoiceNumber") AS invoice_count,
+           SUM(i."InvoiceAmount") AS total_invoiced,
+           SUM(COALESCE(i."PaidAmount", 0)) AS total_paid
+    FROM "tbl_invoice" i
+    JOIN "tbl_customer" c ON c."Customer" = i."Customer"
+    WHERE EXTRACT(YEAR FROM i."InvoiceDate") = {year}
+    GROUP BY c."Name"
+    ORDER BY total_invoiced DESC;
+
+- id: trx_join_po_vendor_year
+  family: 16
+  difficulty: medium
+  question: "What was the total PO value placed with each vendor in {year}?"
+  tables: [tbl_purchase_order, tbl_purchase_order_line, tbl_vendor]
+  columns: [tbl_purchase_order.VendorPurchaseFrom, tbl_purchase_order.OrderDate, tbl_purchase_order_line.UnitCost, tbl_purchase_order_line.Quantity, tbl_vendor.Name]
+  tags: [purchasing, vendors, join, temporal]
+  gold_sql: |
+    SELECT v."Name" AS vendor_name,
+           COUNT(DISTINCT p."PONumber") AS po_count,
+           SUM(NULLIF(l."Quantity", '')::numeric * l."UnitCost") AS total_po_value
+    FROM "tbl_purchase_order" p
+    JOIN "tbl_purchase_order_line" l ON l."PONumber" = p."PONumber"
+    JOIN "tbl_vendor" v ON v."Vendor" = p."VendorPurchaseFrom"
+    WHERE EXTRACT(YEAR FROM p."OrderDate") = {year}
+    GROUP BY v."Name"
+    ORDER BY total_po_value DESC NULLS LAST;
+
+- id: trx_join_wopi_item_inassy
+  family: 16
+  difficulty: medium
+  question: "Which items are currently used in in-assembly work orders?"
+  tables: [tbl_work_order, tbl_work_order_item, tbl_item]
+  columns: [tbl_work_order.AssemblyStatus, tbl_work_order_item.Item, tbl_item.Description]
+  tags: [warehouse, inventory, join]
+  gold_sql: |
+    SELECT DISTINCT wi."Item", im."Description",
+           COUNT(DISTINCT wi."WorkOrderNumber") AS wo_count
+    FROM "tbl_work_order" w
+    JOIN "tbl_work_order_item" wi ON wi."WorkOrderNumber" = w."WorkOrderNumber"
+    JOIN "tbl_item" im ON im."Item" = wi."Item"
+    WHERE w."AssemblyStatus" = 'INASSY'
+      AND wi."Item" IS NOT NULL AND wi."Item" != ''
+    GROUP BY wi."Item", im."Description"
+    ORDER BY wo_count DESC;
+
+- id: trx_join_voucher_vendor_year
+  family: 16
+  difficulty: medium
+  question: "What was the total AP voucher amount by vendor in {year}?"
+  tables: [tbl_voucher, tbl_vendor]
+  columns: [tbl_voucher.Vendor, tbl_voucher.InvoiceAmount, tbl_voucher.PaymentTermsDueDate, tbl_vendor.Name]
+  tags: [accounts_payable, vendors, join, temporal]
+  gold_sql: |
+    SELECT vn."Name" AS vendor_name,
+           COUNT(v."VoucherNumber") AS voucher_count,
+           SUM(v."InvoiceAmount") AS total_amount
+    FROM "tbl_voucher" v
+    JOIN "tbl_vendor" vn ON vn."Vendor" = v."Vendor"
+    WHERE EXTRACT(YEAR FROM v."PaymentTermsDueDate") = {year}
+    GROUP BY vn."Name"
+    ORDER BY total_amount DESC;
+
+- id: trx_join_gl_account_type_year
+  family: 16
+  difficulty: medium
+  question: "What is the net GL balance by account type in {year}?"
+  tables: [tbl_je_line_item, tbl_gl_account]
+  columns: [tbl_je_line_item.AccountNumber, tbl_je_line_item.DebitAmount, tbl_je_line_item.CreditAmount, tbl_je_line_item.TransactionDate, tbl_gl_account.AccountType]
+  tags: [general_ledger, join, temporal]
+  gold_sql: |
+    SELECT a."AccountType",
+           SUM(je."DebitAmount") AS total_debits,
+           SUM(je."CreditAmount") AS total_credits,
+           SUM(je."DebitAmount") - SUM(je."CreditAmount") AS net_balance
+    FROM "tbl_je_line_item" je
+    JOIN "tbl_gl_account" a ON a."AccountId" = je."AccountNumber"
+    WHERE EXTRACT(YEAR FROM je."TransactionDate") = {year}
+    GROUP BY a."AccountType"
+    ORDER BY net_balance DESC;
+
+# ============================================================
+# Family 17: More three-table joins (hard) — param: {year}
+# ============================================================
+
+- id: trx_3join_so_line_item_year
+  family: 17
+  difficulty: hard
+  question: "What is the total quantity sold per item in {year}?"
+  tables: [tbl_sales_order, tbl_so_line, tbl_item]
+  columns: [tbl_sales_order.DateOrdered, tbl_so_line.Item, tbl_so_line.Quantity, tbl_item.Description]
+  tags: [sales_orders, inventory, join, temporal]
+  gold_sql: |
+    SELECT l."Item", im."Description",
+           SUM(NULLIF(l."Quantity", '')::numeric) AS total_qty_sold
+    FROM "tbl_sales_order" s
+    JOIN "tbl_so_line" l ON l."SONumber" = s."SONumber"
+    JOIN "tbl_item" im ON im."Item" = l."Item"
+    WHERE EXTRACT(YEAR FROM s."DateOrdered") = {year}
+      AND l."Item" IS NOT NULL AND l."Item" != ''
+    GROUP BY l."Item", im."Description"
+    ORDER BY total_qty_sold DESC NULLS LAST
+    LIMIT 20;
+
+- id: trx_3join_po_line_item_year
+  family: 17
+  difficulty: hard
+  question: "What is the total quantity purchased per item in {year}?"
+  tables: [tbl_purchase_order, tbl_purchase_order_line, tbl_item]
+  columns: [tbl_purchase_order.OrderDate, tbl_purchase_order_line.Item, tbl_purchase_order_line.Quantity, tbl_item.Description]
+  tags: [purchasing, inventory, join, temporal]
+  gold_sql: |
+    SELECT l."Item", im."Description",
+           SUM(NULLIF(l."Quantity", '')::numeric) AS total_qty_purchased
+    FROM "tbl_purchase_order" p
+    JOIN "tbl_purchase_order_line" l ON l."PONumber" = p."PONumber"
+    JOIN "tbl_item" im ON im."Item" = l."Item"
+    WHERE EXTRACT(YEAR FROM p."OrderDate") = {year}
+      AND l."Item" IS NOT NULL AND l."Item" != ''
+    GROUP BY l."Item", im."Description"
+    ORDER BY total_qty_purchased DESC NULLS LAST
+    LIMIT 20;
+
+- id: trx_3join_pt_item_shipped_year
+  family: 17
+  difficulty: hard
+  question: "What is the total quantity shipped per item in {year}?"
+  tables: [tbl_pick_ticket, tbl_pick_ticket_line, tbl_item]
+  columns: [tbl_pick_ticket.DateShipped, tbl_pick_ticket_line.Item, tbl_pick_ticket_line.QuantityShipped, tbl_item.Description]
+  tags: [warehouse, inventory, join, temporal]
+  gold_sql: |
+    SELECT ptl."Item", im."Description",
+           SUM(NULLIF(ptl."QuantityShipped", '')::numeric) AS total_shipped
+    FROM "tbl_pick_ticket" pt
+    JOIN "tbl_pick_ticket_line" ptl ON ptl."PickTicketNumber" = pt."PickTicketNumber"
+    JOIN "tbl_item" im ON im."Item" = ptl."Item"
+    WHERE pt."Status" = 'CONFRM'
+      AND EXTRACT(YEAR FROM pt."DateShipped") = {year}
+      AND ptl."Item" IS NOT NULL AND ptl."Item" != ''
+    GROUP BY ptl."Item", im."Description"
+    ORDER BY total_shipped DESC NULLS LAST
+    LIMIT 20;
+
+- id: trx_3join_invoice_customer_state_year
+  family: 17
+  difficulty: hard
+  question: "What is the total invoiced amount by customer state in {year}?"
+  tables: [tbl_invoice, tbl_customer]
+  columns: [tbl_invoice.Customer, tbl_invoice.InvoiceAmount, tbl_invoice.InvoiceDate, tbl_customer.StateOrProvince]
+  tags: [accounts_receivable, customers, join, temporal]
+  gold_sql: |
+    SELECT c."StateOrProvince",
+           COUNT(DISTINCT i."Customer") AS customer_count,
+           COUNT(i."InvoiceNumber") AS invoice_count,
+           SUM(i."InvoiceAmount") AS total_invoiced
+    FROM "tbl_invoice" i
+    JOIN "tbl_customer" c ON c."Customer" = i."Customer"
+    WHERE EXTRACT(YEAR FROM i."InvoiceDate") = {year}
+      AND c."StateOrProvince" IS NOT NULL
+    GROUP BY c."StateOrProvince"
+    ORDER BY total_invoiced DESC;
+
+- id: trx_3join_wip_item_cost
+  family: 17
+  difficulty: hard
+  question: "What is the total estimated work order cost by item type?"
+  tables: [tbl_work_order, tbl_work_order_item, tbl_item]
+  columns: [tbl_work_order_item.Item, tbl_work_order_item.EstimatedExtendedCost, tbl_item.Type]
+  tags: [warehouse, inventory, join]
+  gold_sql: |
+    SELECT im."Type", COUNT(DISTINCT wi."Item") AS item_count,
+           SUM(wi."EstimatedExtendedCost") AS total_est_cost
+    FROM "tbl_work_order" w
+    JOIN "tbl_work_order_item" wi ON wi."WorkOrderNumber" = w."WorkOrderNumber"
+    JOIN "tbl_item" im ON im."Item" = wi."Item"
+    WHERE wi."Item" IS NOT NULL AND wi."Item" != ''
+    GROUP BY im."Type"
+    ORDER BY total_est_cost DESC NULLS LAST;
+
+- id: trx_3join_so_rep_customer_year
+  family: 17
+  difficulty: hard
+  question: "How many SO lines did each sales rep process per customer in {year}?"
+  tables: [tbl_sales_order, tbl_so_line_rep, tbl_sales_rep, tbl_customer]
+  columns: [tbl_so_line_rep.SalesRep, tbl_sales_rep.Name, tbl_sales_order.CustomerShipTo, tbl_sales_order.DateOrdered, tbl_customer.Name]
+  tags: [sales_orders, commissions, join, temporal]
+  gold_sql: |
+    SELECT r."Name" AS rep_name, c."Name" AS customer_name,
+           COUNT(lr."SOLineNumber") AS line_count
+    FROM "tbl_sales_order" s
+    JOIN "tbl_so_line_rep" lr ON lr."SONumber" = s."SONumber"
+    JOIN "tbl_sales_rep" r ON r."SalesRep" = lr."SalesRep"
+    JOIN "tbl_customer" c ON c."Customer" = s."CustomerShipTo"
+    WHERE EXTRACT(YEAR FROM s."DateOrdered") = {year}
+    GROUP BY r."Name", c."Name"
+    ORDER BY line_count DESC
+    LIMIT 20;
+
+# ============================================================
+# Family 18: More anti-join / NOT EXISTS (hard)
+# ============================================================
+
+- id: trx_antijoin_items_no_po
+  family: 18
+  difficulty: hard
+  question: "Which stock items have never been purchased on a purchase order?"
+  tables: [tbl_item, tbl_purchase_order_line]
+  columns: [tbl_item.Item, tbl_item.Type, tbl_purchase_order_line.Item]
+  tags: [inventory, anti_join]
+  gold_sql: |
+    SELECT i."Item", i."Description", i."StockUOM", i."StandardCost"
+    FROM "tbl_item" i
+    WHERE i."Type" = 'STOCK'
+      AND NOT EXISTS (
+        SELECT 1 FROM "tbl_purchase_order_line" l WHERE l."Item" = i."Item"
+      )
+    ORDER BY i."Item";
+
+- id: trx_antijoin_customers_no_invoice
+  family: 18
+  difficulty: hard
+  question: "Which customers have never had an invoice?"
+  tables: [tbl_customer, tbl_invoice]
+  columns: [tbl_customer.Customer, tbl_invoice.Customer]
+  tags: [customers, accounts_receivable, anti_join]
+  gold_sql: |
+    SELECT c."Customer", c."Name", c."ARBalance"
+    FROM "tbl_customer" c
+    WHERE NOT EXISTS (
+      SELECT 1 FROM "tbl_invoice" i WHERE i."Customer" = c."Customer"
+    )
+    ORDER BY c."Name";
+
+- id: trx_antijoin_vendors_no_voucher
+  family: 18
+  difficulty: hard
+  question: "Which vendors have no AP vouchers?"
+  tables: [tbl_vendor, tbl_voucher]
+  columns: [tbl_vendor.Vendor, tbl_voucher.Vendor]
+  tags: [vendors, accounts_payable, anti_join]
+  gold_sql: |
+    SELECT v."Vendor", v."Name", v."APBalance"
+    FROM "tbl_vendor" v
+    WHERE NOT EXISTS (
+      SELECT 1 FROM "tbl_voucher" u WHERE u."Vendor" = v."Vendor"
+    )
+    ORDER BY v."Name";
+
+- id: trx_antijoin_so_no_pt
+  family: 18
+  difficulty: hard
+  question: "Which open sales orders have no pick ticket?"
+  tables: [tbl_sales_order, tbl_pick_ticket]
+  columns: [tbl_sales_order.SONumber, tbl_sales_order.Status, tbl_pick_ticket.PickTicketNumber]
+  tags: [sales_orders, warehouse, anti_join]
+  gold_sql: |
+    SELECT s."SONumber", s."CustomerShipTo", s."DateOrdered", s."SellingLocation"
+    FROM "tbl_sales_order" s
+    WHERE s."Status" = 'OPEN'
+      AND NOT EXISTS (
+        SELECT 1 FROM "tbl_pick_ticket" pt WHERE pt."PickTicketNumber" = s."SONumber"
+      )
+    ORDER BY s."DateOrdered" DESC;
+
+- id: trx_antijoin_customers_no_so_year
+  family: 18
+  difficulty: hard
+  question: "Which active customers placed no sales orders in {year}?"
+  tables: [tbl_customer, tbl_sales_order]
+  columns: [tbl_customer.Customer, tbl_customer.Status, tbl_sales_order.CustomerShipTo, tbl_sales_order.DateOrdered]
+  tags: [customers, anti_join, temporal]
+  gold_sql: |
+    SELECT c."Customer", c."Name", c."StateOrProvince", c."ARBalance"
+    FROM "tbl_customer" c
+    WHERE c."Status" = 'ACTIVE'
+      AND NOT EXISTS (
+        SELECT 1 FROM "tbl_sales_order" s
+        WHERE s."CustomerShipTo" = c."Customer"
+          AND EXTRACT(YEAR FROM s."DateOrdered") = {year}
+      )
+    ORDER BY c."Name";
+
+- id: trx_antijoin_items_sold_not_purchased_year
+  family: 18
+  difficulty: hard
+  question: "Which items were sold in {year} but never purchased in {year}?"
+  tables: [tbl_so_line, tbl_sales_order, tbl_purchase_order_line, tbl_purchase_order]
+  columns: [tbl_so_line.Item, tbl_sales_order.DateOrdered, tbl_purchase_order_line.Item, tbl_purchase_order.OrderDate]
+  tags: [inventory, anti_join, temporal]
+  gold_sql: |
+    SELECT DISTINCT sl."Item"
+    FROM "tbl_so_line" sl
+    JOIN "tbl_sales_order" s ON s."SONumber" = sl."SONumber"
+    WHERE EXTRACT(YEAR FROM s."DateOrdered") = {year}
+      AND sl."Item" IS NOT NULL AND sl."Item" != ''
+      AND NOT EXISTS (
+        SELECT 1 FROM "tbl_purchase_order_line" pl
+        JOIN "tbl_purchase_order" p ON p."PONumber" = pl."PONumber"
+        WHERE pl."Item" = sl."Item"
+          AND EXTRACT(YEAR FROM p."OrderDate") = {year}
+      )
+    ORDER BY sl."Item";
+
+# ============================================================
+# Family 19: HAVING clause (medium)
+# ============================================================
+
+- id: trx_having_customers_min_so
+  family: 19
+  difficulty: medium
+  question: "Which customers have placed at least {n} sales orders?"
+  tables: [tbl_sales_order, tbl_customer]
+  columns: [tbl_sales_order.CustomerShipTo, tbl_customer.Name]
+  tags: [sales_orders, customers, having]
+  gold_sql: |
+    SELECT c."Name" AS customer_name, COUNT(s."SONumber") AS so_count
+    FROM "tbl_sales_order" s
+    JOIN "tbl_customer" c ON c."Customer" = s."CustomerShipTo"
+    GROUP BY c."Name"
+    HAVING COUNT(s."SONumber") >= {n}
+    ORDER BY so_count DESC;
+
+- id: trx_having_items_multi_location
+  family: 19
+  difficulty: medium
+  question: "Which items are stocked at more than {n} locations?"
+  tables: [tbl_item_location]
+  columns: [tbl_item_location.Item, tbl_item_location.Location]
+  tags: [inventory, having]
+  gold_sql: |
+    SELECT "Item", COUNT(DISTINCT "Location") AS location_count
+    FROM "tbl_item_location"
+    GROUP BY "Item"
+    HAVING COUNT(DISTINCT "Location") > {n}
+    ORDER BY location_count DESC;
+
+- id: trx_having_vendors_min_po
+  family: 19
+  difficulty: medium
+  question: "Which vendors have at least {n} purchase orders?"
+  tables: [tbl_purchase_order, tbl_vendor]
+  columns: [tbl_purchase_order.VendorPurchaseFrom, tbl_vendor.Name]
+  tags: [purchasing, vendors, having]
+  gold_sql: |
+    SELECT v."Name" AS vendor_name, COUNT(p."PONumber") AS po_count
+    FROM "tbl_purchase_order" p
+    JOIN "tbl_vendor" v ON v."Vendor" = p."VendorPurchaseFrom"
+    GROUP BY v."Name"
+    HAVING COUNT(p."PONumber") >= {n}
+    ORDER BY po_count DESC;
+
+- id: trx_having_reps_min_commission
+  family: 19
+  difficulty: medium
+  question: "Which sales reps have more than {n} commission lines reported?"
+  tables: [tbl_tiered_commission, tbl_sales_rep]
+  columns: [tbl_tiered_commission.SalesRep, tbl_sales_rep.Name]
+  tags: [commissions, having]
+  gold_sql: |
+    SELECT r."Name" AS rep_name, COUNT(c."InvoiceNumber") AS commission_lines
+    FROM "tbl_tiered_commission" c
+    JOIN "tbl_sales_rep" r ON r."SalesRep" = c."SalesRep"
+    GROUP BY r."Name"
+    HAVING COUNT(c."InvoiceNumber") > {n}
+    ORDER BY commission_lines DESC;
+
+- id: trx_having_gl_accounts_min_entries
+  family: 19
+  difficulty: medium
+  question: "Which GL accounts have more than {n} journal entries?"
+  tables: [tbl_je_line_item, tbl_gl_account]
+  columns: [tbl_je_line_item.AccountNumber, tbl_gl_account.Description]
+  tags: [general_ledger, having]
+  gold_sql: |
+    SELECT je."AccountNumber", a."Description", a."AccountType",
+           COUNT(*) AS entry_count
+    FROM "tbl_je_line_item" je
+    JOIN "tbl_gl_account" a ON a."AccountId" = je."AccountNumber"
+    GROUP BY je."AccountNumber", a."Description", a."AccountType"
+    HAVING COUNT(*) > {n}
+    ORDER BY entry_count DESC;
+
+# ============================================================
+# Family 20: More window functions (hard) — some with {year}
+# ============================================================
+
+- id: trx_window_invoice_running_year
+  family: 20
+  difficulty: hard
+  question: "Show cumulative invoiced amount by month in {year}."
+  tables: [tbl_invoice]
+  columns: [tbl_invoice.InvoiceDate, tbl_invoice.InvoiceAmount]
+  tags: [accounts_receivable, window_function, temporal]
+  gold_sql: |
+    SELECT DATE_TRUNC('month', "InvoiceDate") AS month,
+           SUM("InvoiceAmount") AS monthly_amount,
+           SUM(SUM("InvoiceAmount")) OVER (ORDER BY DATE_TRUNC('month', "InvoiceDate")) AS running_total
+    FROM "tbl_invoice"
+    WHERE EXTRACT(YEAR FROM "InvoiceDate") = {year}
+    GROUP BY month
+    ORDER BY month;
+
+- id: trx_window_rank_items_cost
+  family: 20
+  difficulty: hard
+  question: "Rank all stock items by standard cost."
+  tables: [tbl_item]
+  columns: [tbl_item.StandardCost, tbl_item.Type]
+  tags: [inventory, window_function]
+  gold_sql: |
+    SELECT "Item", "Description", "StandardCost",
+           RANK() OVER (ORDER BY "StandardCost" DESC) AS cost_rank
+    FROM "tbl_item"
+    WHERE "Type" = 'STOCK' AND "StandardCost" > 0
+    ORDER BY cost_rank;
+
+- id: trx_window_rank_vendors_ap
+  family: 20
+  difficulty: hard
+  question: "Rank all vendors by AP balance."
+  tables: [tbl_vendor]
+  columns: [tbl_vendor.APBalance, tbl_vendor.Name]
+  tags: [vendors, accounts_payable, window_function]
+  gold_sql: |
+    SELECT "Vendor", "Name", "APBalance",
+           RANK() OVER (ORDER BY "APBalance" DESC NULLS LAST) AS ap_rank
+    FROM "tbl_vendor"
+    WHERE "APBalance" IS NOT NULL
+    ORDER BY ap_rank;
+
+- id: trx_window_po_running_year
+  family: 20
+  difficulty: hard
+  question: "Show monthly PO count with running total in {year}."
+  tables: [tbl_purchase_order]
+  columns: [tbl_purchase_order.OrderDate]
+  tags: [purchasing, window_function, temporal]
+  gold_sql: |
+    SELECT DATE_TRUNC('month', "OrderDate") AS month,
+           COUNT(*) AS monthly_count,
+           SUM(COUNT(*)) OVER (ORDER BY DATE_TRUNC('month', "OrderDate")) AS running_total
+    FROM "tbl_purchase_order"
+    WHERE EXTRACT(YEAR FROM "OrderDate") = {year}
+    GROUP BY month
+    ORDER BY month;
+
+- id: trx_window_so_pct_of_year
+  family: 20
+  difficulty: hard
+  question: "What percentage of annual sales order volume does each month represent in {year}?"
+  tables: [tbl_sales_order]
+  columns: [tbl_sales_order.DateOrdered]
+  tags: [sales_orders, window_function, temporal]
+  gold_sql: |
+    SELECT DATE_TRUNC('month', "DateOrdered") AS month,
+           COUNT(*) AS monthly_count,
+           ROUND(
+             100.0 * COUNT(*) / SUM(COUNT(*)) OVER (),
+             2
+           ) AS pct_of_year
+    FROM "tbl_sales_order"
+    WHERE EXTRACT(YEAR FROM "DateOrdered") = {year}
+    GROUP BY month
+    ORDER BY month;
+
+- id: trx_window_rank_customers_so
+  family: 20
+  difficulty: hard
+  question: "Rank customers by total number of sales orders."
+  tables: [tbl_sales_order, tbl_customer]
+  columns: [tbl_sales_order.CustomerShipTo, tbl_customer.Name]
+  tags: [sales_orders, customers, window_function]
+  gold_sql: |
+    SELECT c."Name" AS customer_name,
+           COUNT(s."SONumber") AS so_count,
+           RANK() OVER (ORDER BY COUNT(s."SONumber") DESC) AS rnk
+    FROM "tbl_sales_order" s
+    JOIN "tbl_customer" c ON c."Customer" = s."CustomerShipTo"
+    GROUP BY c."Name"
+    ORDER BY rnk;
+
+# ============================================================
+# Family 21: Date arithmetic (hard) — some with {year}
+# ============================================================
+
+- id: trx_datemath_so_to_required
+  family: 21
+  difficulty: hard
+  question: "What is the average days between order date and required date for sales orders in {year}?"
+  tables: [tbl_sales_order]
+  columns: [tbl_sales_order.DateOrdered, tbl_sales_order.DateRequired]
+  tags: [sales_orders, temporal]
+  gold_sql: |
+    SELECT ROUND(AVG(("DateRequired"::date - "DateOrdered"::date)), 1) AS avg_days_to_required
+    FROM "tbl_sales_order"
+    WHERE EXTRACT(YEAR FROM "DateOrdered") = {year}
+      AND "DateRequired" IS NOT NULL
+      AND "DateRequired" > "DateOrdered";
+
+- id: trx_datemath_invoice_overdue
+  family: 21
+  difficulty: hard
+  question: "How many days overdue is each open invoice as of today?"
+  tables: [tbl_invoice, tbl_customer]
+  columns: [tbl_invoice.Status, tbl_invoice.InvoiceDueDate, tbl_customer.Name]
+  tags: [accounts_receivable, temporal]
+  gold_sql: |
+    SELECT i."InvoiceNumber", c."Name" AS customer_name,
+           i."InvoiceAmount",
+           i."InvoiceDueDate"::date AS due_date,
+           CURRENT_DATE - i."InvoiceDueDate"::date AS days_overdue
+    FROM "tbl_invoice" i
+    JOIN "tbl_customer" c ON c."Customer" = i."Customer"
+    WHERE i."Status" = 'OPEN'
+      AND i."InvoiceDueDate" IS NOT NULL
+      AND i."InvoiceDueDate"::date < CURRENT_DATE
+    ORDER BY days_overdue DESC;
+
+- id: trx_datemath_po_lead_time
+  family: 21
+  difficulty: hard
+  question: "What is the average lead time in days from PO order date to required date in {year}?"
+  tables: [tbl_purchase_order]
+  columns: [tbl_purchase_order.OrderDate, tbl_purchase_order.RequiredDate]
+  tags: [purchasing, temporal]
+  gold_sql: |
+    SELECT "OrderingLocation",
+           ROUND(AVG(("RequiredDate"::date - "OrderDate"::date)), 1) AS avg_lead_days,
+           COUNT(*) AS po_count
+    FROM "tbl_purchase_order"
+    WHERE EXTRACT(YEAR FROM "OrderDate") = {year}
+      AND "RequiredDate" IS NOT NULL
+      AND "RequiredDate" > "OrderDate"
+    GROUP BY "OrderingLocation"
+    ORDER BY avg_lead_days DESC;
+
+- id: trx_datemath_so_past_required
+  family: 21
+  difficulty: hard
+  question: "Which open sales order lines have a required date that has already passed?"
+  tables: [tbl_sales_order, tbl_so_line]
+  columns: [tbl_so_line.DateRequired, tbl_sales_order.Status]
+  tags: [sales_orders, temporal]
+  gold_sql: |
+    SELECT s."SONumber", s."CustomerShipTo",
+           l."SOLineNumber", l."Item", l."Description",
+           l."DateRequired"::date AS required_date,
+           CURRENT_DATE - l."DateRequired"::date AS days_late
+    FROM "tbl_sales_order" s
+    JOIN "tbl_so_line" l ON l."SONumber" = s."SONumber"
+    WHERE s."Status" = 'OPEN'
+      AND l."DateRequired" IS NOT NULL
+      AND l."DateRequired"::date < CURRENT_DATE
+    ORDER BY days_late DESC
+    LIMIT 50;
+
+# ============================================================
+# Family 22: CTE patterns (hard) — some with {year}
+# ============================================================
+
+- id: trx_cte_ar_aging
+  family: 22
+  difficulty: hard
+  question: "Show AR aging summary by bucket: current, 1-30 days, 31-60 days, 61-90 days, over 90 days."
+  tables: [tbl_invoice]
+  columns: [tbl_invoice.Status, tbl_invoice.InvoiceDueDate, tbl_invoice.InvoiceAmount]
+  tags: [accounts_receivable, cte]
+  gold_sql: |
+    WITH aged AS (
+      SELECT "InvoiceNumber", "Customer", "InvoiceAmount",
+             CURRENT_DATE - "InvoiceDueDate"::date AS days_overdue
+      FROM "tbl_invoice"
+      WHERE "Status" = 'OPEN'
+        AND "InvoiceDueDate" IS NOT NULL
+    )
+    SELECT
+      SUM(CASE WHEN days_overdue <= 0 THEN "InvoiceAmount" ELSE 0 END) AS current_amount,
+      SUM(CASE WHEN days_overdue BETWEEN 1 AND 30 THEN "InvoiceAmount" ELSE 0 END) AS days_1_30,
+      SUM(CASE WHEN days_overdue BETWEEN 31 AND 60 THEN "InvoiceAmount" ELSE 0 END) AS days_31_60,
+      SUM(CASE WHEN days_overdue BETWEEN 61 AND 90 THEN "InvoiceAmount" ELSE 0 END) AS days_61_90,
+      SUM(CASE WHEN days_overdue > 90 THEN "InvoiceAmount" ELSE 0 END) AS over_90
+    FROM aged;
+
+- id: trx_cte_invoice_paid_pct
+  family: 22
+  difficulty: hard
+  question: "What percentage of total invoiced amount has been paid per customer?"
+  tables: [tbl_invoice, tbl_customer]
+  columns: [tbl_invoice.Customer, tbl_invoice.InvoiceAmount, tbl_invoice.PaidAmount, tbl_customer.Name]
+  tags: [accounts_receivable, customers, cte]
+  gold_sql: |
+    WITH totals AS (
+      SELECT i."Customer",
+             SUM(i."InvoiceAmount") AS total_invoiced,
+             SUM(COALESCE(i."PaidAmount", 0)) AS total_paid
+      FROM "tbl_invoice" i
+      GROUP BY i."Customer"
+    )
+    SELECT c."Name" AS customer_name,
+           t.total_invoiced,
+           t.total_paid,
+           ROUND(100.0 * t.total_paid / NULLIF(t.total_invoiced, 0), 2) AS pct_paid
+    FROM totals t
+    JOIN "tbl_customer" c ON c."Customer" = t."Customer"
+    ORDER BY pct_paid ASC NULLS LAST;
+
+- id: trx_cte_so_fulfillment_year
+  family: 22
+  difficulty: hard
+  question: "What is the average SO line fulfillment rate (shipped/ordered) by customer in {year}?"
+  tables: [tbl_sales_order, tbl_so_line, tbl_customer]
+  columns: [tbl_sales_order.DateOrdered, tbl_so_line.Quantity, tbl_so_line.QuantityShipped, tbl_sales_order.CustomerShipTo, tbl_customer.Name]
+  tags: [sales_orders, customers, cte, temporal]
+  gold_sql: |
+    WITH line_rates AS (
+      SELECT s."CustomerShipTo",
+             NULLIF(l."Quantity", '')::numeric AS qty_ordered,
+             NULLIF(l."QuantityShipped", '')::numeric AS qty_shipped
+      FROM "tbl_sales_order" s
+      JOIN "tbl_so_line" l ON l."SONumber" = s."SONumber"
+      WHERE EXTRACT(YEAR FROM s."DateOrdered") = {year}
+        AND NULLIF(l."Quantity", '')::numeric > 0
+    )
+    SELECT c."Name" AS customer_name,
+           COUNT(*) AS line_count,
+           ROUND(
+             100.0 * SUM(COALESCE(lr.qty_shipped, 0)) /
+             NULLIF(SUM(lr.qty_ordered), 0),
+             1
+           ) AS fulfillment_pct
+    FROM line_rates lr
+    JOIN "tbl_customer" c ON c."Customer" = lr."CustomerShipTo"
+    GROUP BY c."Name"
+    ORDER BY fulfillment_pct ASC NULLS LAST;
+
+- id: trx_cte_wip_cost_summary
+  family: 22
+  difficulty: hard
+  question: "Summarize work order costs: total estimated, total completed, and variance by assembly status."
+  tables: [tbl_work_order, tbl_work_order_item]
+  columns: [tbl_work_order.AssemblyStatus, tbl_work_order_item.EstimatedExtendedCost, tbl_work_order_item.ExtendedCostCompleted]
+  tags: [warehouse, cte]
+  gold_sql: |
+    WITH wo_costs AS (
+      SELECT w."AssemblyStatus",
+             SUM(wi."EstimatedExtendedCost") AS total_estimated,
+             SUM(wi."ExtendedCostCompleted") AS total_completed
+      FROM "tbl_work_order" w
+      JOIN "tbl_work_order_item" wi ON wi."WorkOrderNumber" = w."WorkOrderNumber"
+      GROUP BY w."AssemblyStatus"
+    )
+    SELECT "AssemblyStatus",
+           total_estimated,
+           total_completed,
+           total_estimated - COALESCE(total_completed, 0) AS variance
+    FROM wo_costs
+    ORDER BY total_estimated DESC NULLS LAST;
+
+# ============================================================
+# Family 23: UNION / multi-source (hard)
+# ============================================================
+
+- id: trx_union_open_transactions
+  family: 23
+  difficulty: hard
+  question: "List all open transactions across sales orders and purchase orders."
+  tables: [tbl_sales_order, tbl_purchase_order]
+  columns: [tbl_sales_order.Status, tbl_purchase_order.Status]
+  tags: [sales_orders, purchasing, union]
+  gold_sql: |
+    SELECT 'SO' AS txn_type, "SONumber" AS txn_number,
+           "CustomerShipTo" AS counterparty, "DateOrdered" AS txn_date
+    FROM "tbl_sales_order"
+    WHERE "Status" = 'OPEN'
+    UNION ALL
+    SELECT 'PO' AS txn_type, "PONumber" AS txn_number,
+           "VendorPurchaseFrom" AS counterparty, "OrderDate" AS txn_date
+    FROM "tbl_purchase_order"
+    WHERE "Status" = 'OPEN'
+    ORDER BY txn_date DESC;
+
+- id: trx_union_ar_ap_balances
+  family: 23
+  difficulty: hard
+  question: "Show combined AR and AP open balances by trading partner."
+  tables: [tbl_customer, tbl_vendor]
+  columns: [tbl_customer.ARBalance, tbl_vendor.APBalance]
+  tags: [accounts_receivable, accounts_payable, union]
+  gold_sql: |
+    SELECT 'CUSTOMER' AS type, "Customer" AS code, "Name",
+           "ARBalance" AS balance
+    FROM "tbl_customer"
+    WHERE "ARBalance" IS NOT NULL AND "ARBalance" > 0
+    UNION ALL
+    SELECT 'VENDOR' AS type, "Vendor" AS code, "Name",
+           "APBalance" AS balance
+    FROM "tbl_vendor"
+    WHERE "APBalance" IS NOT NULL AND "APBalance" > 0
+    ORDER BY balance DESC;
+
+- id: trx_union_so_invoice_customer_year
+  family: 23
+  difficulty: hard
+  question: "Show all SO and invoice activity for customers in {year}."
+  tables: [tbl_sales_order, tbl_invoice, tbl_customer]
+  columns: [tbl_sales_order.CustomerShipTo, tbl_sales_order.DateOrdered, tbl_invoice.Customer, tbl_invoice.InvoiceDate]
+  tags: [sales_orders, accounts_receivable, union, temporal]
+  gold_sql: |
+    SELECT 'SO' AS activity_type,
+           s."SONumber" AS reference,
+           c."Name" AS customer_name,
+           s."DateOrdered"::date AS activity_date
+    FROM "tbl_sales_order" s
+    JOIN "tbl_customer" c ON c."Customer" = s."CustomerShipTo"
+    WHERE EXTRACT(YEAR FROM s."DateOrdered") = {year}
+    UNION ALL
+    SELECT 'INVOICE' AS activity_type,
+           i."InvoiceNumber" AS reference,
+           c."Name" AS customer_name,
+           i."InvoiceDate"::date AS activity_date
+    FROM "tbl_invoice" i
+    JOIN "tbl_customer" c ON c."Customer" = i."Customer"
+    WHERE EXTRACT(YEAR FROM i."InvoiceDate") = {year}
+    ORDER BY customer_name, activity_date;
+
+# ============================================================
+# Family 24: EXCEPT / set difference (hard)
+# ============================================================
+
+- id: trx_except_items_so_not_po_year
+  family: 24
+  difficulty: hard
+  question: "Which items were sold in {year} but never purchased in {year}?"
+  tables: [tbl_so_line, tbl_sales_order, tbl_purchase_order_line, tbl_purchase_order]
+  columns: [tbl_so_line.Item, tbl_sales_order.DateOrdered, tbl_purchase_order_line.Item, tbl_purchase_order.OrderDate]
+  tags: [inventory, except, temporal]
+  gold_sql: |
+    SELECT sl."Item"
+    FROM "tbl_so_line" sl
+    JOIN "tbl_sales_order" s ON s."SONumber" = sl."SONumber"
+    WHERE EXTRACT(YEAR FROM s."DateOrdered") = {year}
+      AND sl."Item" IS NOT NULL AND sl."Item" != ''
+    EXCEPT
+    SELECT pl."Item"
+    FROM "tbl_purchase_order_line" pl
+    JOIN "tbl_purchase_order" p ON p."PONumber" = pl."PONumber"
+    WHERE EXTRACT(YEAR FROM p."OrderDate") = {year}
+      AND pl."Item" IS NOT NULL AND pl."Item" != ''
+    ORDER BY "Item";
+
+- id: trx_except_customers_so_not_invoiced_year
+  family: 24
+  difficulty: hard
+  question: "Which customers placed sales orders in {year} but received no invoices in {year}?"
+  tables: [tbl_sales_order, tbl_invoice]
+  columns: [tbl_sales_order.CustomerShipTo, tbl_sales_order.DateOrdered, tbl_invoice.Customer, tbl_invoice.InvoiceDate]
+  tags: [customers, except, temporal]
+  gold_sql: |
+    SELECT "CustomerShipTo" AS customer_code
+    FROM "tbl_sales_order"
+    WHERE EXTRACT(YEAR FROM "DateOrdered") = {year}
+    EXCEPT
+    SELECT "Customer" AS customer_code
+    FROM "tbl_invoice"
+    WHERE EXTRACT(YEAR FROM "InvoiceDate") = {year}
+    ORDER BY customer_code;
+
+- id: trx_except_vendors_po_not_voucher_year
+  family: 24
+  difficulty: hard
+  question: "Which vendors had purchase orders in {year} but no AP vouchers in {year}?"
+  tables: [tbl_purchase_order, tbl_voucher]
+  columns: [tbl_purchase_order.VendorPurchaseFrom, tbl_purchase_order.OrderDate, tbl_voucher.Vendor, tbl_voucher.PaymentTermsDueDate]
+  tags: [vendors, except, temporal]
+  gold_sql: |
+    SELECT "VendorPurchaseFrom" AS vendor_code
+    FROM "tbl_purchase_order"
+    WHERE EXTRACT(YEAR FROM "OrderDate") = {year}
+    EXCEPT
+    SELECT "Vendor" AS vendor_code
+    FROM "tbl_voucher"
+    WHERE EXTRACT(YEAR FROM "PaymentTermsDueDate") = {year}
+    ORDER BY vendor_code;
+
+# ============================================================
+# Family 25: Location-based queries (medium) — param: {location}
+# ============================================================
+
+- id: trx_loc_inventory_value
+  family: 25
+  difficulty: medium
+  question: "What is the total inventory value at location {location}?"
+  tables: [tbl_item_location, tbl_item]
+  columns: [tbl_item_location.Location, tbl_item_location.QuantityOnHand, tbl_item.StandardCost]
+  tags: [inventory, location]
+  gold_sql: |
+    SELECT il."Location",
+           COUNT(DISTINCT il."Item") AS item_count,
+           SUM(NULLIF(il."QuantityOnHand", '')::numeric * im."StandardCost") AS inventory_value
+    FROM "tbl_item_location" il
+    JOIN "tbl_item" im ON im."Item" = il."Item"
+    WHERE il."Location" = '{location}'
+      AND NULLIF(il."QuantityOnHand", '')::numeric > 0
+      AND im."StandardCost" > 0
+    GROUP BY il."Location";
+
+- id: trx_loc_item_count
+  family: 25
+  difficulty: medium
+  question: "How many items are stocked at location {location}?"
+  tables: [tbl_item_location]
+  columns: [tbl_item_location.Location, tbl_item_location.QuantityOnHand]
+  tags: [inventory, location]
+  gold_sql: |
+    SELECT COUNT(DISTINCT "Item") AS item_count,
+           SUM(CASE WHEN NULLIF("QuantityOnHand", '')::numeric > 0 THEN 1 ELSE 0 END) AS items_in_stock
+    FROM "tbl_item_location"
+    WHERE "Location" = '{location}';
+
+- id: trx_loc_out_of_stock
+  family: 25
+  difficulty: medium
+  question: "Which items at location {location} have zero quantity on hand?"
+  tables: [tbl_item_location, tbl_item]
+  columns: [tbl_item_location.Location, tbl_item_location.QuantityOnHand, tbl_item.Description]
+  tags: [inventory, location]
+  gold_sql: |
+    SELECT il."Item", im."Description", im."Type",
+           NULLIF(il."QuantityOnHand", '')::numeric AS qty_on_hand
+    FROM "tbl_item_location" il
+    JOIN "tbl_item" im ON im."Item" = il."Item"
+    WHERE il."Location" = '{location}'
+      AND (NULLIF(il."QuantityOnHand", '')::numeric IS NULL
+           OR NULLIF(il."QuantityOnHand", '')::numeric <= 0)
+    ORDER BY il."Item";
+
+- id: trx_loc_topn_items
+  family: 25
+  difficulty: medium
+  question: "What are the top {n} items by quantity on hand at location {location}?"
+  tables: [tbl_item_location, tbl_item]
+  columns: [tbl_item_location.Location, tbl_item_location.QuantityOnHand, tbl_item.Description]
+  tags: [inventory, location, top_n]
+  gold_sql: |
+    SELECT il."Item", im."Description", im."Type",
+           NULLIF(il."QuantityOnHand", '')::numeric AS qty_on_hand
+    FROM "tbl_item_location" il
+    JOIN "tbl_item" im ON im."Item" = il."Item"
+    WHERE il."Location" = '{location}'
+      AND NULLIF(il."QuantityOnHand", '')::numeric > 0
+    ORDER BY NULLIF(il."QuantityOnHand", '')::numeric DESC NULLS LAST
+    LIMIT {n};
+
+- id: trx_loc_reorder_needed
+  family: 25
+  difficulty: medium
+  question: "Which items at location {location} are below their minimum shelf quantity?"
+  tables: [tbl_item_location, tbl_item]
+  columns: [tbl_item_location.Location, tbl_item_location.QuantityOnHand, tbl_item_location.MinShelfQty, tbl_item.Description]
+  tags: [inventory, location]
+  gold_sql: |
+    SELECT il."Item", im."Description",
+           NULLIF(il."QuantityOnHand", '')::numeric AS qty_on_hand,
+           NULLIF(il."MinShelfQty", '')::numeric AS min_shelf_qty
+    FROM "tbl_item_location" il
+    JOIN "tbl_item" im ON im."Item" = il."Item"
+    WHERE il."Location" = '{location}'
+      AND NULLIF(il."MinShelfQty", '')::numeric > 0
+      AND (
+        NULLIF(il."QuantityOnHand", '')::numeric IS NULL
+        OR NULLIF(il."QuantityOnHand", '')::numeric < NULLIF(il."MinShelfQty", '')::numeric
+      )
+    ORDER BY (NULLIF(il."QuantityOnHand", '')::numeric - NULLIF(il."MinShelfQty", '')::numeric) ASC NULLS FIRST;
+
+- id: trx_loc_so_shipped_year
+  family: 25
+  difficulty: hard
+  question: "How many sales orders were shipped from location {location} in {year}?"
+  tables: [tbl_invoice]
+  columns: [tbl_invoice.ShipFromLocation, tbl_invoice.InvoiceDate]
+  tags: [sales_orders, location, temporal]
+  gold_sql: |
+    SELECT "ShipFromLocation",
+           COUNT(*) AS invoice_count,
+           SUM("InvoiceAmount") AS total_invoiced
+    FROM "tbl_invoice"
+    WHERE "ShipFromLocation" = '{location}'
+      AND EXTRACT(YEAR FROM "InvoiceDate") = {year}
+    GROUP BY "ShipFromLocation";
+
+# ============================================================
+# Family 26: Work order analysis (medium/hard) — some with {wo_status}
+# ============================================================
+
+- id: trx_wo_by_status_detail
+  family: 26
+  difficulty: medium
+  question: "How many work orders are in {wo_status} status by work center?"
+  tables: [tbl_work_order]
+  columns: [tbl_work_order.AssemblyStatus, tbl_work_order.WorkCenter]
+  tags: [warehouse, aggregation]
+  gold_sql: |
+    SELECT "WorkCenter", COUNT(*) AS wo_count
+    FROM "tbl_work_order"
+    WHERE "AssemblyStatus" = '{wo_status}'
+      AND "WorkCenter" IS NOT NULL
+    GROUP BY "WorkCenter"
+    ORDER BY wo_count DESC;
+
+- id: trx_wo_component_cost_by_status
+  family: 26
+  difficulty: hard
+  question: "What is the total estimated component cost for {wo_status} work orders?"
+  tables: [tbl_work_order, tbl_work_order_item]
+  columns: [tbl_work_order.AssemblyStatus, tbl_work_order_item.EstimatedExtendedCost]
+  tags: [warehouse, aggregation]
+  gold_sql: |
+    SELECT w."AssemblyStatus",
+           COUNT(DISTINCT w."WorkOrderNumber") AS wo_count,
+           COUNT(wi."ComponentID") AS component_count,
+           SUM(wi."EstimatedExtendedCost") AS total_est_cost
+    FROM "tbl_work_order" w
+    JOIN "tbl_work_order_item" wi ON wi."WorkOrderNumber" = w."WorkOrderNumber"
+    WHERE w."AssemblyStatus" = '{wo_status}'
+    GROUP BY w."AssemblyStatus";
+
+- id: trx_wo_avg_components
+  family: 26
+  difficulty: medium
+  question: "What is the average number of components per work order by assembly status?"
+  tables: [tbl_work_order, tbl_work_order_item]
+  columns: [tbl_work_order.AssemblyStatus, tbl_work_order_item.WorkOrderNumber]
+  tags: [warehouse, aggregation]
+  gold_sql: |
+    SELECT w."AssemblyStatus",
+           COUNT(DISTINCT w."WorkOrderNumber") AS wo_count,
+           COUNT(wi."ComponentID") AS total_components,
+           ROUND(COUNT(wi."ComponentID")::numeric / NULLIF(COUNT(DISTINCT w."WorkOrderNumber"), 0), 1) AS avg_components
+    FROM "tbl_work_order" w
+    JOIN "tbl_work_order_item" wi ON wi."WorkOrderNumber" = w."WorkOrderNumber"
+    GROUP BY w."AssemblyStatus"
+    ORDER BY wo_count DESC;
+
+- id: trx_wo_top_items_by_cost
+  family: 26
+  difficulty: hard
+  question: "What are the top {n} items by total estimated work order cost?"
+  tables: [tbl_work_order_item, tbl_item]
+  columns: [tbl_work_order_item.Item, tbl_work_order_item.EstimatedExtendedCost, tbl_item.Description]
+  tags: [warehouse, inventory, top_n]
+  gold_sql: |
+    SELECT wi."Item", im."Description",
+           COUNT(DISTINCT wi."WorkOrderNumber") AS wo_count,
+           SUM(wi."EstimatedExtendedCost") AS total_est_cost
+    FROM "tbl_work_order_item" wi
+    JOIN "tbl_item" im ON im."Item" = wi."Item"
+    WHERE wi."Item" IS NOT NULL AND wi."Item" != ''
+    GROUP BY wi."Item", im."Description"
+    ORDER BY total_est_cost DESC NULLS LAST
+    LIMIT {n};
+
+# ============================================================
+# Family 27: GL / financial analysis (hard) — some with {year}
+# ============================================================
+
+- id: trx_gl_net_by_account_year
+  family: 27
+  difficulty: hard
+  question: "What is the net GL balance (debits minus credits) by account in {year}?"
+  tables: [tbl_je_line_item, tbl_gl_account]
+  columns: [tbl_je_line_item.AccountNumber, tbl_je_line_item.DebitAmount, tbl_je_line_item.CreditAmount, tbl_je_line_item.TransactionDate, tbl_gl_account.Description]
+  tags: [general_ledger, temporal]
+  gold_sql: |
+    SELECT je."AccountNumber", a."Description", a."AccountType",
+           SUM(je."DebitAmount") AS total_debits,
+           SUM(je."CreditAmount") AS total_credits,
+           SUM(je."DebitAmount") - SUM(je."CreditAmount") AS net_balance
+    FROM "tbl_je_line_item" je
+    JOIN "tbl_gl_account" a ON a."AccountId" = je."AccountNumber"
+    WHERE EXTRACT(YEAR FROM je."TransactionDate") = {year}
+    GROUP BY je."AccountNumber", a."Description", a."AccountType"
+    ORDER BY net_balance DESC;
+
+- id: trx_gl_by_location_year
+  family: 27
+  difficulty: hard
+  question: "What is the total GL posting amount by location in {year}?"
+  tables: [tbl_je_line_item]
+  columns: [tbl_je_line_item.Location, tbl_je_line_item.DebitAmount, tbl_je_line_item.TransactionDate]
+  tags: [general_ledger, temporal]
+  gold_sql: |
+    SELECT "Location",
+           COUNT(*) AS entry_count,
+           SUM("DebitAmount") AS total_debits,
+           SUM("CreditAmount") AS total_credits
+    FROM "tbl_je_line_item"
+    WHERE EXTRACT(YEAR FROM "TransactionDate") = {year}
+      AND "Location" IS NOT NULL
+    GROUP BY "Location"
+    ORDER BY total_debits DESC;
+
+- id: trx_gl_expense_accounts_year
+  family: 27
+  difficulty: hard
+  question: "What is the total expense posted to each expense GL account in {year}?"
+  tables: [tbl_je_line_item, tbl_gl_account]
+  columns: [tbl_je_line_item.AccountNumber, tbl_je_line_item.DebitAmount, tbl_je_line_item.TransactionDate, tbl_gl_account.AccountType]
+  tags: [general_ledger, temporal]
+  gold_sql: |
+    SELECT je."AccountNumber", a."Description",
+           SUM(je."DebitAmount") AS total_debits
+    FROM "tbl_je_line_item" je
+    JOIN "tbl_gl_account" a ON a."AccountId" = je."AccountNumber"
+    WHERE a."AccountType" = 'EXP'
+      AND EXTRACT(YEAR FROM je."TransactionDate") = {year}
+    GROUP BY je."AccountNumber", a."Description"
+    ORDER BY total_debits DESC;
+
+# ============================================================
+# Family 28: Correlated subquery / comparison (hard)
+# ============================================================
+
+- id: trx_corr_items_above_avg_cost
+  family: 28
+  difficulty: hard
+  question: "Which stock items have a standard cost above the average?"
+  tables: [tbl_item]
+  columns: [tbl_item.Type, tbl_item.StandardCost]
+  tags: [inventory, correlated_subquery]
+  gold_sql: |
+    SELECT "Item", "Description", "StandardCost"
+    FROM "tbl_item"
+    WHERE "Type" = 'STOCK'
+      AND "StandardCost" > (
+        SELECT AVG("StandardCost") FROM "tbl_item" WHERE "Type" = 'STOCK' AND "StandardCost" > 0
+      )
+    ORDER BY "StandardCost" DESC;
+
+- id: trx_corr_customers_above_avg_ar
+  family: 28
+  difficulty: hard
+  question: "Which customers have an AR balance above the average?"
+  tables: [tbl_customer]
+  columns: [tbl_customer.ARBalance]
+  tags: [customers, accounts_receivable, correlated_subquery]
+  gold_sql: |
+    SELECT "Customer", "Name", "ARBalance"
+    FROM "tbl_customer"
+    WHERE "ARBalance" > (
+      SELECT AVG("ARBalance") FROM "tbl_customer" WHERE "ARBalance" IS NOT NULL AND "ARBalance" > 0
+    )
+    ORDER BY "ARBalance" DESC;
+
+- id: trx_corr_vendors_above_avg_ap
+  family: 28
+  difficulty: hard
+  question: "Which vendors have an AP balance above the average?"
+  tables: [tbl_vendor]
+  columns: [tbl_vendor.APBalance]
+  tags: [vendors, accounts_payable, correlated_subquery]
+  gold_sql: |
+    SELECT "Vendor", "Name", "APBalance"
+    FROM "tbl_vendor"
+    WHERE "APBalance" > (
+      SELECT AVG("APBalance") FROM "tbl_vendor" WHERE "APBalance" IS NOT NULL AND "APBalance" > 0
+    )
+    ORDER BY "APBalance" DESC;
+
+- id: trx_corr_so_above_avg_lines
+  family: 28
+  difficulty: hard
+  question: "Which open sales orders have more lines than the average?"
+  tables: [tbl_sales_order, tbl_so_line]
+  columns: [tbl_sales_order.Status, tbl_so_line.SONumber]
+  tags: [sales_orders, correlated_subquery]
+  gold_sql: |
+    SELECT s."SONumber", s."CustomerShipTo", s."DateOrdered",
+           COUNT(l."SOLineNumber") AS line_count
+    FROM "tbl_sales_order" s
+    JOIN "tbl_so_line" l ON l."SONumber" = s."SONumber"
+    WHERE s."Status" = 'OPEN'
+    GROUP BY s."SONumber", s."CustomerShipTo", s."DateOrdered"
+    HAVING COUNT(l."SOLineNumber") > (
+      SELECT AVG(lc) FROM (
+        SELECT COUNT(*) AS lc FROM "tbl_so_line"
+        JOIN "tbl_sales_order" ON "tbl_sales_order"."SONumber" = "tbl_so_line"."SONumber"
+        WHERE "tbl_sales_order"."Status" = 'OPEN'
+        GROUP BY "tbl_so_line"."SONumber"
+      ) sub
+    )
+    ORDER BY line_count DESC;
+
+# ============================================================
+# Family 29: Commission analysis (medium/hard)
+# ============================================================
+
+- id: trx_comm_by_rep_year
+  family: 29
+  difficulty: hard
+  question: "What is the total commission amount by sales rep in {year}?"
+  tables: [tbl_tiered_commission, tbl_sales_rep, tbl_invoice]
+  columns: [tbl_tiered_commission.SalesRep, tbl_tiered_commission.CommissionPct, tbl_invoice.InvoiceAmount, tbl_invoice.InvoiceDate, tbl_sales_rep.Name]
+  tags: [commissions, temporal]
+  gold_sql: |
+    SELECT r."Name" AS rep_name,
+           COUNT(c."InvoiceNumber") AS invoice_lines,
+           ROUND(AVG(c."CommissionPct"), 4) AS avg_commission_pct
+    FROM "tbl_tiered_commission" c
+    JOIN "tbl_sales_rep" r ON r."SalesRep" = c."SalesRep"
+    JOIN "tbl_invoice" i ON i."InvoiceNumber" = c."InvoiceNumber"
+    WHERE EXTRACT(YEAR FROM i."InvoiceDate") = {year}
+    GROUP BY r."Name"
+    ORDER BY invoice_lines DESC;
+
+- id: trx_comm_rep_by_customer_year
+  family: 29
+  difficulty: hard
+  question: "How many commission lines does each sales rep have per customer in {year}?"
+  tables: [tbl_tiered_commission, tbl_sales_rep, tbl_invoice, tbl_customer]
+  columns: [tbl_tiered_commission.SalesRep, tbl_invoice.Customer, tbl_invoice.InvoiceDate, tbl_sales_rep.Name, tbl_customer.Name]
+  tags: [commissions, customers, temporal]
+  gold_sql: |
+    SELECT r."Name" AS rep_name,
+           c."Name" AS customer_name,
+           COUNT(cr."InvoiceNumber") AS commission_lines
+    FROM "tbl_tiered_commission" cr
+    JOIN "tbl_sales_rep" r ON r."SalesRep" = cr."SalesRep"
+    JOIN "tbl_invoice" i ON i."InvoiceNumber" = cr."InvoiceNumber"
+    JOIN "tbl_customer" c ON c."Customer" = i."Customer"
+    WHERE EXTRACT(YEAR FROM i."InvoiceDate") = {year}
+    GROUP BY r."Name", c."Name"
+    ORDER BY commission_lines DESC
+    LIMIT 20;
+
+# ============================================================
+# Family 30: Item-location multi-analysis (medium)
+# ============================================================
+
+- id: trx_itemloc_multi_location_items
+  family: 30
+  difficulty: medium
+  question: "Which items are stocked at both HUDW and BENSON?"
+  tables: [tbl_item_location]
+  columns: [tbl_item_location.Item, tbl_item_location.Location]
+  tags: [inventory, location]
+  gold_sql: |
+    SELECT il1."Item"
+    FROM "tbl_item_location" il1
+    WHERE il1."Location" = 'HUDW'
+      AND EXISTS (
+        SELECT 1 FROM "tbl_item_location" il2
+        WHERE il2."Item" = il1."Item" AND il2."Location" = 'BENSON'
+      )
+    ORDER BY il1."Item";
+
+- id: trx_itemloc_dead_items
+  family: 30
+  difficulty: medium
+  question: "Which items are marked as dead (IsDead) at any location?"
+  tables: [tbl_item_location, tbl_item]
+  columns: [tbl_item_location.IsDead, tbl_item.Description]
+  tags: [inventory, lookup]
+  gold_sql: |
+    SELECT DISTINCT il."Item", im."Description", im."Type",
+           COUNT(il."Location") AS dead_location_count
+    FROM "tbl_item_location" il
+    JOIN "tbl_item" im ON im."Item" = il."Item"
+    WHERE il."IsDead" = true
+    GROUP BY il."Item", im."Description", im."Type"
+    ORDER BY dead_location_count DESC;
+
+- id: trx_itemloc_qty_committed_hudw
+  family: 30
+  difficulty: medium
+  question: "Which items at HUDW have committed quantity greater than on-hand quantity?"
+  tables: [tbl_item_location, tbl_item]
+  columns: [tbl_item_location.QuantityOnHand, tbl_item_location.QuantityCommitted, tbl_item_location.Location, tbl_item.Description]
+  tags: [inventory, location]
+  gold_sql: |
+    SELECT il."Item", im."Description",
+           NULLIF(il."QuantityOnHand", '')::numeric AS qty_on_hand,
+           NULLIF(il."QuantityCommitted", '')::numeric AS qty_committed
+    FROM "tbl_item_location" il
+    JOIN "tbl_item" im ON im."Item" = il."Item"
+    WHERE il."Location" = 'HUDW'
+      AND NULLIF(il."QuantityCommitted", '')::numeric > 0
+      AND (
+        NULLIF(il."QuantityOnHand", '')::numeric IS NULL
+        OR NULLIF(il."QuantityOnHand", '')::numeric < NULLIF(il."QuantityCommitted", '')::numeric
+      )
+    ORDER BY il."Item";
+
+
+# ============================================================
+# Family 31: Payment terms and customer classification (medium)
+# ============================================================
+
+- id: trx_pay_so_by_payment_terms
+  family: 31
+  difficulty: medium
+  question: "How many sales orders are there by payment terms?"
+  tables: [tbl_sales_order]
+  columns: [tbl_sales_order.PaymentTerms]
+  tags: [sales_orders, aggregation]
+  gold_sql: |
+    SELECT "PaymentTerms", COUNT(*) AS order_count
+    FROM "tbl_sales_order"
+    WHERE "PaymentTerms" IS NOT NULL AND "PaymentTerms" != ''
+    GROUP BY "PaymentTerms"
+    ORDER BY order_count DESC;
+
+- id: trx_pay_customer_payment_terms
+  family: 31
+  difficulty: easy
+  question: "How many customers use each payment term?"
+  tables: [tbl_customer]
+  columns: [tbl_customer.PaymentTerms]
+  tags: [customers, aggregation]
+  gold_sql: |
+    SELECT "PaymentTerms", COUNT(*) AS customer_count
+    FROM "tbl_customer"
+    WHERE "PaymentTerms" IS NOT NULL AND "PaymentTerms" != ''
+    GROUP BY "PaymentTerms"
+    ORDER BY customer_count DESC;
+
+- id: trx_pay_overdue_by_terms
+  family: 31
+  difficulty: hard
+  question: "What is the total overdue invoice amount by payment terms?"
+  tables: [tbl_invoice]
+  columns: [tbl_invoice.Status, tbl_invoice.InvoiceDueDate, tbl_invoice.InvoiceAmount]
+  tags: [accounts_receivable, temporal]
+  gold_sql: |
+    SELECT COUNT(*) AS overdue_count,
+           SUM("InvoiceAmount") AS total_overdue,
+           SUM("InvoiceAmount" - COALESCE("PaidAmount", 0)) AS total_unpaid
+    FROM "tbl_invoice"
+    WHERE "Status" = 'OPEN'
+      AND "InvoiceDueDate" IS NOT NULL
+      AND "InvoiceDueDate"::date < CURRENT_DATE;
+
+- id: trx_pay_vendor_payment_terms
+  family: 31
+  difficulty: easy
+  question: "How many vendors use each payment term?"
+  tables: [tbl_vendor]
+  columns: [tbl_vendor.PaymentTerms]
+  tags: [vendors, aggregation]
+  gold_sql: |
+    SELECT "PaymentTerms", COUNT(*) AS vendor_count
+    FROM "tbl_vendor"
+    WHERE "PaymentTerms" IS NOT NULL AND "PaymentTerms" != ''
+    GROUP BY "PaymentTerms"
+    ORDER BY vendor_count DESC;
+
+# ============================================================
+# Family 32: Item purchase history analysis (hard) — {year}
+# ============================================================
+
+- id: trx_item_sold_vs_purchased_year
+  family: 32
+  difficulty: hard
+  question: "For each item, compare total quantity sold vs purchased in {year}."
+  tables: [tbl_so_line, tbl_sales_order, tbl_purchase_order_line, tbl_purchase_order]
+  columns: [tbl_so_line.Item, tbl_so_line.Quantity, tbl_sales_order.DateOrdered, tbl_purchase_order_line.Item, tbl_purchase_order_line.Quantity, tbl_purchase_order.OrderDate]
+  tags: [inventory, temporal]
+  gold_sql: |
+    WITH sold AS (
+      SELECT sl."Item",
+             SUM(NULLIF(sl."Quantity", '')::numeric) AS qty_sold
+      FROM "tbl_so_line" sl
+      JOIN "tbl_sales_order" s ON s."SONumber" = sl."SONumber"
+      WHERE EXTRACT(YEAR FROM s."DateOrdered") = {year}
+        AND sl."Item" IS NOT NULL AND sl."Item" != ''
+      GROUP BY sl."Item"
+    ),
+    purchased AS (
+      SELECT pl."Item",
+             SUM(NULLIF(pl."Quantity", '')::numeric) AS qty_purchased
+      FROM "tbl_purchase_order_line" pl
+      JOIN "tbl_purchase_order" p ON p."PONumber" = pl."PONumber"
+      WHERE EXTRACT(YEAR FROM p."OrderDate") = {year}
+        AND pl."Item" IS NOT NULL AND pl."Item" != ''
+      GROUP BY pl."Item"
+    )
+    SELECT COALESCE(s."Item", p."Item") AS item,
+           COALESCE(s.qty_sold, 0) AS qty_sold,
+           COALESCE(p.qty_purchased, 0) AS qty_purchased
+    FROM sold s
+    FULL OUTER JOIN purchased p ON p."Item" = s."Item"
+    ORDER BY COALESCE(s.qty_sold, 0) DESC NULLS LAST
+    LIMIT 20;
+
+- id: trx_item_invoice_revenue_by_month_year
+  family: 32
+  difficulty: hard
+  question: "What is the monthly invoice revenue for the top items in {year}?"
+  tables: [tbl_invoice, tbl_invoice_line]
+  columns: [tbl_invoice_line.Item, tbl_invoice_line.Quantity, tbl_invoice_line.UnitPrice, tbl_invoice.InvoiceDate]
+  tags: [inventory, accounts_receivable, temporal]
+  gold_sql: |
+    SELECT DATE_TRUNC('month', i."InvoiceDate") AS month,
+           COUNT(DISTINCT il."Item") AS item_count,
+           SUM(NULLIF(il."Quantity", '')::numeric * il."UnitPrice") AS total_revenue
+    FROM "tbl_invoice" i
+    JOIN "tbl_invoice_line" il ON il."InvoiceNumber" = i."InvoiceNumber"
+    WHERE EXTRACT(YEAR FROM i."InvoiceDate") = {year}
+      AND il."Item" IS NOT NULL AND il."Item" != ''
+    GROUP BY month
+    ORDER BY month;
+
+- id: trx_item_cost_vs_price_year
+  family: 32
+  difficulty: hard
+  question: "What is the average unit cost vs unit price for items invoiced in {year}?"
+  tables: [tbl_invoice, tbl_invoice_line]
+  columns: [tbl_invoice_line.Item, tbl_invoice_line.UnitPrice, tbl_invoice_line.Cost, tbl_invoice.InvoiceDate]
+  tags: [inventory, accounts_receivable, temporal]
+  gold_sql: |
+    SELECT il."Item",
+           AVG(il."UnitPrice") AS avg_unit_price,
+           AVG(il."Cost") AS avg_unit_cost,
+           AVG(il."UnitPrice" - il."Cost") AS avg_margin
+    FROM "tbl_invoice" i
+    JOIN "tbl_invoice_line" il ON il."InvoiceNumber" = i."InvoiceNumber"
+    WHERE EXTRACT(YEAR FROM i."InvoiceDate") = {year}
+      AND il."Item" IS NOT NULL AND il."Item" != ''
+      AND il."UnitPrice" > 0
+    GROUP BY il."Item"
+    ORDER BY avg_margin DESC NULLS LAST
+    LIMIT 20;
+
+# ============================================================
+# Family 33: SO/PO status transitions (medium) — {year}
+# ============================================================
+
+- id: trx_status_open_po_by_vendor_year
+  family: 33
+  difficulty: medium
+  question: "How many open purchase orders does each vendor have as of {year}?"
+  tables: [tbl_purchase_order, tbl_vendor]
+  columns: [tbl_purchase_order.Status, tbl_purchase_order.OrderDate, tbl_purchase_order.VendorPurchaseFrom, tbl_vendor.Name]
+  tags: [purchasing, vendors, aggregation, temporal]
+  gold_sql: |
+    SELECT v."Name" AS vendor_name,
+           COUNT(p."PONumber") AS open_po_count
+    FROM "tbl_purchase_order" p
+    JOIN "tbl_vendor" v ON v."Vendor" = p."VendorPurchaseFrom"
+    WHERE p."Status" = 'OPEN'
+      AND EXTRACT(YEAR FROM p."OrderDate") <= {year}
+    GROUP BY v."Name"
+    ORDER BY open_po_count DESC;
+
+- id: trx_status_so_by_status_year
+  family: 33
+  difficulty: medium
+  question: "How many sales orders were in each status in {year}?"
+  tables: [tbl_sales_order]
+  columns: [tbl_sales_order.Status, tbl_sales_order.DateOrdered]
+  tags: [sales_orders, aggregation, temporal]
+  gold_sql: |
+    SELECT "Status", COUNT(*) AS order_count
+    FROM "tbl_sales_order"
+    WHERE EXTRACT(YEAR FROM "DateOrdered") = {year}
+    GROUP BY "Status"
+    ORDER BY order_count DESC;
+
+- id: trx_status_invoice_by_type_year
+  family: 33
+  difficulty: medium
+  question: "What is the total invoiced amount by invoice type in {year}?"
+  tables: [tbl_invoice]
+  columns: [tbl_invoice.InvoiceType, tbl_invoice.InvoiceAmount, tbl_invoice.InvoiceDate]
+  tags: [accounts_receivable, aggregation, temporal]
+  gold_sql: |
+    SELECT "InvoiceType",
+           COUNT(*) AS invoice_count,
+           SUM("InvoiceAmount") AS total_amount
+    FROM "tbl_invoice"
+    WHERE EXTRACT(YEAR FROM "InvoiceDate") = {year}
+    GROUP BY "InvoiceType"
+    ORDER BY total_amount DESC;
+
+- id: trx_status_pt_by_status_year
+  family: 33
+  difficulty: medium
+  question: "How many pick tickets were in each status in {year}?"
+  tables: [tbl_pick_ticket]
+  columns: [tbl_pick_ticket.Status, tbl_pick_ticket.DateShipped]
+  tags: [warehouse, aggregation, temporal]
+  gold_sql: |
+    SELECT "Status", COUNT(*) AS pt_count
+    FROM "tbl_pick_ticket"
+    WHERE "DateShipped" IS NOT NULL
+      AND EXTRACT(YEAR FROM "DateShipped") = {year}
+    GROUP BY "Status"
+    ORDER BY pt_count DESC;
+
+- id: trx_status_voucher_by_type_year
+  family: 33
+  difficulty: medium
+  question: "How many AP vouchers were there by type in {year}?"
+  tables: [tbl_voucher]
+  columns: [tbl_voucher.Type, tbl_voucher.PaymentTermsDueDate]
+  tags: [accounts_payable, aggregation, temporal]
+  gold_sql: |
+    SELECT "Type", COUNT(*) AS voucher_count,
+           SUM("InvoiceAmount") AS total_amount
+    FROM "tbl_voucher"
+    WHERE EXTRACT(YEAR FROM "PaymentTermsDueDate") = {year}
+    GROUP BY "Type"
+    ORDER BY voucher_count DESC;
+
+# ============================================================
+# Family 34: Inventory turnover and stock analysis (medium/hard)
+# ============================================================
+
+- id: trx_inv_stock_summary
+  family: 34
+  difficulty: medium
+  question: "What is the total quantity on hand and inventory value by item type?"
+  tables: [tbl_item_location, tbl_item]
+  columns: [tbl_item.Type, tbl_item_location.QuantityOnHand, tbl_item.StandardCost]
+  tags: [inventory, aggregation]
+  gold_sql: |
+    SELECT im."Type",
+           COUNT(DISTINCT im."Item") AS item_count,
+           SUM(NULLIF(il."QuantityOnHand", '')::numeric) AS total_qty_on_hand,
+           SUM(NULLIF(il."QuantityOnHand", '')::numeric * im."StandardCost") AS total_value
+    FROM "tbl_item" im
+    JOIN "tbl_item_location" il ON il."Item" = im."Item"
+    WHERE NULLIF(il."QuantityOnHand", '')::numeric > 0
+      AND im."StandardCost" > 0
+    GROUP BY im."Type"
+    ORDER BY total_value DESC NULLS LAST;
+
+- id: trx_inv_items_above_max
+  family: 34
+  difficulty: medium
+  question: "Which items at HUDW have quantity on hand above the maximum shelf quantity?"
+  tables: [tbl_item_location, tbl_item]
+  columns: [tbl_item_location.QuantityOnHand, tbl_item_location.MaxShelfQty, tbl_item_location.Location, tbl_item.Description]
+  tags: [inventory, location]
+  gold_sql: |
+    SELECT il."Item", im."Description",
+           NULLIF(il."QuantityOnHand", '')::numeric AS qty_on_hand,
+           NULLIF(il."MaxShelfQty", '')::numeric AS max_shelf_qty
+    FROM "tbl_item_location" il
+    JOIN "tbl_item" im ON im."Item" = il."Item"
+    WHERE il."Location" = 'HUDW'
+      AND NULLIF(il."MaxShelfQty", '')::numeric > 0
+      AND NULLIF(il."QuantityOnHand", '')::numeric > NULLIF(il."MaxShelfQty", '')::numeric
+    ORDER BY (NULLIF(il."QuantityOnHand", '')::numeric - NULLIF(il."MaxShelfQty", '')::numeric) DESC;
+
+- id: trx_inv_qty_by_location_item
+  family: 34
+  difficulty: medium
+  question: "What is the total quantity on hand for each item across all locations?"
+  tables: [tbl_item_location, tbl_item]
+  columns: [tbl_item_location.QuantityOnHand, tbl_item.Description, tbl_item.Type]
+  tags: [inventory, aggregation]
+  gold_sql: |
+    SELECT il."Item", im."Description", im."Type",
+           SUM(NULLIF(il."QuantityOnHand", '')::numeric) AS total_qty,
+           COUNT(DISTINCT il."Location") AS location_count
+    FROM "tbl_item_location" il
+    JOIN "tbl_item" im ON im."Item" = il."Item"
+    WHERE im."Type" = 'STOCK'
+    GROUP BY il."Item", im."Description", im."Type"
+    HAVING SUM(NULLIF(il."QuantityOnHand", '')::numeric) > 0
+    ORDER BY total_qty DESC NULLS LAST
+    LIMIT 20;
+
+- id: trx_inv_items_all_locations_year
+  family: 34
+  difficulty: hard
+  question: "Which items were ordered on SOs but have no stock at any location in {year}?"
+  tables: [tbl_sales_order, tbl_so_line, tbl_item_location]
+  columns: [tbl_so_line.Item, tbl_sales_order.DateOrdered, tbl_item_location.QuantityOnHand]
+  tags: [inventory, anti_join, temporal]
+  gold_sql: |
+    SELECT DISTINCT sl."Item"
+    FROM "tbl_so_line" sl
+    JOIN "tbl_sales_order" s ON s."SONumber" = sl."SONumber"
+    WHERE EXTRACT(YEAR FROM s."DateOrdered") = {year}
+      AND sl."Item" IS NOT NULL AND sl."Item" != ''
+      AND NOT EXISTS (
+        SELECT 1 FROM "tbl_item_location" il
+        WHERE il."Item" = sl."Item"
+          AND NULLIF(il."QuantityOnHand", '')::numeric > 0
+      )
+    ORDER BY sl."Item";
