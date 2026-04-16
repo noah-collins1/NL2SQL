@@ -18,4 +18,4 @@ CREATE TABLE IF NOT EXISTS rag.module_definitions (
 COMMENT ON TABLE  rag.module_definitions IS 'Per-database module definitions for the module router. Keywords drive fast keyword matching; description is embedded for cosine-similarity routing.';
 COMMENT ON COLUMN rag.module_definitions.description IS 'Rich text description of the module — embedded via nomic-embed-text for semantic module routing.';
 COMMENT ON COLUMN rag.module_definitions.keywords IS 'Lowercase keyword tokens. Any token match scores 1.0 for this module in the keyword router.';
-COMMENT ON COLUMN rag.module_definitions.table_prefixes IS 'Table name prefixes (e.g. tblso) used by setup_rag.py to assign modules to tables.';
+COMMENT ON COLUMN rag.module_definitions.table_prefixes IS 'Table name prefixes (e.g. tbl_so) used by setup_rag.py to assign modules to tables.';
